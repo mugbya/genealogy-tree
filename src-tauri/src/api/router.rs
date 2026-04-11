@@ -50,6 +50,9 @@ pub fn create_router(db: Arc<Mutex<Connection>>, dist_path: Option<PathBuf>) -> 
         .route("/api/relation-tags", post(handlers::create_relation_tag))
         .route("/api/relation-tags/:id", put(handlers::update_relation_tag))
         .route("/api/relation-tags/:id", delete(handlers::delete_relation_tag))
+        // System info (public - no auth required)
+        .route("/api/system/info", get(handlers::get_system_info))
+        .route("/api/system/network-interfaces", get(handlers::get_network_interfaces))
         .layer(cors)
         .with_state(db);
 

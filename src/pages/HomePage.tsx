@@ -18,29 +18,11 @@ import {
 import { cn } from "@/lib/utils";
 import { useState, useEffect, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { systemApi, SystemInfo, NetworkInterface } from "@/api/client";
 
-// CPU 核心类型
-interface CpuCore {
-  name: string;
-  usage: number;
-}
-
-// 系统信息类型
-interface SystemInfo {
-  version: string;
-  cpu_cores: CpuCore[];
-  memory_usage: number;
-  total_memory: number;
-  used_memory: number;
-  platform: string;
-}
-
-// 网卡类型
-interface NetworkInterface {
-  name: string;
-  ip: string;
-  is_loopback: boolean;
-}
+// 通过自定义 User-Agent 检测是否为桌面端（WebView）
+const isDesktop = typeof window !== 'undefined' &&
+  navigator.userAgent.includes('GenealogyDesktop')
 
 // 服务状态类型
 interface ServiceStatus {
@@ -75,8 +57,19 @@ export function HomePage() {
   const fetchSystemInfo = useCallback(async () => {
     setIsRefreshing(true);
     try {
-      const info = await invoke<SystemInfo>("get_system_info");
-      setSystemInfo(info);
+      if (isDesktop) {
+        // 桌面端：使用 Tauri invoke
+        const info = await invoke<SystemInfo>("get_system_info");
+        setSystemInfo(info);
+      } else {
+        // 网页版：通过 HTTP API 获取服务端系统信息
+        const result = await systemApi.getSystemInfo();
+        if (result.data) {
+          setSystemInfo(result.data);
+        } else if (result.error) {
+          console.error("Failed to get system info:", result.error);
+        }
+      }
     } catch (err) {
       console.error("Failed to get system info:", err);
     } finally {
@@ -87,8 +80,19 @@ export function HomePage() {
   // 获取网络接口
   const fetchNetworkInterfaces = useCallback(async () => {
     try {
-      const ifaces = await invoke<NetworkInterface[]>("get_network_interfaces");
-      setNetworkInterfaces(ifaces);
+      if (isDesktop) {
+        // 桌面端：使用 Tauri invoke
+        const ifaces = await invoke<NetworkInterface[]>("get_network_interfaces");
+        setNetworkInterfaces(ifaces);
+      } else {
+        // 网页版：通过 HTTP API 获取服务端网络接口
+        const result = await systemApi.getNetworkInterfaces();
+        if (result.data) {
+          setNetworkInterfaces(result.data);
+        } else if (result.error) {
+          console.error("Failed to get network interfaces:", result.error);
+        }
+      }
     } catch (err) {
       console.error("Failed to get network interfaces:", err);
     }

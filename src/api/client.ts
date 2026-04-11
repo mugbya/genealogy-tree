@@ -107,6 +107,41 @@ export const memberRelationsApi = {
   delete: (id: number) => api.delete(`/api/member-relations/${id}`),
 }
 
+// 系统信息 API - 通过 HTTP API 获取（网页版使用）
+export const systemApi = {
+  getSystemInfo: () => api.get<SystemInfo>('/api/system/info'),
+  getNetworkInterfaces: () => api.get<NetworkInterface[]>('/api/system/network-interfaces'),
+}
+
+export interface SystemInfo {
+  version: string
+  cpu_cores: CpuCore[]
+  memory_usage: number
+  total_memory: number
+  used_memory: number
+  disks: DiskInfo[]
+  platform: string
+}
+
+export interface CpuCore {
+  name: string
+  usage: number
+}
+
+export interface DiskInfo {
+  name: string
+  mount_point: string
+  total: number
+  used: number
+  usage: number
+}
+
+export interface NetworkInterface {
+  name: string
+  ip: string
+  is_loopback: boolean
+}
+
 export interface Config {
   id: number
   key: string
