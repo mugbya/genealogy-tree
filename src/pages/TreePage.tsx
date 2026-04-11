@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useMembers, useCreateMember } from '@/hooks/useMembers'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -27,8 +28,19 @@ import {
   ZoomIn,
   ZoomOut,
   TreeDeciduous,
+  Users,
+  Link2,
+  Tag,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+
+// 导航配置
+const navItems = [
+  { path: '/tree', label: '族谱', icon: TreeDeciduous },
+  { path: '/members', label: '成员', icon: Users },
+  { path: '/relations', label: '关系', icon: Link2 },
+  { path: '/tags', label: '标签', icon: Tag },
+]
 
 export function TreePage() {
   const { data: membersData, isLoading } = useMembers()
@@ -57,6 +69,25 @@ export function TreePage() {
 
   return (
     <div className="space-y-6 animate-fade-in">
+      {/* 顶部导航 */}
+      <div className="flex items-center gap-2 p-1 bg-gray-100 rounded-xl w-fit">
+        {navItems.map((item) => {
+          const Icon = item.icon
+          return (
+            <Link
+              key={item.path}
+              to={item.path}
+              className={cn(
+                'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all',
+              )}
+            >
+              <Icon className="w-4 h-4" />
+              {item.label}
+            </Link>
+          )
+        })}
+      </div>
+
       {/* Page Header */}
       <div className="flex items-center justify-between">
         <div>

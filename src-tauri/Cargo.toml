@@ -31,4 +31,6 @@ argon2 = "0.5"
 jsonwebtoken = "9"
 rand = "0.8"
 chrono = { version = "0.4", features = ["serde"] }
+sysinfo = "0.32"
+if-addrs = "0.14"
 
