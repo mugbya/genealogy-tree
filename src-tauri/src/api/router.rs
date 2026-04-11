@@ -2,19 +2,21 @@ use axum::{
     routing::{delete, get, post, put},
     Router,
 };
-use std::sync::{Arc, Mutex};
+use std::{path::PathBuf, sync::{Arc, Mutex}};
 use tower_http::cors::{Any, CorsLayer};
+use tower_http::services::fs::ServeDir;
+use axum::routing::get_service;
 use rusqlite::Connection;
 
 use crate::api::handlers;
 
-pub fn create_router(db: Arc<Mutex<Connection>>) -> Router {
+pub fn create_router(db: Arc<Mutex<Connection>>, dist_path: Option<PathBuf>) -> Router {
     let cors = CorsLayer::new()
         .allow_origin(Any)
         .allow_methods(Any)
         .allow_headers(Any);
 
-    Router::new()
+    let api_router = Router::new()
         // Health check
         .route("/api/health", get(handlers::health_check))
         // Auth (public)
@@ -49,5 +51,12 @@ pub fn create_router(db: Arc<Mutex<Connection>>) -> Router {
         .route("/api/relation-tags/:id", put(handlers::update_relation_tag))
         .route("/api/relation-tags/:id", delete(handlers::delete_relation_tag))
         .layer(cors)
-        .with_state(db)
+        .with_state(db);
+
+    if let Some(dist_path) = dist_path {
+        let static_service = get_service(ServeDir::new(dist_path));
+        api_router.fallback(static_service)
+    } else {
+        api_router
+    }
 }
