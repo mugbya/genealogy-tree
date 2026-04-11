@@ -6,7 +6,7 @@
 
 该项目是一个"本地服务端 + 多客户端"架构——数据私密性高（用户不想把家族信息上传到云端），但又需要多设备访问
 
-## 系统架构 
+## 系统架构
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -17,7 +17,13 @@
 │  │  │  Rust 后端   │  │  SQLite     │  │  本地 Web    │  │
 │  │  │  HTTP API   │◄─┤  (族谱数据)  │  │  前端界面     │  │
 │  │  │  端口: 8080  │  │  + 媒体文件  │  │  (React)     │  │
-│  │  └──────┬──────┘  └─────────────┘  └──────────────┘  │  │
+│  │  └──────┬──────┘  └─────────────┘  └───────┬──────┘  │  │
+│  │         │                                    │          │  │
+│  │         │    ┌──────────────────────────────┴────┐    │  │
+│  │         │    │  HTTP Server (axum)                │    │  │
+│  │         │    │  - 端口 8080                        │    │  │
+│  │         │    │  - 同时提供 API 和静态文件服务        │    │  │
+│  │         │    └─────────────────────────────────────┘    │  │
 │  │         │                                            │  │
 │  │  ┌──────▼──────┐  系统托盘后台运行                     │  │
 │  │  │  WebView    │  开机自启                            │  │
@@ -26,13 +32,13 @@
 │  │  └─────────────┘                                      │  │
 │  └───────────────────────────────────────────────────────┘  │
 └──────────────────────────┬──────────────────────────────────┘
-                           │ HTTP/WebSocket (局域网)
+                           │ HTTP (局域网/公网)
         ┌──────────────────┼──────────────────┐
         ▼                  ▼                  ▼
 ┌──────────────┐   ┌──────────────┐   ┌──────────────┐
 │   iOS App    │   │  Android App │   │   浏览器     │
 │  (Tauri v2   │   │  (Tauri v2   │   │  (任何设备)  │
-│   或 Swift)  │   │   或 Flutter)│   │              │
+│   或 Swift)  │   │   或 Flutter)│   │  http://IP:8080│
 └──────────────┘   └──────────────┘   └──────────────┘
 ```
 
@@ -43,8 +49,8 @@
 - 家谱树生成与导航
 - 个人信息管理 (姓名、出生日期、死亡日期、出生地、工作等)
 - 本地存储与同步 (SQLite 数据库)
-- 家庭网运行程序，可以支持纯离线模式，也支持允许公网访问(通过frpc 进行内网穿透)
-
+- **局域网浏览器访问**: 桌面端启动 HTTP 服务器 (端口 8080)，提供 API 和前端页面
+- 桌面端与浏览器端差异化登录/注册体验
 
 #### 族谱软件功能点描述
 1. 支持创建家族，但是该功能通过配置来控制，默认不支持创建家族，只有通过配置开启才可以创建家族。如果没有开启，用看到的是当前我的家族
@@ -87,6 +93,7 @@
 | 构建工具 | Vite 7.0.4 |
 | 桌面框架 | Tauri 2.x |
 | 后端语言 | Rust |
+| HTTP 服务 | Axum 0.7 |
 | 包管理器 | pnpm 10.11.0 |
 | 数据库 | SQLite 3 |
 | 可视化图表库 | react-d3-tree 3.6.6 |
@@ -98,12 +105,33 @@ genealogy/
 ├── src/                          # React 前端源码
 │   ├── main.tsx                  # React 入口
 │   ├── App.tsx                   # 主应用组件
-│   └── App.css                   # 主样式
+│   ├── pages/
+│   │   ├── LoginPage.tsx         # 登录/注册页面
+│   │   ├── HomePage.tsx          # 首页
+│   │   ├── TreePage.tsx          # 族谱树页面
+│   │   └── UsersPage.tsx         # 用户管理页面
+│   ├── components/
+│   │   ├── Layout.tsx            # 主布局组件
+│   │   └── ui/                   # UI 组件库
+│   ├── api/
+│   │   └── client.ts             # API 客户端
+│   └── stores/
+│       └── index.ts              # 状态管理
 │
 ├── src-tauri/                    # Tauri/Rust 后端
 │   ├── src/
-│   │   ├── lib.rs                # Rust 库入口
-│   │   └── main.rs               # Rust 程序入口
+│   │   ├── lib.rs                # Rust 库入口 (启动逻辑)
+│   │   ├── api/                  # HTTP API
+│   │   │   ├── mod.rs
+│   │   │   ├── router.rs         # 路由配置
+│   │   │   └── handlers/         # API 处理器
+│   │   │       ├── mod.rs
+│   │   │       ├── auth.rs       # 认证 API
+│   │   │       ├── members.rs    # 成员 API
+│   │   │       └── ...
+│   │   ├── auth.rs               # JWT 认证
+│   │   ├── db.rs                 # 数据库初始化
+│   │   └── models.rs             # 数据模型
 │   ├── Cargo.toml                # Rust 依赖
 │   └── tauri.conf.json           # Tauri 配置
 │
@@ -123,31 +151,110 @@ genealogy/
 
 ## 关键文件
 
-- `src-tauri/src/lib.rs` - Rust 后端命令入口
-- `src/App.tsx` - React 主组件
-- `src-tauri/tauri.conf.json` - 桌面窗口配置
+- `src-tauri/src/lib.rs` - Rust 后端启动入口，HTTP 服务器初始化
+- `src-tauri/src/api/router.rs` - Axum 路由配置，API + 静态文件服务
+- `src-tauri/tauri.conf.json` - 桌面窗口配置（User-Agent 等）
+- `src/pages/LoginPage.tsx` - 登录/注册页面，区分桌面端和浏览器端
 
-## 架构说明
+## 已实现功能
 
+### 1. 浏览器访问支持
+
+桌面端启动 HTTP 服务器 (端口 8080)，同时提供：
+- **API 服务**: `/api/*` 路由
+- **静态文件服务**: 前端页面 (SPA)
+
+```rust
+// src-tauri/src/lib.rs
+// HTTP 服务器在 .setup() 中启动，确保窗口先显示
+std::thread::spawn(move || {
+    let app = api::create_router(http_db, Some(dist_path));
+    let listener = tokio::net::TcpListener::bind("0.0.0.0:8080").await.unwrap();
+    axum::serve(listener, app).await.unwrap();
+});
 ```
-┌─────────────────────────────┐
-│    Tauri Desktop App        │
-├─────────────────────────────┤
-│  Frontend (React)           │◄──►  Backend (Rust)
-│  - Components               │     - Commands
-│  - State Management         │     - Data Processing
-│  - UI/UX                    │     - File I/O
-└─────────────────────────────┘
+
+### 2. 桌面端与浏览器端区分
+
+通过自定义 User-Agent `GenealogyDesktop/1.0` 区分客户端类型：
+
+```json
+// tauri.conf.json
+{
+  "app": {
+    "windows": [{
+      "userAgent": "GenealogyDesktop/1.0"
+    }]
+  }
+}
 ```
 
-## 待补充
+前端检测逻辑：
+```tsx
+// src/pages/LoginPage.tsx
+const isDesktop = navigator.userAgent.includes('GenealogyDesktop')
+```
 
-- [ ] 族谱数据模型设计
-- [ ] 核心功能模块规划
-- [ ] 组件结构设计
-- [ ] 状态管理方案
-- [ ] 数据存储方案
+### 3. 差异化登录/注册体验
+
+| 客户端 | 行为 |
+|--------|------|
+| **桌面端** | 显示登录页面，提供"首次使用？创建管理员账号"切换按钮 |
+| **浏览器端** | 仅显示登录页面，提示"联系管理员创建账号" |
+
+### 4. 数据库路径
+
+使用 Tauri 的 `app_data_dir()` 获取应用数据目录，确保数据库路径正确：
+
+```rust
+let app_data_dir = app.path().app_data_dir().expect("Failed to get app data dir");
+let db_path = app_data_dir.join(".genealogy.db");
+```
+
+### 5. 前端静态文件打包
+
+`dist` 文件夹通过 `resources` 配置打包到 app bundle：
+
+```json
+// tauri.conf.json
+{
+  "bundle": {
+    "resources": {
+      "../dist": "dist"
+    }
+  }
+}
+```
+
+### 6. 注册后自动登录
+
+注册 API 成功后自动生成 token 并返回用户信息：
+
+```rust
+// src-tauri/src/api/handlers/auth.rs
+match create_token(id, &req.username, &role) {
+    Ok(token) => {
+        let response = LoginResponse { token, user };
+        (StatusCode::CREATED, Json(json!({ "data": response })))
+    }
+    Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, ...),
+}
+```
+
+## API 路由
+
+| 方法 | 路径 | 说明 | 认证 |
+|------|------|------|------|
+| GET | `/api/health` | 健康检查 | 否 |
+| POST | `/api/auth/register` | 注册账号 | 否 |
+| POST | `/api/auth/login` | 登录 | 否 |
+| GET | `/api/users/me` | 获取当前用户 | 是 |
+| GET | `/api/admin/users` | 获取所有用户 | 管理员 |
+| GET/POST | `/api/members` | 成员列表/创建 | - |
+| GET/PUT/DELETE | `/api/members/:id` | 成员详情/更新/删除 | - |
+| GET/POST | `/api/member-relations` | 关系列表/创建 | - |
+| GET/POST | `/api/relation-tags` | 标签列表/创建 | - |
 
 ---
 
-**最后更新**: 2026-04-10
+**最后更新**: 2026-04-11
