@@ -308,7 +308,7 @@ export function TreePage() {
         <TabsContent value="list" className="flex-1 min-h-0 mt-4">
           <div className="h-full flex gap-4">
             {/* 左侧：成员列表 */}
-            <Card className="w-96 shrink-0 border-0 shadow-sm flex flex-col">
+            <Card className="w-[580px] shrink-0 border-0 shadow-sm flex flex-col">
               <CardHeader className="pb-3 shrink-0">
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-lg font-semibold flex items-center gap-2">
