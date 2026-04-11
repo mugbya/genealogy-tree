@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import React, { useState, useMemo } from 'react'
 import { useMembers, useCreateMember, useUpdateMember, useDeleteMember } from '@/hooks/useMembers'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
 import { Avatar } from '@/components/ui/avatar'
+import { Switch } from '@/components/ui/switch'
 import { GenealogyTree } from '@/components/TreeNode'
 import { relationTagsApi, type Member, type RelationTag, type CreateMemberInput } from '@/api/client'
 import {
@@ -39,6 +40,8 @@ import {
   Edit2,
   Trash2,
   Users,
+  Heart,
+  X,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -78,6 +81,52 @@ export function TreePage() {
 
   // 标签状态
   const [tags, setTags] = useState<RelationTag[]>([])
+  const [selectedTagIds, setSelectedTagIds] = useState<number[]>([])
+
+  // 配偶状态 - 支持多配偶，每个配偶有各自的标签
+  const [selectedSpouseIds, setSelectedSpouseIds] = useState<number[]>([])
+  const [spouseTagsBySpouseId, setSpouseTagsBySpouseId] = useState<Record<number, number[]>>({})
+
+  // 切换标签选择
+  const toggleTag = (tagId: number) => {
+    setSelectedTagIds(prev =>
+      prev.includes(tagId)
+        ? prev.filter(id => id !== tagId)
+        : [...prev, tagId]
+    )
+  }
+
+  // 切换配偶选择
+  const toggleSpouse = (spouseId: number) => {
+    setSelectedSpouseIds(prev =>
+      prev.includes(spouseId)
+        ? prev.filter(id => id !== spouseId)
+        : [...prev, spouseId]
+    )
+  }
+
+  // 切换单个配偶的标签选择
+  const toggleSpouseTag = (spouseId: number, tagId: number) => {
+    setSpouseTagsBySpouseId(prev => {
+      const spouseTags = prev[spouseId] || []
+      return {
+        ...prev,
+        [spouseId]: spouseTags.includes(tagId)
+          ? spouseTags.filter(id => id !== tagId)
+          : [...spouseTags, tagId]
+      }
+    })
+  }
+
+  // 移除配偶及其标签
+  const removeSpouse = (spouseId: number) => {
+    setSelectedSpouseIds(prev => prev.filter(id => id !== spouseId))
+    setSpouseTagsBySpouseId(prev => {
+      const newState = { ...prev }
+      delete newState[spouseId]
+      return newState
+    })
+  }
 
   // 编辑表单
   const [editForm, setEditForm] = useState<Partial<CreateMemberInput>>({})
@@ -167,19 +216,10 @@ export function TreePage() {
 
   return (
     <div className="h-[calc(100vh-8rem)] flex flex-col animate-fade-in">
-      {/* 页面标题和操作 */}
-      <div className="flex items-center justify-between mb-4 shrink-0">
-        <div>
-          <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">族谱管理</h1>
-          <p className="text-muted-foreground mt-1">管理家族成员信息</p>
-        </div>
-        <Button
-          onClick={handleOpenCreate}
-          className="gap-2 bg-gray-900 hover:bg-gray-800"
-        >
-          <Plus className="w-4 h-4" />
-          添加成员
-        </Button>
+      {/* 页面标题 */}
+      <div className="mb-4 shrink-0">
+        <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">族谱管理</h1>
+        <p className="text-muted-foreground mt-1">管理家族成员信息</p>
       </div>
 
       {/* Tabs */}
@@ -205,11 +245,21 @@ export function TreePage() {
             {/* 左侧：成员列表 */}
             <Card className="w-96 shrink-0 border-0 shadow-sm flex flex-col">
               <CardHeader className="pb-3 shrink-0">
-                <CardTitle className="text-lg font-semibold flex items-center gap-2">
-                  <Users className="w-5 h-5" />
-                  成员列表
-                  <Badge variant="outline">{filteredMembers.length}</Badge>
-                </CardTitle>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-lg font-semibold flex items-center gap-2">
+                    <Users className="w-5 h-5" />
+                    成员列表
+                    <Badge variant="outline">{filteredMembers.length}</Badge>
+                  </CardTitle>
+                  <Button
+                    size="sm"
+                    onClick={handleOpenCreate}
+                    className="gap-1 bg-gray-900 hover:bg-gray-800"
+                  >
+                    <Plus className="w-3 h-3" />
+                    新增家族成员
+                  </Button>
+                </div>
                 {/* 搜索 */}
                 <div className="relative mt-3">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -276,6 +326,11 @@ export function TreePage() {
                               >
                                 {member.gender === 'male' ? '男' : '女'}
                               </Badge>
+                              {member.is_deceased && (
+                                <Badge variant="outline" className="text-xs text-zinc-500">
+                                  已离世
+                                </Badge>
+                              )}
                             </div>
                             <p className="text-xs text-zinc-500 truncate">
                               {member.birth_date || '无出生日期'}
@@ -376,8 +431,14 @@ export function TreePage() {
                           <Clock className="w-5 h-5 text-indigo-600" />
                         </div>
                         <div>
-                          <p className="text-xs text-muted-foreground">逝世日期</p>
-                          <p className="font-medium text-gray-900">{selectedMember.death_date || '在世'}</p>
+                          <p className="text-xs text-muted-foreground">状态</p>
+                          <p className="font-medium text-gray-900">
+                            {selectedMember.is_deceased ? (
+                              <span className="text-zinc-500">已离世</span>
+                            ) : (
+                              <span className="text-green-600">在世</span>
+                            )}
+                          </p>
                         </div>
                       </div>
                     </div>
@@ -593,6 +654,20 @@ export function TreePage() {
         onSubmit={handleCreateSubmit}
         isLoading={createMember.isPending}
         title="添加成员"
+        tags={tags}
+        selectedTagIds={selectedTagIds}
+        onToggleTag={toggleTag}
+        members={members}
+        fatherId={undefined}
+        motherId={undefined}
+        onFatherChange={() => {}}
+        onMotherChange={() => {}}
+        selectedSpouseIds={selectedSpouseIds}
+        onToggleSpouse={toggleSpouse}
+        spouseTagsBySpouseId={spouseTagsBySpouseId}
+        onToggleSpouseTag={toggleSpouseTag}
+        onRemoveSpouse={removeSpouse}
+        onCreateTag={() => setIsCreateTagOpen(true)}
       />
 
       {/* Edit Member Dialog */}
@@ -608,6 +683,20 @@ export function TreePage() {
         isLoading={updateMember.isPending}
         title="编辑成员"
         initialData={editForm}
+        tags={tags}
+        selectedTagIds={selectedTagIds}
+        onToggleTag={toggleTag}
+        members={members}
+        fatherId={undefined}
+        motherId={undefined}
+        onFatherChange={() => {}}
+        onMotherChange={() => {}}
+        selectedSpouseIds={selectedSpouseIds}
+        onToggleSpouse={toggleSpouse}
+        spouseTagsBySpouseId={spouseTagsBySpouseId}
+        onToggleSpouseTag={toggleSpouseTag}
+        onRemoveSpouse={removeSpouse}
+        onCreateTag={() => setIsCreateTagOpen(true)}
       />
 
       {/* Create Tag Dialog */}
@@ -705,6 +794,20 @@ interface MemberFormDialogProps {
   isLoading: boolean
   title: string
   initialData?: Partial<CreateMemberInput>
+  tags: RelationTag[]
+  selectedTagIds: number[]
+  onToggleTag: (tagId: number) => void
+  members: Member[]
+  fatherId?: number
+  motherId?: number
+  onFatherChange: (id?: number) => void
+  onMotherChange: (id?: number) => void
+  selectedSpouseIds: number[]
+  onToggleSpouse: (spouseId: number) => void
+  spouseTagsBySpouseId: Record<number, number[]>
+  onToggleSpouseTag: (spouseId: number, tagId: number) => void
+  onRemoveSpouse: (spouseId: number) => void
+  onCreateTag: () => void
 }
 
 function MemberFormDialog({
@@ -714,12 +817,27 @@ function MemberFormDialog({
   isLoading,
   title,
   initialData,
+  tags,
+  selectedTagIds,
+  onToggleTag,
+  members,
+  fatherId,
+  motherId,
+  onFatherChange,
+  onMotherChange,
+  selectedSpouseIds,
+  onToggleSpouse,
+  spouseTagsBySpouseId,
+  onToggleSpouseTag,
+  onRemoveSpouse,
+  onCreateTag,
 }: MemberFormDialogProps) {
   const [form, setForm] = useState<CreateMemberInput>({
     name: '',
     gender: 'male',
     birth_date: undefined,
     death_date: undefined,
+    is_deceased: undefined,
     birth_place: '',
     occupation: '',
     biography: '',
@@ -727,20 +845,21 @@ function MemberFormDialog({
   })
 
   // 当 initialData 变化时更新 form
-  useState(() => {
+  React.useEffect(() => {
     if (initialData) {
       setForm({
         name: initialData.name || '',
         gender: initialData.gender || 'male',
         birth_date: initialData.birth_date,
         death_date: initialData.death_date,
+        is_deceased: initialData.is_deceased,
         birth_place: initialData.birth_place || '',
         occupation: initialData.occupation || '',
         biography: initialData.biography || '',
         remarkable_deeds: initialData.remarkable_deeds || '',
       })
     }
-  })
+  }, [initialData])
 
   const handleSubmit = () => {
     if (!form.name.trim()) return
@@ -751,6 +870,7 @@ function MemberFormDialog({
       gender: 'male',
       birth_date: undefined,
       death_date: undefined,
+      is_deceased: undefined,
       birth_place: '',
       occupation: '',
       biography: '',
@@ -758,9 +878,15 @@ function MemberFormDialog({
     })
   }
 
-  const handleChange = (field: keyof CreateMemberInput, value: string | undefined) => {
+  const handleChange = (field: keyof CreateMemberInput, value: string | number | boolean | undefined) => {
     setForm(prev => ({ ...prev, [field]: value }))
   }
+
+  // 按分类分组标签
+  const tagsByType = TAG_TYPES.reduce((acc, type) => {
+    acc[type.value] = tags.filter(t => t.tag_type === type.value)
+    return acc
+  }, {} as Record<string, RelationTag[]>)
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -773,7 +899,7 @@ function MemberFormDialog({
             {title}
           </DialogTitle>
         </DialogHeader>
-        <div className="flex-1 overflow-y-auto py-4 space-y-4">
+        <div className="flex-1 overflow-y-auto py-4 space-y-6">
           {/* Name & Gender */}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
@@ -801,7 +927,7 @@ function MemberFormDialog({
             </div>
           </div>
 
-          {/* Birth & Death Dates */}
+          {/* Birth Date & Death Date */}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <label className="text-sm font-medium flex items-center gap-1">
@@ -821,14 +947,41 @@ function MemberFormDialog({
                 <Clock className="w-3.5 h-3.5" />
                 逝世日期
               </label>
-              <Input
-                type="text"
-                value={form.death_date || ''}
-                onChange={(e) => handleChange('death_date', e.target.value || undefined)}
-                placeholder="YYYY-MM-DD"
-                className="h-11"
-              />
+              <div className="flex items-center gap-2">
+                <Input
+                  type="text"
+                  value={form.death_date || ''}
+                  onChange={(e) => {
+                    const value = e.target.value || undefined
+                    handleChange('death_date', value)
+                    // 如果填写了逝世日期，自动设置 is_deceased 为 true
+                    if (value) {
+                      handleChange('is_deceased', true)
+                    }
+                  }}
+                  placeholder="YYYY-MM-DD（选填）"
+                  className="h-11 flex-1"
+                />
+                {form.death_date && (
+                  <span className="px-2 py-1 bg-zinc-100 rounded text-xs text-zinc-600">已离世</span>
+                )}
+              </div>
             </div>
+          </div>
+
+          {/* Is Deceased Toggle */}
+          <div className="flex items-center gap-3 p-3 bg-zinc-50 rounded-lg">
+            <Switch
+              checked={form.is_deceased || false}
+              onCheckedChange={(checked) => handleChange('is_deceased', checked)}
+              disabled={!!form.death_date}
+            />
+            <span className="text-sm text-zinc-600">
+              {form.is_deceased ? '已离世' : '在世'}
+            </span>
+            {form.death_date && (
+              <span className="text-xs text-zinc-400">（逝世日期已填写，自动设为已离世）</span>
+            )}
           </div>
 
           {/* Birth Place */}
@@ -859,6 +1012,187 @@ function MemberFormDialog({
             />
           </div>
 
+          {/* Parent Relations */}
+          <div className="space-y-3">
+            <label className="text-sm font-medium flex items-center gap-1">
+              <Users className="w-3.5 h-3.5" />
+              父母关系
+            </label>
+            <div className="grid grid-cols-2 gap-4">
+              <Select
+                value={fatherId?.toString() || ''}
+                onChange={(e) => onFatherChange(e.target.value ? parseInt(e.target.value) : undefined)}
+                options={[
+                  { value: '', label: '选择父亲（可选）' },
+                  ...members
+                    .filter(m => m.gender === 'male')
+                    .map(m => ({ value: m.id.toString(), label: m.name }))
+                ]}
+                className="h-11"
+              />
+              <Select
+                value={motherId?.toString() || ''}
+                onChange={(e) => onMotherChange(e.target.value ? parseInt(e.target.value) : undefined)}
+                options={[
+                  { value: '', label: '选择母亲（可选）' },
+                  ...members
+                    .filter(m => m.gender === 'female')
+                    .map(m => ({ value: m.id.toString(), label: m.name }))
+                ]}
+                className="h-11"
+              />
+            </div>
+          </div>
+
+          {/* Spouse Relations */}
+          <div className="space-y-3">
+            <label className="text-sm font-medium flex items-center gap-1">
+              <Heart className="w-3.5 h-3.5" />
+              配偶关系
+            </label>
+
+            {/* 已选择的配偶列表 */}
+            {selectedSpouseIds.length > 0 && (
+              <div className="space-y-3">
+                {selectedSpouseIds.map(spouseId => {
+                  const spouse = members.find(m => m.id === spouseId)
+                  if (!spouse) return null
+                  const spouseTags = spouseTagsBySpouseId[spouseId] || []
+                  return (
+                    <div key={spouseId} className="p-3 bg-zinc-50 rounded-lg space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Avatar
+                            size="sm"
+                            fallback={spouse.name.charAt(0)}
+                            gender={spouse.gender as "male" | "female"}
+                          />
+                          <span className="font-medium text-sm">{spouse.name}</span>
+                          <Badge variant={spouse.gender === 'male' ? 'default' : 'danger'} className="text-xs">
+                            {spouse.gender === 'male' ? '男' : '女'}
+                          </Badge>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => onRemoveSpouse(spouseId)}
+                          className="text-zinc-400 hover:text-red-500"
+                        >
+                          <X className="w-4 h-4" />
+                        </Button>
+                      </div>
+                      {/* 配偶标签选择 */}
+                      {tagsByType['spouse'] && tagsByType['spouse'].length > 0 ? (
+                        <div className="flex flex-wrap gap-1.5">
+                          {tagsByType['spouse'].map(tag => (
+                            <button
+                              key={tag.id}
+                              type="button"
+                              onClick={() => onToggleSpouseTag(spouseId, tag.id)}
+                              className={cn(
+                                'px-2.5 py-1 rounded-full text-xs font-medium transition-all',
+                                spouseTags.includes(tag.id)
+                                  ? 'ring-2 ring-offset-1'
+                                  : 'opacity-60 hover:opacity-100'
+                              )}
+                              style={{
+                                backgroundColor: tag.color + '20',
+                                color: tag.color,
+                              }}
+                            >
+                              {tag.name}
+                            </button>
+                          ))}
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={onCreateTag}
+                          className="text-xs text-indigo-600 hover:text-indigo-700 flex items-center gap-1 py-1"
+                        >
+                          <Plus className="w-3 h-3" />
+                          创建配偶关系标签
+                        </button>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+
+            {/* 添加配偶下拉 */}
+            <Select
+              value={''}
+              onChange={(e) => {
+                const id = parseInt(e.target.value)
+                if (id && !selectedSpouseIds.includes(id)) {
+                  onToggleSpouse(id)
+                }
+              }}
+              options={[
+                { value: '', label: selectedSpouseIds.length > 0 ? '添加更多配偶' : '选择配偶（可选）' },
+                ...members
+                  .filter(m => m.id !== fatherId && m.id !== motherId && m.gender !== form.gender && !selectedSpouseIds.includes(m.id))
+                  .map(m => ({ value: m.id.toString(), label: `${m.name} (${m.gender === 'male' ? '男' : '女'})` }))
+              ]}
+              className="h-11"
+            />
+          </div>
+
+          {/* 个人标签 */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <label className="text-sm font-medium flex items-center gap-1">
+                <TagIcon className="w-3.5 h-3.5" />
+                个人标签
+              </label>
+              <button
+                type="button"
+                onClick={onCreateTag}
+                className="text-xs text-indigo-600 hover:text-indigo-700 flex items-center gap-1"
+              >
+                <Plus className="w-3 h-3" />
+                创建新标签
+              </button>
+            </div>
+            <div className="space-y-3">
+              {TAG_TYPES.filter(t => ['parent_child', 'sibling', 'special'].includes(t.value)).map(tagType => {
+                const typeTags = tagsByType[tagType.value]
+                if (!typeTags || typeTags.length === 0) return null
+                return (
+                  <div key={tagType.value} className="space-y-1.5">
+                    <p className="text-xs text-zinc-500">{tagType.label}</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {typeTags.map(tag => (
+                        <button
+                          key={tag.id}
+                          type="button"
+                          onClick={() => onToggleTag(tag.id)}
+                          className={cn(
+                            'px-2.5 py-1 rounded-full text-xs font-medium transition-all',
+                            selectedTagIds.includes(tag.id)
+                              ? 'ring-2 ring-offset-1'
+                              : 'opacity-70 hover:opacity-100'
+                          )}
+                          style={{
+                            backgroundColor: tag.color + '20',
+                            color: tag.color,
+                            borderColor: tag.color,
+                          }}
+                        >
+                          {tag.name}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )
+              })}
+              {tags.filter(t => ['parent_child', 'sibling', 'special'].includes(t.tag_type)).length === 0 && (
+                <p className="text-sm text-zinc-400 py-2">暂无个人标签，点击"创建新标签"添加</p>
+              )}
+            </div>
+          </div>
+
           {/* Biography */}
           <div className="space-y-2">
             <label className="text-sm font-medium flex items-center gap-1">
@@ -869,7 +1203,7 @@ function MemberFormDialog({
               value={form.biography}
               onChange={(e) => handleChange('biography', e.target.value)}
               placeholder="请输入成员的生平简介..."
-              className="w-full min-h-[100px] px-3 py-2 rounded-lg border border-zinc-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 resize-none text-sm"
+              className="w-full min-h-[80px] px-3 py-2 rounded-lg border border-zinc-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 resize-none text-sm"
             />
           </div>
 
@@ -883,7 +1217,7 @@ function MemberFormDialog({
               value={form.remarkable_deeds}
               onChange={(e) => handleChange('remarkable_deeds', e.target.value)}
               placeholder="记录成员的突出成就、贡献或英雄事迹..."
-              className="w-full min-h-[100px] px-3 py-2 rounded-lg border border-zinc-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 resize-none text-sm"
+              className="w-full min-h-[80px] px-3 py-2 rounded-lg border border-zinc-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 resize-none text-sm"
             />
           </div>
         </div>

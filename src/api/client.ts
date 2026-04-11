@@ -162,6 +162,7 @@ export interface Member {
   generation?: number
   birth_date?: string
   death_date?: string
+  is_deceased?: boolean
   birth_place?: string
   occupation?: string
   photo_path?: string
@@ -176,6 +177,7 @@ export interface CreateMemberInput {
   gender: string
   birth_date?: string
   death_date?: string
+  is_deceased?: boolean
   birth_place?: string
   occupation?: string
   photo_path?: string
@@ -189,6 +191,7 @@ export interface UpdateMemberInput {
   generation?: number
   birth_date?: string
   death_date?: string
+  is_deceased?: boolean
   birth_place?: string
   occupation?: string
   photo_path?: string
