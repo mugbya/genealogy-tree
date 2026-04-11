@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useRef } from 'react'
 import { useMembers, useCreateMember, useUpdateMember, useDeleteMember } from '@/hooks/useMembers'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge'
 import { Avatar } from '@/components/ui/avatar'
 import { Switch } from '@/components/ui/switch'
 import { GenealogyTree } from '@/components/TreeNode'
-import { relationTagsApi, type Member, type RelationTag, type CreateMemberInput } from '@/api/client'
+import { membersApi, relationTagsApi, type Member, type RelationTag, type CreateMemberInput } from '@/api/client'
 import {
   Dialog,
   DialogContent,
@@ -42,6 +42,8 @@ import {
   Users,
   Heart,
   X,
+  Download,
+  Upload,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -86,6 +88,12 @@ export function TreePage() {
   // 配偶状态 - 支持多配偶，每个配偶有各自的标签
   const [selectedSpouseIds, setSelectedSpouseIds] = useState<number[]>([])
   const [spouseTagsBySpouseId, setSpouseTagsBySpouseId] = useState<Record<number, number[]>>({})
+
+  // 导入状态
+  const [isImporting, setIsImporting] = useState(false)
+  const [importResult, setImportResult] = useState<{ imported: number; updated: number; errors: string[] } | null>(null)
+  const [isImportResultOpen, setIsImportResultOpen] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
 
   // 切换标签选择
   const toggleTag = (tagId: number) => {
@@ -214,6 +222,63 @@ export function TreePage() {
     await loadTags()
   }
 
+  // 导入成员
+  const handleImport = async (file: File) => {
+    setIsImporting(true)
+    try {
+      const arrayBuffer = await file.arrayBuffer()
+      const bytes = new Uint8Array(arrayBuffer)
+      // 手动进行 base64 编码
+      const base64Chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
+      let base64 = ''
+      for (let i = 0; i < bytes.length; i += 3) {
+        const byte1 = bytes[i]
+        const byte2 = bytes[i + 1] ?? 0
+        const byte3 = bytes[i + 2] ?? 0
+        base64 += base64Chars[byte1 >> 2]
+        base64 += base64Chars[((byte1 & 3) << 4) | (byte2 >> 4)]
+        base64 += base64Chars[((byte2 & 15) << 2) | (byte3 >> 6)]
+        base64 += base64Chars[byte3 & 63]
+      }
+      // 补齐 padding
+      const padding = (3 - (bytes.length % 3)) % 3
+      if (padding > 0) {
+        base64 = base64.slice(0, -padding) + '=='.slice(0, padding)
+      }
+
+      const result = await membersApi.import(base64)
+      if (result.error) {
+        alert('导入失败: ' + result.error)
+      } else if (result.data) {
+        setImportResult(result.data)
+        setIsImportResultOpen(true)
+        refetch()
+      }
+    } catch (error) {
+      alert('导入失败: ' + error)
+    } finally {
+      setIsImporting(false)
+    }
+  }
+
+  // 下载模板
+  const handleDownloadTemplate = () => {
+    const template = `姓名,性别,出生日期,逝世日期,是否离世,籍贯,职业,父亲,母亲,配偶
+贾演,男,,,,是,京城,官绅,,
+贾代化,男,,,,是,京城,官绅,贾演,,
+贾敬,男,,,,是,京城,道士,贾代化,,
+贾珍,男,,,,是,京城,官绅,贾敬,,
+贾珍配偶,女,,,,是,京城,,贾珍,,`
+
+    const blob = new Blob([template], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = '家族成员导入模板.csv'
+    link.click()
+    URL.revokeObjectURL(url)
+  }
+
   return (
     <div className="h-[calc(100vh-8rem)] flex flex-col animate-fade-in">
       {/* 页面标题 */}
@@ -251,14 +316,48 @@ export function TreePage() {
                     成员列表
                     <Badge variant="outline">{filteredMembers.length}</Badge>
                   </CardTitle>
-                  <Button
-                    size="sm"
-                    onClick={handleOpenCreate}
-                    className="gap-1 bg-gray-900 hover:bg-gray-800"
-                  >
-                    <Plus className="w-3 h-3" />
-                    新增家族成员
-                  </Button>
+                  <div className="flex gap-2 mt-2">
+                    <Button
+                      size="sm"
+                      onClick={handleOpenCreate}
+                      className="gap-1 bg-gray-900 hover:bg-gray-800"
+                    >
+                      <Plus className="w-3 h-3" />
+                      新增
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={isImporting}
+                      className="gap-1"
+                    >
+                      <Upload className="w-3 h-3" />
+                      {isImporting ? '导入中...' : '导入'}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={handleDownloadTemplate}
+                      className="gap-1"
+                    >
+                      <Download className="w-3 h-3" />
+                      模板
+                    </Button>
+                  </div>
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    accept=".xlsx,.xls,.csv"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0]
+                      if (file) {
+                        handleImport(file)
+                        e.target.value = ''
+                      }
+                    }}
+                  />
                 </div>
                 {/* 搜索 */}
                 <div className="relative mt-3">
@@ -778,6 +877,51 @@ export function TreePage() {
               className="gap-2 bg-gray-900 hover:bg-gray-800"
             >
               创建标签
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Import Result Dialog */}
+      <Dialog open={isImportResultOpen} onOpenChange={setIsImportResultOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-semibold flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-green-50 flex items-center justify-center">
+                <Upload className="w-4 h-4 text-green-600" />
+              </div>
+              导入结果
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            {importResult && (
+              <>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="p-3 bg-green-50 rounded-lg text-center">
+                    <p className="text-2xl font-bold text-green-600">{importResult.imported}</p>
+                    <p className="text-sm text-green-600">新增</p>
+                  </div>
+                  <div className="p-3 bg-blue-50 rounded-lg text-center">
+                    <p className="text-2xl font-bold text-blue-600">{importResult.updated}</p>
+                    <p className="text-sm text-blue-600">更新</p>
+                  </div>
+                </div>
+                {importResult.errors.length > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium text-red-600">错误列表：</p>
+                    <div className="max-h-40 overflow-y-auto bg-red-50 rounded-lg p-2 space-y-1">
+                      {importResult.errors.map((error, i) => (
+                        <p key={i} className="text-xs text-red-600">{error}</p>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+          <DialogFooter>
+            <Button onClick={() => setIsImportResultOpen(false)} className="bg-gray-900 hover:bg-gray-800">
+              确定
             </Button>
           </DialogFooter>
         </DialogContent>

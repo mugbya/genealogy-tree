@@ -40,6 +40,7 @@ pub fn create_router(db: Arc<Mutex<Connection>>, dist_path: Option<PathBuf>) -> 
         .route("/api/members/:id", get(handlers::get_member))
         .route("/api/members/:id", put(handlers::update_member))
         .route("/api/members/:id", delete(handlers::delete_member))
+        .route("/api/members/import", post(handlers::import_members))
         // Member relations
         .route("/api/member-relations", get(handlers::get_member_relations))
         .route("/api/member-relations", post(handlers::create_member_relation))

@@ -91,6 +91,13 @@ export const membersApi = {
   create: (data: CreateMemberInput) => api.post<{ id: number }>('/api/members', data),
   update: (id: number, data: UpdateMemberInput) => api.put(`/api/members/${id}`, data),
   delete: (id: number) => api.delete(`/api/members/${id}`),
+  import: (fileContent: string) => api.post<ImportResult>('/api/members/import', { file_content: fileContent }),
+}
+
+export interface ImportResult {
+  imported: number
+  updated: number
+  errors: string[]
 }
 
 export const relationTagsApi = {
