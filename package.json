@@ -1,13 +1,15 @@
 {
   "name": "genealogy",
-  "private": true,
   "version": "0.1.0",
+  "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "seed": "node --experimental-sqlite ./scripts/seed.mjs",
+    "seed:reset": "node --experimental-sqlite ./scripts/seed.mjs"
   },
   "dependencies": {
     "@radix-ui/react-avatar": "^1.1.11",
