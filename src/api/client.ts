@@ -166,6 +166,7 @@ export interface Member {
   occupation?: string
   photo_path?: string
   biography?: string
+  remarkable_deeds?: string
   created_at: string
   updated_at: string
 }
@@ -173,13 +174,13 @@ export interface Member {
 export interface CreateMemberInput {
   name: string
   gender: string
-  generation?: number
   birth_date?: string
   death_date?: string
   birth_place?: string
   occupation?: string
   photo_path?: string
   biography?: string
+  remarkable_deeds?: string
 }
 
 export interface UpdateMemberInput {
@@ -192,6 +193,7 @@ export interface UpdateMemberInput {
   occupation?: string
   photo_path?: string
   biography?: string
+  remarkable_deeds?: string
 }
 
 export interface RelationTag {
