@@ -37,3 +37,26 @@ export function useCreateMember() {
     },
   })
 }
+
+export function useUpdateMember() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ id, data }: { id: number; data: Parameters<typeof membersApi.update>[1] }) =>
+      membersApi.update(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['members'] })
+    },
+  })
+}
+
+export function useDeleteMember() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: membersApi.delete,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['members'] })
+    },
+  })
+}

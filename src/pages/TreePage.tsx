@@ -1,6 +1,5 @@
-import { useState } from 'react'
-import { Link, useLocation } from 'react-router-dom'
-import { useMembers, useCreateMember } from '@/hooks/useMembers'
+import { useState, useMemo } from 'react'
+import { useMembers, useCreateMember, useUpdateMember, useDeleteMember } from '@/hooks/useMembers'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -8,7 +7,7 @@ import { Select } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
 import { Avatar } from '@/components/ui/avatar'
 import { GenealogyTree } from '@/components/TreeNode'
-import { relationTagsApi, type Member, type RelationTag } from '@/api/client'
+import { relationTagsApi, type Member, type RelationTag, type CreateMemberInput } from '@/api/client'
 import {
   Dialog,
   DialogContent,
@@ -17,23 +16,29 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog'
 import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from '@/components/ui/tabs'
+import {
   Plus,
-  X,
+  Search,
   User,
   Calendar,
-  MapPin,
   Briefcase,
   BookOpen,
-  ChevronRight,
   ZoomIn,
   ZoomOut,
   TreeDeciduous,
-  Heart,
   Clock,
   Home,
   Award,
-  Tag,
+  Tag as TagIcon,
   Palette,
+  Edit2,
+  Trash2,
+  Users,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -52,43 +57,43 @@ const DEFAULT_TAG_COLORS = [
   '#a855f7', '#d946ef', '#ec4899', '#f43f5e',
 ]
 
-// 导航配置
-const navItems = [
-  { path: '/tree', label: '族谱', icon: TreeDeciduous },
-]
-
 export function TreePage() {
-  const location = useLocation()
-  const { data: membersData, isLoading } = useMembers()
+  // 成员相关
+  const { data: membersData, isLoading, refetch } = useMembers()
   const createMember = useCreateMember()
-  const [selectedMember, setSelectedMember] = useState<Member | null>(null)
-  const [isCreateOpen, setIsCreateOpen] = useState(false)
-  const [isZoomed, setIsZoomed] = useState(false)
-  const [activeTab, setActiveTab] = useState<'basic' | 'bio' | 'relations'>('basic')
+  const updateMember = useUpdateMember()
+  const deleteMember = useDeleteMember()
 
-  // 标签相关状态
-  const [tags, setTags] = useState<RelationTag[]>([])
-  const [selectedTagIds, setSelectedTagIds] = useState<number[]>([])
+  // 状态
+  const [searchKeyword, setSearchKeyword] = useState('')
+  const [selectedMember, setSelectedMember] = useState<Member | null>(null)
+  const [isZoomed, setIsZoomed] = useState(false)
+  const [isCreateOpen, setIsCreateOpen] = useState(false)
+  const [isEditOpen, setIsEditOpen] = useState(false)
   const [isCreateTagOpen, setIsCreateTagOpen] = useState(false)
   const [newTagName, setNewTagName] = useState('')
   const [newTagType, setNewTagType] = useState('special')
   const [newTagColor, setNewTagColor] = useState(DEFAULT_TAG_COLORS[0])
+  const [activeTab, setActiveTab] = useState('list')
 
-  // 表单数据
-  const [formData, setFormData] = useState({
-    name: '',
-    gender: 'male',
-    birth_date: undefined as string | undefined,
-    death_date: undefined as string | undefined,
-    birth_place: '',
-    occupation: '',
-    biography: '',
-    remarkable_deeds: '',
-    father_id: undefined as number | undefined,
-    mother_id: undefined as number | undefined,
-  })
+  // 标签状态
+  const [tags, setTags] = useState<RelationTag[]>([])
+
+  // 编辑表单
+  const [editForm, setEditForm] = useState<Partial<CreateMemberInput>>({})
 
   const members = membersData?.data || []
+
+  // 过滤成员
+  const filteredMembers = useMemo(() => {
+    if (!searchKeyword.trim()) return members
+    const keyword = searchKeyword.toLowerCase()
+    return members.filter(m =>
+      m.name.toLowerCase().includes(keyword) ||
+      (m.birth_place && m.birth_place.toLowerCase().includes(keyword)) ||
+      (m.occupation && m.occupation.toLowerCase().includes(keyword))
+    )
+  }, [members, searchKeyword])
 
   // 加载标签
   const loadTags = async () => {
@@ -98,591 +103,512 @@ export function TreePage() {
     }
   }
 
-  // 打开创建对话框时加载标签
+  // 打开创建对话框
   const handleOpenCreate = async () => {
     await loadTags()
     setIsCreateOpen(true)
   }
 
-  // 创建新标签
+  // 打开编辑对话框
+  const handleOpenEdit = async (member: Member) => {
+    await loadTags()
+    setSelectedMember(member)
+    setEditForm({
+      name: member.name,
+      gender: member.gender,
+      birth_date: member.birth_date,
+      death_date: member.death_date,
+      birth_place: member.birth_place,
+      occupation: member.occupation,
+      biography: member.biography,
+      remarkable_deeds: member.remarkable_deeds,
+    })
+    setIsEditOpen(true)
+  }
+
+  // 创建成员
+  const handleCreateSubmit = async (data: CreateMemberInput) => {
+    await createMember.mutateAsync(data)
+    setIsCreateOpen(false)
+    refetch()
+  }
+
+  // 更新成员
+  const handleUpdateSubmit = async (data: CreateMemberInput) => {
+    if (!selectedMember) return
+    await updateMember.mutateAsync({ id: selectedMember.id, data })
+    setIsEditOpen(false)
+    setSelectedMember(null)
+    refetch()
+  }
+
+  // 删除成员
+  const handleDelete = async (id: number) => {
+    if (!confirm('确定要删除该成员吗？')) return
+    await deleteMember.mutateAsync(id)
+    if (selectedMember?.id === id) {
+      setSelectedMember(null)
+    }
+    refetch()
+  }
+
+  // 创建标签
   const handleCreateTag = async () => {
     if (!newTagName.trim()) return
-    const result = await relationTagsApi.create({
+    await relationTagsApi.create({
       name: newTagName.trim(),
       tag_type: newTagType,
       color: newTagColor,
     })
-    if (result.data) {
-      await loadTags()
-      setNewTagName('')
-      setNewTagType('special')
-      setNewTagColor(DEFAULT_TAG_COLORS[0])
-      setIsCreateTagOpen(false)
-    }
-  }
-
-  // 切换标签选择
-  const toggleTag = (tagId: number) => {
-    setSelectedTagIds(prev =>
-      prev.includes(tagId)
-        ? prev.filter(id => id !== tagId)
-        : [...prev, tagId]
-    )
-  }
-
-  // Reset form
-  const resetForm = () => {
-    setFormData({
-      name: '',
-      gender: 'male',
-      birth_date: undefined,
-      death_date: undefined,
-      birth_place: '',
-      occupation: '',
-      biography: '',
-      remarkable_deeds: '',
-      father_id: undefined,
-      mother_id: undefined,
-    })
-    setSelectedTagIds([])
-    setActiveTab('basic')
-  }
-
-  const handleCreateSubmit = async () => {
-    if (!formData.name) return
-    await createMember.mutateAsync({
-      name: formData.name,
-      gender: formData.gender,
-      birth_date: formData.birth_date || undefined,
-      death_date: formData.death_date || undefined,
-      birth_place: formData.birth_place || undefined,
-      occupation: formData.occupation || undefined,
-      biography: formData.biography || undefined,
-      remarkable_deeds: formData.remarkable_deeds || undefined,
-    })
-    resetForm()
-    setIsCreateOpen(false)
+    setNewTagName('')
+    setIsCreateTagOpen(false)
+    await loadTags()
   }
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      {/* 顶部导航 */}
-      <div className="flex items-center gap-1 p-1 bg-white/80 backdrop-blur-xl border border-zinc-200/60 rounded-xl shadow-sm w-fit">
-        {navItems.map((item, index) => {
-          const Icon = item.icon
-          const isFirst = index === 0
-          const isLast = index === navItems.length - 1
-          const isActive = location.pathname === item.path
-          return (
-            <Link
-              key={item.path}
-              to={item.path}
-              className={cn(
-                'flex items-center gap-2 px-4 py-2 text-sm font-medium transition-all rounded-lg',
-                isActive
-                  ? 'bg-zinc-900 text-white shadow-sm'
-                  : 'text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100',
-                isFirst && 'rounded-l-lg',
-                isLast && 'rounded-r-lg'
-              )}
-            >
-              <Icon className="w-4 h-4" />
-              {item.label}
-            </Link>
-          )
-        })}
-      </div>
-
-      {/* Page Header */}
-      <div className="flex items-center justify-between">
+    <div className="h-[calc(100vh-8rem)] flex flex-col animate-fade-in">
+      {/* 页面标题和操作 */}
+      <div className="flex items-center justify-between mb-4 shrink-0">
         <div>
-          <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">族谱树</h1>
-          <p className="text-muted-foreground mt-1">可视化家族谱系图</p>
+          <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">族谱管理</h1>
+          <p className="text-muted-foreground mt-1">管理家族成员信息</p>
         </div>
-        <div className="flex items-center gap-3">
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={() => setIsZoomed(!isZoomed)}
-            className="gap-2"
-          >
-            {isZoomed ? <ZoomOut className="w-4 h-4" /> : <ZoomIn className="w-4 h-4" />}
-          </Button>
-          <Button
-            onClick={handleOpenCreate}
-            className="gap-2 bg-gray-900 hover:bg-gray-800"
-          >
-            <Plus className="w-4 h-4" />
-            添加成员
-          </Button>
-        </div>
+        <Button
+          onClick={handleOpenCreate}
+          className="gap-2 bg-gray-900 hover:bg-gray-800"
+        >
+          <Plus className="w-4 h-4" />
+          添加成员
+        </Button>
       </div>
 
-      {/* Main Content Grid */}
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-        {/* Tree View */}
-        <Card className={cn("border-0 shadow-sm xl:col-span-2", selectedMember && "xl:col-span-2")}>
-          <CardContent className="p-0">
-            {isLoading ? (
-              <div className="flex items-center justify-center h-96">
-                <div className="text-center">
-                  <div className="w-16 h-16 rounded-full bg-secondary flex items-center justify-center mx-auto mb-4 animate-pulse">
-                    <User className="w-8 h-8 text-muted-foreground" />
-                  </div>
-                  <p className="text-muted-foreground">加载中...</p>
-                </div>
-              </div>
-            ) : members.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-96 text-center px-4">
-                <div className="w-24 h-24 rounded-full bg-gradient-to-br from-indigo-50 to-purple-50 flex items-center justify-center mb-6">
-                  <TreeDeciduous className="w-12 h-12 text-indigo-400" />
-                </div>
-                <h3 className="text-xl font-semibold text-gray-900 mb-2">暂无族谱数据</h3>
-                <p className="text-muted-foreground mb-6 max-w-sm">
-                  添加家族成员开始构建您的族谱树，系统将自动生成可视化谱系图
-                </p>
-                <Button
-                  onClick={handleOpenCreate}
-                  className="gap-2 bg-gray-900 hover:bg-gray-800"
-                >
-                  <Plus className="w-4 h-4" />
-                  添加第一位成员
-                </Button>
-              </div>
-            ) : (
-              <div className={cn("h-[500px] xl:h-[600px] overflow-auto bg-gradient-to-br from-gray-50 to-gray-100/50 p-4", isZoomed && "h-[600px] xl:h-[700px]")}>
-                <GenealogyTree
-                  members={members}
-                  relations={[]}
-                  onNodeClick={setSelectedMember}
-                />
-              </div>
-            )}
-          </CardContent>
-        </Card>
+      {/* Tabs */}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0">
+        <TabsList className="shrink-0">
+          <TabsTrigger value="list" className="gap-2">
+            <Users className="w-4 h-4" />
+            家族成员列表
+          </TabsTrigger>
+          <TabsTrigger value="tree" className="gap-2">
+            <TreeDeciduous className="w-4 h-4" />
+            族谱树
+          </TabsTrigger>
+          <TabsTrigger value="tags" className="gap-2">
+            <TagIcon className="w-4 h-4" />
+            标签管理
+          </TabsTrigger>
+        </TabsList>
 
-        {/* Member Detail Panel */}
-        {selectedMember && (
-          <Card className="border-0 shadow-sm animate-slide-in">
-            <CardHeader className="pb-4">
-              <div className="flex items-center justify-between">
+        {/* 家族成员列表 */}
+        <TabsContent value="list" className="flex-1 min-h-0 mt-4">
+          <div className="h-full flex gap-4">
+            {/* 左侧：成员列表 */}
+            <Card className="w-96 shrink-0 border-0 shadow-sm flex flex-col">
+              <CardHeader className="pb-3 shrink-0">
+                <CardTitle className="text-lg font-semibold flex items-center gap-2">
+                  <Users className="w-5 h-5" />
+                  成员列表
+                  <Badge variant="outline">{filteredMembers.length}</Badge>
+                </CardTitle>
+                {/* 搜索 */}
+                <div className="relative mt-3">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Input
+                    value={searchKeyword}
+                    onChange={(e) => setSearchKeyword(e.target.value)}
+                    placeholder="搜索成员..."
+                    className="pl-9 h-10"
+                  />
+                </div>
+              </CardHeader>
+              <CardContent className="flex-1 min-h-0 p-0">
+                <div className="h-full overflow-y-auto">
+                  {isLoading ? (
+                    <div className="flex items-center justify-center py-12">
+                      <div className="text-center">
+                        <div className="w-12 h-12 rounded-full bg-secondary flex items-center justify-center mx-auto mb-3 animate-pulse">
+                          <User className="w-6 h-6 text-muted-foreground" />
+                        </div>
+                        <p className="text-sm text-muted-foreground">加载中...</p>
+                      </div>
+                    </div>
+                  ) : filteredMembers.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-12 text-center px-4">
+                      <div className="w-16 h-16 rounded-full bg-zinc-100 flex items-center justify-center mb-4">
+                        <Users className="w-8 h-8 text-zinc-400" />
+                      </div>
+                      <p className="text-sm text-zinc-500 mb-4">
+                        {searchKeyword ? '未找到匹配的成员' : '暂无成员数据'}
+                      </p>
+                      {!searchKeyword && (
+                        <Button
+                          size="sm"
+                          onClick={handleOpenCreate}
+                          className="gap-2 bg-gray-900 hover:bg-gray-800"
+                        >
+                          <Plus className="w-4 h-4" />
+                          添加成员
+                        </Button>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="divide-y divide-zinc-100">
+                      {filteredMembers.map((member) => (
+                        <div
+                          key={member.id}
+                          className={cn(
+                            'flex items-center gap-3 p-3 hover:bg-zinc-50 cursor-pointer transition-colors group',
+                            selectedMember?.id === member.id && 'bg-indigo-50'
+                          )}
+                          onClick={() => setSelectedMember(member)}
+                        >
+                          <Avatar
+                            size="md"
+                            fallback={member.name.charAt(0)}
+                            gender={member.gender as "male" | "female"}
+                          />
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <p className="font-medium text-gray-900 truncate">{member.name}</p>
+                              <Badge
+                                variant={member.gender === 'male' ? 'default' : 'danger'}
+                                className="text-xs"
+                              >
+                                {member.gender === 'male' ? '男' : '女'}
+                              </Badge>
+                            </div>
+                            <p className="text-xs text-zinc-500 truncate">
+                              {member.birth_date || '无出生日期'}
+                              {member.occupation && ` · ${member.occupation}`}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="w-7 h-7"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleOpenEdit(member)
+                              }}
+                            >
+                              <Edit2 className="w-3.5 h-3.5" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="w-7 h-7 text-red-500 hover:text-red-600 hover:bg-red-50"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleDelete(member.id)
+                              }}
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* 右侧：成员详情 */}
+            <Card className="flex-1 border-0 shadow-sm">
+              <CardHeader className="pb-4">
                 <CardTitle className="text-lg font-semibold">成员详情</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {selectedMember ? (
+                  <div className="space-y-6">
+                    {/* Avatar and Name */}
+                    <div className="flex items-center gap-4">
+                      <Avatar
+                        size="xl"
+                        fallback={selectedMember.name.charAt(0)}
+                        gender={selectedMember.gender as "male" | "female"}
+                      />
+                      <div>
+                        <h3 className="text-2xl font-bold text-gray-900">{selectedMember.name}</h3>
+                        <div className="flex items-center gap-2 mt-1">
+                          <Badge variant={selectedMember.gender === 'male' ? 'default' : 'danger'}>
+                            {selectedMember.gender === 'male' ? '男' : '女'}
+                          </Badge>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Info Grid */}
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="flex items-center gap-3 p-3 rounded-xl bg-zinc-50">
+                        <div className="w-10 h-10 rounded-lg bg-indigo-100 flex items-center justify-center">
+                          <Calendar className="w-5 h-5 text-indigo-600" />
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground">出生日期</p>
+                          <p className="font-medium text-gray-900">{selectedMember.birth_date || '未知'}</p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-3 p-3 rounded-xl bg-zinc-50">
+                        <div className="w-10 h-10 rounded-lg bg-indigo-100 flex items-center justify-center">
+                          <Home className="w-5 h-5 text-indigo-600" />
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground">籍贯</p>
+                          <p className="font-medium text-gray-900 truncate">{selectedMember.birth_place || '未知'}</p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-3 p-3 rounded-xl bg-zinc-50">
+                        <div className="w-10 h-10 rounded-lg bg-indigo-100 flex items-center justify-center">
+                          <Briefcase className="w-5 h-5 text-indigo-600" />
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground">职业</p>
+                          <p className="font-medium text-gray-900 truncate">{selectedMember.occupation || '未知'}</p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-3 p-3 rounded-xl bg-zinc-50">
+                        <div className="w-10 h-10 rounded-lg bg-indigo-100 flex items-center justify-center">
+                          <Clock className="w-5 h-5 text-indigo-600" />
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground">逝世日期</p>
+                          <p className="font-medium text-gray-900">{selectedMember.death_date || '在世'}</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Biography */}
+                    {selectedMember.biography && (
+                      <div className="p-4 rounded-xl bg-zinc-50">
+                        <div className="flex items-center gap-2 mb-2">
+                          <BookOpen className="w-4 h-4 text-muted-foreground" />
+                          <p className="text-sm font-medium text-muted-foreground">生平简介</p>
+                        </div>
+                        <p className="text-gray-700 leading-relaxed">{selectedMember.biography}</p>
+                      </div>
+                    )}
+
+                    {/* Remarkable Deeds */}
+                    {selectedMember.remarkable_deeds && (
+                      <div className="p-4 rounded-xl bg-amber-50 border border-amber-200">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Award className="w-4 h-4 text-amber-600" />
+                          <p className="text-sm font-medium text-amber-800">突出事迹</p>
+                        </div>
+                        <p className="text-amber-900 leading-relaxed">{selectedMember.remarkable_deeds}</p>
+                      </div>
+                    )}
+
+                    {/* Actions */}
+                    <div className="flex gap-2 pt-4 border-t border-zinc-200">
+                      <Button
+                        variant="outline"
+                        className="flex-1 gap-2"
+                        onClick={() => {
+                          setActiveTab('tree')
+                        }}
+                      >
+                        <TreeDeciduous className="w-4 h-4" />
+                        查看族谱树
+                      </Button>
+                      <Button
+                        className="flex-1 gap-2 bg-gray-900 hover:bg-gray-800"
+                        onClick={() => handleOpenEdit(selectedMember)}
+                      >
+                        <Edit2 className="w-4 h-4" />
+                        编辑信息
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center h-64 text-center">
+                    <div className="w-16 h-16 rounded-full bg-zinc-100 flex items-center justify-center mb-4">
+                      <User className="w-8 h-8 text-zinc-400" />
+                    </div>
+                    <p className="text-sm text-zinc-500">点击左侧成员查看详情</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+
+        {/* 族谱树 */}
+        <TabsContent value="tree" className="flex-1 min-h-0 mt-4">
+          <Card className="h-full border-0 shadow-sm flex flex-col">
+            <CardHeader className="pb-3 shrink-0">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-lg font-semibold flex items-center gap-2">
+                  <TreeDeciduous className="w-5 h-5" />
+                  族谱树可视化
+                </CardTitle>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={() => setIsZoomed(!isZoomed)}
+                    className="gap-2"
+                  >
+                    {isZoomed ? <ZoomOut className="w-4 h-4" /> : <ZoomIn className="w-4 h-4" />}
+                  </Button>
+                  <Button
+                    onClick={handleOpenCreate}
+                    className="gap-2 bg-gray-900 hover:bg-gray-800"
+                  >
+                    <Plus className="w-4 h-4" />
+                    添加成员
+                  </Button>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="flex-1 min-h-0 p-0">
+              {members.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-full text-center px-4">
+                  <div className="w-24 h-24 rounded-full bg-gradient-to-br from-indigo-50 to-purple-50 flex items-center justify-center mb-6">
+                    <TreeDeciduous className="w-12 h-12 text-indigo-400" />
+                  </div>
+                  <h3 className="text-xl font-semibold text-gray-900 mb-2">暂无族谱数据</h3>
+                  <p className="text-muted-foreground mb-6 max-w-sm">
+                    添加家族成员开始构建您的族谱树，系统将自动生成可视化谱系图
+                  </p>
+                  <Button
+                    onClick={handleOpenCreate}
+                    className="gap-2 bg-gray-900 hover:bg-gray-800"
+                  >
+                    <Plus className="w-4 h-4" />
+                    添加第一位成员
+                  </Button>
+                </div>
+              ) : (
+                <div className={cn(
+                  "h-full overflow-auto bg-gradient-to-br from-zinc-50 to-zinc-100/50 p-4",
+                )}>
+                  <GenealogyTree
+                    members={members}
+                    relations={[]}
+                    onNodeClick={(member) => {
+                      setSelectedMember(member)
+                      setActiveTab('list')
+                    }}
+                  />
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* 标签管理 */}
+        <TabsContent value="tags" className="flex-1 min-h-0 mt-4">
+          <Card className="h-full border-0 shadow-sm">
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-lg font-semibold flex items-center gap-2">
+                  <TagIcon className="w-5 h-5" />
+                  标签管理
+                  <Badge variant="outline">{tags.length}</Badge>
+                </CardTitle>
                 <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => setSelectedMember(null)}
-                  className="text-muted-foreground hover:text-gray-600"
+                  variant="outline"
+                  size="sm"
+                  onClick={async () => {
+                    await loadTags()
+                    setIsCreateTagOpen(true)
+                  }}
+                  className="gap-1"
                 >
-                  <X className="w-5 h-5" />
+                  <Plus className="w-3 h-3" />
+                  创建标签
                 </Button>
               </div>
             </CardHeader>
-            <CardContent className="space-y-6">
-              {/* Avatar and Name */}
-              <div className="flex items-center gap-4">
-                <Avatar
-                  size="xl"
-                  fallback={selectedMember.name.charAt(0)}
-                  gender={selectedMember.gender as "male" | "female"}
-                />
-                <div>
-                  <h3 className="text-xl font-bold text-gray-900">{selectedMember.name}</h3>
-                  <div className="flex items-center gap-2 mt-1">
-                    <Badge variant={selectedMember.gender === 'male' ? 'default' : 'danger'}>
-                      {selectedMember.gender === 'male' ? '男' : '女'}
-                    </Badge>
-                    {selectedMember.generation && (
-                      <Badge variant="outline">
-                        第 {selectedMember.generation} 代
-                      </Badge>
-                    )}
+            <CardContent>
+              {/* 按分类显示标签 */}
+              <div className="space-y-6">
+                {TAG_TYPES.map(tagType => {
+                  const typeTags = tags.filter(t => t.tag_type === tagType.value)
+                  if (typeTags.length === 0) return null
+                  return (
+                    <div key={tagType.value} className="space-y-3">
+                      <p className="text-sm font-semibold text-zinc-700">{tagType.label}</p>
+                      <div className="flex flex-wrap gap-3">
+                        {typeTags.map(tag => (
+                          <div
+                            key={tag.id}
+                            className="flex items-center gap-2 px-4 py-2 rounded-xl transition-colors"
+                            style={{
+                              backgroundColor: tag.color + '15',
+                              borderWidth: '1px',
+                              borderColor: tag.color + '40',
+                            }}
+                          >
+                            <span
+                              className="w-3 h-3 rounded-full"
+                              style={{ backgroundColor: tag.color }}
+                            />
+                            <span
+                              className="font-medium"
+                              style={{ color: tag.color }}
+                            >
+                              {tag.name}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )
+                })}
+                {tags.length === 0 && (
+                  <div className="flex flex-col items-center justify-center py-16 text-center">
+                    <div className="w-16 h-16 rounded-full bg-zinc-100 flex items-center justify-center mb-4">
+                      <TagIcon className="w-8 h-8 text-zinc-400" />
+                    </div>
+                    <p className="text-sm text-zinc-500 mb-4">暂无标签</p>
+                    <Button
+                      onClick={async () => {
+                        await loadTags()
+                        setIsCreateTagOpen(true)
+                      }}
+                      className="gap-2 bg-gray-900 hover:bg-gray-800"
+                    >
+                      <Plus className="w-4 h-4" />
+                      创建第一个标签
+                    </Button>
                   </div>
-                </div>
-              </div>
-
-              {/* Info Grid */}
-              <div className="grid grid-cols-2 gap-3">
-                <div className="flex items-center gap-3 p-3 rounded-xl bg-secondary/50">
-                  <div className="w-10 h-10 rounded-lg bg-indigo-100 flex items-center justify-center">
-                    <Calendar className="w-5 h-5 text-indigo-600" />
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">出生日期</p>
-                    <p className="font-medium text-gray-900">{selectedMember.birth_date || '未知'}</p>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-3 p-3 rounded-xl bg-secondary/50">
-                  <div className="w-10 h-10 rounded-lg bg-indigo-100 flex items-center justify-center">
-                    <MapPin className="w-5 h-5 text-indigo-600" />
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">籍贯</p>
-                    <p className="font-medium text-gray-900 truncate">{selectedMember.birth_place || '未知'}</p>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-3 p-3 rounded-xl bg-secondary/50">
-                  <div className="w-10 h-10 rounded-lg bg-indigo-100 flex items-center justify-center">
-                    <Briefcase className="w-5 h-5 text-indigo-600" />
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">职业</p>
-                    <p className="font-medium text-gray-900 truncate">{selectedMember.occupation || '未知'}</p>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-3 p-3 rounded-xl bg-secondary/50">
-                  <div className="w-10 h-10 rounded-lg bg-indigo-100 flex items-center justify-center">
-                    <User className="w-5 h-5 text-indigo-600" />
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">代系</p>
-                    <p className="font-medium text-gray-900">
-                      {selectedMember.generation ? `第 ${selectedMember.generation} 代` : '未知'}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Biography */}
-              {selectedMember.biography && (
-                <div className="p-4 rounded-xl bg-secondary/50">
-                  <div className="flex items-center gap-2 mb-2">
-                    <BookOpen className="w-4 h-4 text-muted-foreground" />
-                    <p className="text-sm font-medium text-muted-foreground">生平简介</p>
-                  </div>
-                  <p className="text-gray-700 leading-relaxed">{selectedMember.biography}</p>
-                </div>
-              )}
-
-              {/* Actions */}
-              <div className="flex gap-2 pt-4 border-t border-border">
-                <Button variant="outline" className="flex-1 gap-2">
-                  <ChevronRight className="w-4 h-4" />
-                  查看关系
-                </Button>
-                <Button className="flex-1 gap-2 bg-gray-900 hover:bg-gray-800">
-                  编辑信息
-                </Button>
+                )}
               </div>
             </CardContent>
           </Card>
-        )}
-      </div>
+        </TabsContent>
+      </Tabs>
 
-      {/* Create Dialog - Multi-tab */}
-      <Dialog open={isCreateOpen} onOpenChange={(open) => {
-        if (!open) resetForm()
-        setIsCreateOpen(open)
-      }}>
-        <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-hidden flex flex-col">
-          <DialogHeader>
-            <DialogTitle className="text-lg font-semibold flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center">
-                <Plus className="w-4 h-4 text-indigo-600" />
-              </div>
-              添加新成员
-            </DialogTitle>
-          </DialogHeader>
+      {/* Create Member Dialog */}
+      <MemberFormDialog
+        open={isCreateOpen}
+        onOpenChange={setIsCreateOpen}
+        onSubmit={handleCreateSubmit}
+        isLoading={createMember.isPending}
+        title="添加成员"
+      />
 
-          {/* Tab Navigation */}
-          <div className="flex items-center gap-1 p-1 bg-zinc-100 rounded-lg">
-            <button
-              type="button"
-              onClick={() => setActiveTab('basic')}
-              className={cn(
-                'flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all',
-                activeTab === 'basic'
-                  ? 'bg-white text-zinc-900 shadow-sm'
-                  : 'text-zinc-600 hover:text-zinc-900'
-              )}
-            >
-              <User className="w-4 h-4" />
-              基本信息
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab('bio')}
-              className={cn(
-                'flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all',
-                activeTab === 'bio'
-                  ? 'bg-white text-zinc-900 shadow-sm'
-                  : 'text-zinc-600 hover:text-zinc-900'
-              )}
-            >
-              <BookOpen className="w-4 h-4" />
-              生平简介
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab('relations')}
-              className={cn(
-                'flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all',
-                activeTab === 'relations'
-                  ? 'bg-white text-zinc-900 shadow-sm'
-                  : 'text-zinc-600 hover:text-zinc-900'
-              )}
-            >
-              <Heart className="w-4 h-4" />
-              家族关系
-            </button>
-          </div>
-
-          {/* Tab Content */}
-          <div className="flex-1 overflow-y-auto py-4 space-y-4">
-            {/* Basic Info Tab */}
-            {activeTab === 'basic' && (
-              <>
-                {/* Name & Gender */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium flex items-center gap-1">
-                      <span className="text-red-500">*</span>姓名
-                    </label>
-                    <Input
-                      value={formData.name}
-                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                      placeholder="请输入成员姓名"
-                      className="h-11"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">性别</label>
-                    <Select
-                      value={formData.gender}
-                      onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
-                      options={[
-                        { value: 'male', label: '男' },
-                        { value: 'female', label: '女' },
-                      ]}
-                      className="h-11"
-                    />
-                  </div>
-                </div>
-
-                {/* Birth & Death Dates */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium flex items-center gap-1">
-                      <Calendar className="w-3.5 h-3.5" />
-                      出生日期
-                    </label>
-                    <Input
-                      type="text"
-                      value={formData.birth_date || ''}
-                      onChange={(e) => setFormData({ ...formData, birth_date: e.target.value || undefined })}
-                      placeholder="YYYY-MM-DD"
-                      className="h-11"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium flex items-center gap-1">
-                      <Clock className="w-3.5 h-3.5" />
-                      逝世日期
-                    </label>
-                    <Input
-                      type="text"
-                      value={formData.death_date || ''}
-                      onChange={(e) => setFormData({ ...formData, death_date: e.target.value || undefined })}
-                      placeholder="YYYY-MM-DD"
-                      className="h-11"
-                    />
-                  </div>
-                </div>
-
-                {/* Birth Place */}
-                <div className="space-y-2">
-                  <label className="text-sm font-medium flex items-center gap-1">
-                    <Home className="w-3.5 h-3.5" />
-                    籍贯/出生地
-                  </label>
-                  <Input
-                    value={formData.birth_place}
-                    onChange={(e) => setFormData({ ...formData, birth_place: e.target.value })}
-                    placeholder="如：浙江省杭州市"
-                    className="h-11"
-                  />
-                </div>
-
-                {/* Occupation */}
-                <div className="space-y-2">
-                  <label className="text-sm font-medium flex items-center gap-1">
-                    <Briefcase className="w-3.5 h-3.5" />
-                    职业
-                  </label>
-                  <Input
-                    value={formData.occupation}
-                    onChange={(e) => setFormData({ ...formData, occupation: e.target.value })}
-                    placeholder="如：农民、教师、医生"
-                    className="h-11"
-                  />
-                </div>
-
-                {/* Tags */}
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <label className="text-sm font-medium flex items-center gap-1">
-                      <Tag className="w-3.5 h-3.5" />
-                      标签
-                    </label>
-                    <button
-                      type="button"
-                      onClick={() => setIsCreateTagOpen(true)}
-                      className="text-xs text-indigo-600 hover:text-indigo-700 flex items-center gap-1"
-                    >
-                      <Plus className="w-3 h-3" />
-                      创建新标签
-                    </button>
-                  </div>
-
-                  {/* 分类显示标签 */}
-                  {TAG_TYPES.map(tagType => {
-                    const typeTags = tags.filter(t => t.tag_type === tagType.value)
-                    if (typeTags.length === 0) return null
-                    return (
-                      <div key={tagType.value} className="space-y-1.5">
-                        <p className="text-xs text-zinc-500">{tagType.label}</p>
-                        <div className="flex flex-wrap gap-1.5">
-                          {typeTags.map(tag => (
-                            <button
-                              key={tag.id}
-                              type="button"
-                              onClick={() => toggleTag(tag.id)}
-                              className={cn(
-                                'px-2.5 py-1 rounded-full text-xs font-medium transition-all',
-                                selectedTagIds.includes(tag.id)
-                                  ? 'ring-2 ring-offset-1'
-                                  : 'opacity-70 hover:opacity-100'
-                              )}
-                              style={{
-                                backgroundColor: tag.color + '20',
-                                color: tag.color,
-                                borderColor: tag.color,
-                              }}
-                            >
-                              {tag.name}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    )
-                  })}
-
-                  {tags.length === 0 && (
-                    <p className="text-sm text-zinc-400 py-2">
-                      暂无标签，点击"创建新标签"添加
-                    </p>
-                  )}
-                </div>
-              </>
-            )}
-
-            {/* Biography Tab */}
-            {activeTab === 'bio' && (
-              <>
-                {/* Biography */}
-                <div className="space-y-2">
-                  <label className="text-sm font-medium flex items-center gap-1">
-                    <BookOpen className="w-3.5 h-3.5" />
-                    生平简介
-                  </label>
-                  <textarea
-                    value={formData.biography}
-                    onChange={(e) => setFormData({ ...formData, biography: e.target.value })}
-                    placeholder="请输入成员的生平简介..."
-                    className="w-full min-h-[120px] px-3 py-2 rounded-lg border border-zinc-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 resize-none text-sm"
-                  />
-                </div>
-
-                {/* Remarkable Deeds */}
-                <div className="space-y-2">
-                  <label className="text-sm font-medium flex items-center gap-1">
-                    <Award className="w-3.5 h-3.5" />
-                    突出事迹
-                  </label>
-                  <textarea
-                    value={formData.remarkable_deeds}
-                    onChange={(e) => setFormData({ ...formData, remarkable_deeds: e.target.value })}
-                    placeholder="记录成员的突出成就、贡献或英雄事迹..."
-                    className="w-full min-h-[120px] px-3 py-2 rounded-lg border border-zinc-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 resize-none text-sm"
-                  />
-                </div>
-              </>
-            )}
-
-            {/* Relations Tab */}
-            {activeTab === 'relations' && (
-              <>
-                <p className="text-sm text-zinc-500 mb-2">
-                  选择已存在的家族成员作为此人的父母关系
-                </p>
-
-                {/* Father Selection */}
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">父亲</label>
-                  <Select
-                    value={formData.father_id?.toString() || ''}
-                    onChange={(e) => setFormData({
-                      ...formData,
-                      father_id: e.target.value ? parseInt(e.target.value) : undefined
-                    })}
-                    options={[
-                      { value: '', label: '请选择父亲（可选）' },
-                      ...members
-                        .filter(m => m.gender === 'male')
-                        .map(m => ({ value: m.id.toString(), label: `${m.name} (第${m.generation || '?'}代)` }))
-                    ]}
-                    className="h-11"
-                  />
-                </div>
-
-                {/* Mother Selection */}
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">母亲</label>
-                  <Select
-                    value={formData.mother_id?.toString() || ''}
-                    onChange={(e) => setFormData({
-                      ...formData,
-                      mother_id: e.target.value ? parseInt(e.target.value) : undefined
-                    })}
-                    options={[
-                      { value: '', label: '请选择母亲（可选）' },
-                      ...members
-                        .filter(m => m.gender === 'female')
-                        .map(m => ({ value: m.id.toString(), label: `${m.name} (第${m.generation || '?'}代)` }))
-                    ]}
-                    className="h-11"
-                  />
-                </div>
-
-                {/* Info Box */}
-                <div className="p-4 rounded-xl bg-amber-50 border border-amber-200">
-                  <p className="text-sm text-amber-800">
-                    <strong>提示：</strong>添加完成员后，可以在成员详情页中继续添加配偶、子女等其他关系。
-                  </p>
-                </div>
-              </>
-            )}
-          </div>
-
-          <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={() => {
-              resetForm()
-              setIsCreateOpen(false)
-            }}>
-              取消
-            </Button>
-            <Button
-              onClick={handleCreateSubmit}
-              disabled={createMember.isPending || !formData.name}
-              className="gap-2 bg-gray-900 hover:bg-gray-800"
-            >
-              {createMember.isPending ? '添加中...' : '添加成员'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Edit Member Dialog */}
+      <MemberFormDialog
+        open={isEditOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            setIsEditOpen(false)
+            setSelectedMember(null)
+          }
+        }}
+        onSubmit={(data) => handleUpdateSubmit(data)}
+        isLoading={updateMember.isPending}
+        title="编辑成员"
+        initialData={editForm}
+      />
 
       {/* Create Tag Dialog */}
       <Dialog open={isCreateTagOpen} onOpenChange={setIsCreateTagOpen}>
@@ -690,13 +616,12 @@ export function TreePage() {
           <DialogHeader>
             <DialogTitle className="text-lg font-semibold flex items-center gap-2">
               <div className="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center">
-                <Tag className="w-4 h-4 text-indigo-600" />
+                <TagIcon className="w-4 h-4 text-indigo-600" />
               </div>
               创建新标签
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            {/* Tag Name */}
             <div className="space-y-2">
               <label className="text-sm font-medium">标签名称</label>
               <Input
@@ -706,8 +631,6 @@ export function TreePage() {
                 className="h-11"
               />
             </div>
-
-            {/* Tag Type */}
             <div className="space-y-2">
               <label className="text-sm font-medium">标签类型</label>
               <Select
@@ -717,8 +640,6 @@ export function TreePage() {
                 className="h-11"
               />
             </div>
-
-            {/* Tag Color */}
             <div className="space-y-2">
               <label className="text-sm font-medium flex items-center gap-1">
                 <Palette className="w-3.5 h-3.5" />
@@ -739,8 +660,6 @@ export function TreePage() {
                 ))}
               </div>
             </div>
-
-            {/* Preview */}
             <div className="space-y-2">
               <label className="text-sm font-medium">预览</label>
               <div className="flex items-center justify-center py-3 bg-zinc-50 rounded-lg">
@@ -775,5 +694,212 @@ export function TreePage() {
         </DialogContent>
       </Dialog>
     </div>
+  )
+}
+
+// 成员表单组件
+interface MemberFormDialogProps {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  onSubmit: (data: CreateMemberInput) => void
+  isLoading: boolean
+  title: string
+  initialData?: Partial<CreateMemberInput>
+}
+
+function MemberFormDialog({
+  open,
+  onOpenChange,
+  onSubmit,
+  isLoading,
+  title,
+  initialData,
+}: MemberFormDialogProps) {
+  const [form, setForm] = useState<CreateMemberInput>({
+    name: '',
+    gender: 'male',
+    birth_date: undefined,
+    death_date: undefined,
+    birth_place: '',
+    occupation: '',
+    biography: '',
+    remarkable_deeds: '',
+  })
+
+  // 当 initialData 变化时更新 form
+  useState(() => {
+    if (initialData) {
+      setForm({
+        name: initialData.name || '',
+        gender: initialData.gender || 'male',
+        birth_date: initialData.birth_date,
+        death_date: initialData.death_date,
+        birth_place: initialData.birth_place || '',
+        occupation: initialData.occupation || '',
+        biography: initialData.biography || '',
+        remarkable_deeds: initialData.remarkable_deeds || '',
+      })
+    }
+  })
+
+  const handleSubmit = () => {
+    if (!form.name.trim()) return
+    onSubmit(form)
+    // 重置表单
+    setForm({
+      name: '',
+      gender: 'male',
+      birth_date: undefined,
+      death_date: undefined,
+      birth_place: '',
+      occupation: '',
+      biography: '',
+      remarkable_deeds: '',
+    })
+  }
+
+  const handleChange = (field: keyof CreateMemberInput, value: string | undefined) => {
+    setForm(prev => ({ ...prev, [field]: value }))
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-hidden flex flex-col">
+        <DialogHeader>
+          <DialogTitle className="text-lg font-semibold flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center">
+              <User className="w-4 h-4 text-indigo-600" />
+            </div>
+            {title}
+          </DialogTitle>
+        </DialogHeader>
+        <div className="flex-1 overflow-y-auto py-4 space-y-4">
+          {/* Name & Gender */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium flex items-center gap-1">
+                <span className="text-red-500">*</span>姓名
+              </label>
+              <Input
+                value={form.name}
+                onChange={(e) => handleChange('name', e.target.value)}
+                placeholder="请输入成员姓名"
+                className="h-11"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">性别</label>
+              <Select
+                value={form.gender}
+                onChange={(e) => handleChange('gender', e.target.value)}
+                options={[
+                  { value: 'male', label: '男' },
+                  { value: 'female', label: '女' },
+                ]}
+                className="h-11"
+              />
+            </div>
+          </div>
+
+          {/* Birth & Death Dates */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium flex items-center gap-1">
+                <Calendar className="w-3.5 h-3.5" />
+                出生日期
+              </label>
+              <Input
+                type="text"
+                value={form.birth_date || ''}
+                onChange={(e) => handleChange('birth_date', e.target.value || undefined)}
+                placeholder="YYYY-MM-DD"
+                className="h-11"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium flex items-center gap-1">
+                <Clock className="w-3.5 h-3.5" />
+                逝世日期
+              </label>
+              <Input
+                type="text"
+                value={form.death_date || ''}
+                onChange={(e) => handleChange('death_date', e.target.value || undefined)}
+                placeholder="YYYY-MM-DD"
+                className="h-11"
+              />
+            </div>
+          </div>
+
+          {/* Birth Place */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium flex items-center gap-1">
+              <Home className="w-3.5 h-3.5" />
+              籍贯/出生地
+            </label>
+            <Input
+              value={form.birth_place}
+              onChange={(e) => handleChange('birth_place', e.target.value)}
+              placeholder="如：浙江省杭州市"
+              className="h-11"
+            />
+          </div>
+
+          {/* Occupation */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium flex items-center gap-1">
+              <Briefcase className="w-3.5 h-3.5" />
+              职业
+            </label>
+            <Input
+              value={form.occupation}
+              onChange={(e) => handleChange('occupation', e.target.value)}
+              placeholder="如：农民、教师、医生"
+              className="h-11"
+            />
+          </div>
+
+          {/* Biography */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium flex items-center gap-1">
+              <BookOpen className="w-3.5 h-3.5" />
+              生平简介
+            </label>
+            <textarea
+              value={form.biography}
+              onChange={(e) => handleChange('biography', e.target.value)}
+              placeholder="请输入成员的生平简介..."
+              className="w-full min-h-[100px] px-3 py-2 rounded-lg border border-zinc-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 resize-none text-sm"
+            />
+          </div>
+
+          {/* Remarkable Deeds */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium flex items-center gap-1">
+              <Award className="w-3.5 h-3.5" />
+              突出事迹
+            </label>
+            <textarea
+              value={form.remarkable_deeds}
+              onChange={(e) => handleChange('remarkable_deeds', e.target.value)}
+              placeholder="记录成员的突出成就、贡献或英雄事迹..."
+              className="w-full min-h-[100px] px-3 py-2 rounded-lg border border-zinc-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 resize-none text-sm"
+            />
+          </div>
+        </div>
+        <DialogFooter className="gap-2">
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            取消
+          </Button>
+          <Button
+            onClick={handleSubmit}
+            disabled={isLoading || !form.name}
+            className="gap-2 bg-gray-900 hover:bg-gray-800"
+          >
+            {isLoading ? '保存中...' : '保存'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
