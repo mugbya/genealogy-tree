@@ -954,17 +954,12 @@ function MemberFormDialog({
                   onChange={(e) => {
                     const value = e.target.value || undefined
                     handleChange('death_date', value)
-                    // 如果填写了逝世日期，自动设置 is_deceased 为 true
-                    if (value) {
-                      handleChange('is_deceased', true)
-                    }
+                    // 逝世日期与 is_deceased 联动
+                    handleChange('is_deceased', !!value)
                   }}
                   placeholder="YYYY-MM-DD（选填）"
                   className="h-11 flex-1"
                 />
-                {form.death_date && (
-                  <span className="px-2 py-1 bg-zinc-100 rounded text-xs text-zinc-600">已离世</span>
-                )}
               </div>
             </div>
           </div>
@@ -973,15 +968,12 @@ function MemberFormDialog({
           <div className="flex items-center gap-3 p-3 bg-zinc-50 rounded-lg">
             <Switch
               checked={form.is_deceased || false}
-              onCheckedChange={(checked) => handleChange('is_deceased', checked)}
-              disabled={!!form.death_date}
+              disabled={true}
             />
             <span className="text-sm text-zinc-600">
               {form.is_deceased ? '已离世' : '在世'}
             </span>
-            {form.death_date && (
-              <span className="text-xs text-zinc-400">（逝世日期已填写，自动设为已离世）</span>
-            )}
+            <span className="text-xs text-zinc-400">（根据逝世日期自动确定）</span>
           </div>
 
           {/* Birth Place */}
