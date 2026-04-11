@@ -12,6 +12,7 @@ pub fn init_database(db_path: &Path) -> Result<Connection> {
             generation INTEGER,
             birth_date TEXT,
             death_date TEXT,
+            is_deceased INTEGER NOT NULL DEFAULT 0,
             birth_place TEXT,
             occupation TEXT,
             photo_path TEXT,
@@ -21,6 +22,17 @@ pub fn init_database(db_path: &Path) -> Result<Connection> {
         )",
         [],
     )?;
+
+    // Migration: add is_deceased column if it doesn't exist (for existing databases)
+    let has_is_deceased: bool = conn.query_row(
+        "SELECT COUNT(*) FROM pragma_table_info('family_members') WHERE name = 'is_deceased'",
+        [],
+        |row| Ok(row.get::<_, i32>(0)? > 0),
+    ).unwrap_or(false);
+
+    if !has_is_deceased {
+        conn.execute("ALTER TABLE family_members ADD COLUMN is_deceased INTEGER NOT NULL DEFAULT 0", [])?;
+    }
 
     conn.execute(
         "CREATE TABLE IF NOT EXISTS relation_tags (

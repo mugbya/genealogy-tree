@@ -18,7 +18,7 @@ pub async fn get_members(
     };
 
     let mut stmt = match conn.prepare(
-        "SELECT id, name, gender, generation, birth_date, death_date,
+        "SELECT id, name, gender, generation, birth_date, death_date, is_deceased,
          birth_place, occupation, photo_path, biography, created_at, updated_at
          FROM family_members ORDER BY generation, name"
     ) {
@@ -34,12 +34,13 @@ pub async fn get_members(
             generation: row.get(3)?,
             birth_date: row.get(4)?,
             death_date: row.get(5)?,
-            birth_place: row.get(6)?,
-            occupation: row.get(7)?,
-            photo_path: row.get(8)?,
-            biography: row.get(9)?,
-            created_at: row.get(10)?,
-            updated_at: row.get(11)?,
+            is_deceased: row.get::<_, i32>(6)? != 0,
+            birth_place: row.get(7)?,
+            occupation: row.get(8)?,
+            photo_path: row.get(9)?,
+            biography: row.get(10)?,
+            created_at: row.get(11)?,
+            updated_at: row.get(12)?,
         })
     });
 
@@ -62,7 +63,7 @@ pub async fn get_member(
     };
 
     let result = conn.query_row(
-        "SELECT id, name, gender, generation, birth_date, death_date,
+        "SELECT id, name, gender, generation, birth_date, death_date, is_deceased,
          birth_place, occupation, photo_path, biography, created_at, updated_at
          FROM family_members WHERE id = ?",
         params![id],
@@ -74,12 +75,13 @@ pub async fn get_member(
                 generation: row.get(3)?,
                 birth_date: row.get(4)?,
                 death_date: row.get(5)?,
-                birth_place: row.get(6)?,
-                occupation: row.get(7)?,
-                photo_path: row.get(8)?,
-                biography: row.get(9)?,
-                created_at: row.get(10)?,
-                updated_at: row.get(11)?,
+                is_deceased: row.get::<_, i32>(6)? != 0,
+                birth_place: row.get(7)?,
+                occupation: row.get(8)?,
+                photo_path: row.get(9)?,
+                biography: row.get(10)?,
+                created_at: row.get(11)?,
+                updated_at: row.get(12)?,
             })
         },
     );
@@ -100,14 +102,15 @@ pub async fn create_member(
     };
 
     let result = conn.execute(
-        "INSERT INTO family_members (name, gender, generation, birth_date, death_date,
-         birth_place, occupation, photo_path, biography) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+        "INSERT INTO family_members (name, gender, generation, birth_date, death_date, is_deceased,
+         birth_place, occupation, photo_path, biography) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
         params![
             req.name,
             req.gender,
             req.generation,
             req.birth_date,
             req.death_date,
+            req.is_deceased.unwrap_or(false),
             req.birth_place,
             req.occupation,
             req.photo_path,
@@ -156,6 +159,10 @@ pub async fn update_member(
     if let Some(ref death_date) = req.death_date {
         updates.push("death_date = ?");
         values.push(Box::new(death_date.clone()));
+    }
+    if let Some(ref is_deceased) = req.is_deceased {
+        updates.push("is_deceased = ?");
+        values.push(Box::new(*is_deceased as i32));
     }
     if let Some(ref birth_place) = req.birth_place {
         updates.push("birth_place = ?");
