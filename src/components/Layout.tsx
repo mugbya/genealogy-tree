@@ -2,16 +2,12 @@ import { Link, useLocation, useNavigate } from 'react-router-dom'
 import {
   Home,
   TreeDeciduous,
-  Users,
   Settings,
-  Tag,
-  Link2,
   Menu,
   X,
   Bell,
   Search,
   ChevronRight,
-  Shield,
   LogOut,
 } from 'lucide-react'
 import { useState } from 'react'
@@ -20,12 +16,12 @@ import { useAuthStore } from '@/stores'
 import { Dropdown, DropdownItem } from '@/components/ui/dropdown'
 
 const navItems = [
-  { path: '/', label: '首页', icon: Home },
-  { path: '/tree', label: '族谱树', icon: TreeDeciduous },
-  { path: '/members', label: '成员', icon: Users },
-  { path: '/relations', label: '关系', icon: Link2 },
-  { path: '/tags', label: '标签', icon: Tag },
-  { path: '/users', label: '用户管理', icon: Shield, adminOnly: true },
+  { path: '/', label: '首页', icon: Home, adminOnly: false },
+  // { path: '/tree', label: '族谱树', icon: TreeDeciduous },
+  // { path: '/members', label: '成员', icon: Users },
+  // { path: '/relations', label: '关系', icon: Link2 },
+  // { path: '/tags', label: '标签', icon: Tag },
+  // { path: '/users', label: '用户管理', icon: Shield, adminOnly: true },
 ]
 
 export function Layout({ children }: { children: React.ReactNode }) {
