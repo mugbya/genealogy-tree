@@ -27,7 +27,7 @@ const Tabs: React.FC<TabsProps> = ({
 
   return (
     <TabsContext.Provider value={{ value, onValueChange: onValueChangeHandler }}>
-      <div className={cn("", className)}>{children}</div>
+      <div className={cn("flex flex-col h-full", className)}>{children}</div>
     </TabsContext.Provider>
   )
 }
@@ -36,7 +36,14 @@ interface TabsListProps extends React.HTMLAttributes<HTMLDivElement> {}
 
 const TabsList = React.forwardRef<HTMLDivElement, TabsListProps>(
   ({ className, ...props }, ref) => (
-    <div ref={ref} className={cn("tabs", className)} {...props} />
+    <div
+      ref={ref}
+      className={cn(
+        "inline-flex items-center justify-center gap-1 p-1 bg-zinc-100 rounded-lg",
+        className
+      )}
+      {...props}
+    />
   )
 )
 TabsList.displayName = "TabsList"
@@ -46,7 +53,7 @@ interface TabsTriggerProps extends React.ButtonHTMLAttributes<HTMLButtonElement>
 }
 
 const TabsTrigger = React.forwardRef<HTMLButtonElement, TabsTriggerProps>(
-  ({ className, value: triggerValue, ...props }, ref) => {
+  ({ className, value: triggerValue, children, ...props }, ref) => {
     const context = React.useContext(TabsContext)
     if (!context) throw new Error("TabsTrigger must be used within Tabs")
 
@@ -55,10 +62,17 @@ const TabsTrigger = React.forwardRef<HTMLButtonElement, TabsTriggerProps>(
     return (
       <button
         ref={ref}
-        className={cn("tab", isActive && "active", className)}
+        className={cn(
+          "inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium rounded-md transition-all",
+          "text-zinc-600 hover:text-zinc-900 hover:bg-white/50",
+          isActive && "bg-white text-zinc-900 shadow-sm",
+          className
+        )}
         onClick={() => context.onValueChange(triggerValue)}
         {...props}
-      />
+      >
+        {children}
+      </button>
     )
   }
 )
@@ -78,7 +92,7 @@ const TabsContent = React.forwardRef<HTMLDivElement, TabsContentProps>(
     return (
       <div
         ref={ref}
-        className={cn("animate-fade-in", className)}
+        className={cn("flex-1 min-h-0 mt-4", className)}
         {...props}
       />
     )
