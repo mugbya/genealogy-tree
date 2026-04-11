@@ -1,15 +1,24 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { TreeDeciduous, Loader2, Eye, EyeOff } from 'lucide-react'
+import { TreeDeciduous, Loader2, Eye, EyeOff, Check } from 'lucide-react'
 import { authApi } from '@/api/client'
 import { useAuthStore } from '@/stores'
 
 // 通过自定义 User-Agent 检测是否为桌面端（WebView）
 const isDesktop = typeof window !== 'undefined' &&
   navigator.userAgent.includes('GenealogyDesktop')
+
+// localStorage keys
+const STORAGE_KEY_REMEMBER = 'genealogy_remember'
+
+interface RememberedCredentials {
+  username: string
+  password: string
+  autoLogin: boolean
+}
 
 export function LoginPage() {
   const navigate = useNavigate()
@@ -18,10 +27,71 @@ export function LoginPage() {
   const [error, setError] = useState('')
   const [isLoginMode, setIsLoginMode] = useState(true)
   const [showPassword, setShowPassword] = useState(false)
+  const [rememberMe, setRememberMe] = useState(false)
   const [formData, setFormData] = useState({
     username: '',
     password: '',
   })
+
+  // 页面加载时，检查是否有保存的凭据并进行自动登录
+  useEffect(() => {
+    const savedCredentials = localStorage.getItem(STORAGE_KEY_REMEMBER)
+    if (savedCredentials) {
+      try {
+        const credentials: RememberedCredentials = JSON.parse(savedCredentials)
+        setFormData({
+          username: credentials.username,
+          password: credentials.password,
+        })
+        setRememberMe(credentials.autoLogin)
+
+        // 如果设置了自动登录，且有保存的密码，则自动登录
+        if (credentials.autoLogin && credentials.username && credentials.password) {
+          handleAutoLogin(credentials.username, credentials.password)
+        }
+      } catch {
+        localStorage.removeItem(STORAGE_KEY_REMEMBER)
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // 自动登录处理
+  const handleAutoLogin = async (username: string, password: string) => {
+    setIsLoading(true)
+    setError('')
+
+    try {
+      const result = await authApi.login(username, password)
+      if (result.error) {
+        setError(result.error)
+        setIsLoading(false)
+        return
+      }
+      if (result.data) {
+        setAuth(result.data.user, result.data.token)
+        navigate('/')
+      }
+    } catch {
+      setError('请求失败，请稍后重试')
+      setIsLoading(false)
+    }
+  }
+
+  // 保存凭据到 localStorage
+  const saveCredentials = (username: string, password: string, autoLogin: boolean) => {
+    const credentials: RememberedCredentials = {
+      username,
+      password,
+      autoLogin,
+    }
+    localStorage.setItem(STORAGE_KEY_REMEMBER, JSON.stringify(credentials))
+  }
+
+  // 清除保存的凭据
+  const clearCredentials = () => {
+    localStorage.removeItem(STORAGE_KEY_REMEMBER)
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -50,6 +120,12 @@ export function LoginPage() {
         }
 
         if (result.data) {
+          // 保存凭据
+          if (rememberMe) {
+            saveCredentials(formData.username, formData.password, rememberMe)
+          } else {
+            clearCredentials()
+          }
           setAuth(result.data.user, result.data.token)
           navigate('/')
         }
@@ -67,6 +143,12 @@ export function LoginPage() {
         }
 
         if (result.data) {
+          // 保存凭据
+          if (rememberMe) {
+            saveCredentials(formData.username, formData.password, rememberMe)
+          } else {
+            clearCredentials()
+          }
           setAuth(result.data.user, result.data.token)
           navigate('/')
         }
@@ -143,6 +225,28 @@ export function LoginPage() {
                 </div>
               </div>
 
+              {/* 记住我复选框 */}
+              <div className="flex items-center">
+                <button
+                  type="button"
+                  onClick={() => setRememberMe(!rememberMe)}
+                  className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
+                    rememberMe
+                      ? 'bg-indigo-600 border-indigo-600'
+                      : 'bg-white border-gray-300 hover:border-gray-400'
+                  }`}
+                  disabled={isLoading}
+                >
+                  {rememberMe && <Check className="w-3 h-3 text-white" />}
+                </button>
+                <label
+                  onClick={() => !isLoading && setRememberMe(!rememberMe)}
+                  className="ml-2 text-sm text-gray-600 cursor-pointer select-none"
+                >
+                  记住账号密码并自动登录
+                </label>
+              </div>
+
               <Button
                 type="submit"
                 disabled={isLoading}
@@ -171,6 +275,7 @@ export function LoginPage() {
                       setIsLoginMode(false)
                       setError('')
                       setFormData({ username: '', password: '' })
+                      clearCredentials()
                     }}
                     className="text-sm text-indigo-600 hover:text-indigo-700 font-medium"
                   >
