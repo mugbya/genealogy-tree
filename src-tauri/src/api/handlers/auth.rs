@@ -50,7 +50,21 @@ pub async fn register(
     match result {
         Ok(_) => {
             let id = conn.last_insert_rowid();
-            (StatusCode::CREATED, Json(json!({ "data": { "id": id } })))
+            // 注册成功后自动登录，生成 token
+            match create_token(id, &req.username, &role) {
+                Ok(token) => {
+                    let user = UserResponse {
+                        id,
+                        username: req.username,
+                        role,
+                        member_id: req.member_id,
+                        created_at: chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string(),
+                    };
+                    let response = LoginResponse { token, user };
+                    (StatusCode::CREATED, Json(json!({ "data": response })))
+                }
+                Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e }))),
+            }
         }
         Err(e) => {
             if e.to_string().contains("UNIQUE constraint") {

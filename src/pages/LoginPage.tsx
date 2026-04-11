@@ -7,9 +7,9 @@ import { TreeDeciduous, Loader2, Eye, EyeOff } from 'lucide-react'
 import { authApi } from '@/api/client'
 import { useAuthStore } from '@/stores'
 
-// 通过 User-Agent 检测是否为 Tauri 环境（WebView）
+// 通过自定义 User-Agent 检测是否为桌面端（WebView）
 const isDesktop = typeof window !== 'undefined' &&
-  navigator.userAgent.includes('Tauri')
+  navigator.userAgent.includes('GenealogyDesktop')
 
 export function LoginPage() {
   const navigate = useNavigate()

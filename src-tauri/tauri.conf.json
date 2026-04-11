@@ -17,7 +17,8 @@
         "height": 600,
         "center": true,
         "visible": true,
-        "devtools": true
+        "devtools": true,
+        "userAgent": "GenealogyDesktop/1.0"
       }
     ],
     "security": {
