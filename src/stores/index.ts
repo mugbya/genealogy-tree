@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { Member } from '@/api/client'
+import type { Member, User } from '@/api/client'
 
 interface MembersState {
   members: Member[]
@@ -25,4 +25,26 @@ interface AppState {
 export const useAppStore = create<AppState>((set) => ({
   isLoading: false,
   setLoading: (isLoading) => set({ isLoading }),
+}))
+
+interface AuthState {
+  user: User | null
+  token: string | null
+  isAdmin: boolean
+  setAuth: (user: User, token: string) => void
+  logout: () => void
+}
+
+export const useAuthStore = create<AuthState>((set) => ({
+  user: null,
+  token: typeof window !== 'undefined' ? localStorage.getItem('token') : null,
+  isAdmin: false,
+  setAuth: (user, token) => {
+    localStorage.setItem('token', token)
+    set({ user, token, isAdmin: user.role === 'admin' })
+  },
+  logout: () => {
+    localStorage.removeItem('token')
+    set({ user: null, token: null, isAdmin: false })
+  },
 }))

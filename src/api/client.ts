@@ -14,34 +14,63 @@ async function handleResponse<T>(res: Response): Promise<ApiResponse<T>> {
   return { data: body.data }
 }
 
+async function getHeaders(): Promise<HeadersInit> {
+  const token = localStorage.getItem('token')
+  const headers: HeadersInit = { 'Content-Type': 'application/json' }
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`
+  }
+  return headers
+}
+
 export const api = {
   async get<T>(path: string): Promise<ApiResponse<T>> {
-    const res = await fetch(`${API_BASE}${path}`)
+    const headers = await getHeaders()
+    const res = await fetch(`${API_BASE}${path}`, { headers })
     return handleResponse<T>(res)
   },
 
   async post<T>(path: string, data?: unknown): Promise<ApiResponse<T>> {
+    const headers = await getHeaders()
     const res = await fetch(`${API_BASE}${path}`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: data ? JSON.stringify(data) : undefined,
     })
     return handleResponse<T>(res)
   },
 
   async put<T>(path: string, data?: unknown): Promise<ApiResponse<T>> {
+    const headers = await getHeaders()
     const res = await fetch(`${API_BASE}${path}`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: data ? JSON.stringify(data) : undefined,
     })
     return handleResponse<T>(res)
   },
 
   async delete<T>(path: string): Promise<ApiResponse<T>> {
-    const res = await fetch(`${API_BASE}${path}`, { method: 'DELETE' })
+    const headers = await getHeaders()
+    const res = await fetch(`${API_BASE}${path}`, { method: 'DELETE', headers })
     return handleResponse<T>(res)
   },
+}
+
+export const authApi = {
+  login: (username: string, password: string) =>
+    api.post<{ token: string; user: User }>('/api/auth/login', { username, password }),
+  register: (data: CreateUserInput) =>
+    api.post<{ token: string; user: User }>('/api/auth/register', data),
+  getCurrentUser: () => api.get<User>('/api/users/me'),
+}
+
+export const usersApi = {
+  list: () => api.get<User[]>('/api/admin/users'),
+  get: (id: number) => api.get<User>(`/api/users/${id}`),
+  create: (data: CreateUserInput) => api.post<{ id: number }>('/api/auth/register', data),
+  update: (id: number, data: UpdateUserInput) => api.put<User>(`/api/users/${id}`, data),
+  delete: (id: number) => api.delete(`/api/users/${id}`),
 }
 
 export const healthApi = {
@@ -170,4 +199,26 @@ export interface CreateMemberRelationInput {
   to_member_id: number
   relation_type: string
   tag_id?: number
+}
+
+export interface User {
+  id: number
+  username: string
+  role: string
+  member_id: number | null
+  created_at: string
+  member_name?: string
+}
+
+export interface CreateUserInput {
+  username: string
+  password: string
+  role?: string
+  member_id?: number | null
+}
+
+export interface UpdateUserInput {
+  password?: string
+  role?: string
+  member_id?: number | null
 }
