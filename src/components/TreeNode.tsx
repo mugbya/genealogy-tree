@@ -180,26 +180,15 @@ export function GenealogyTree({ members, relations, familyName, familySurname, r
     const childToBioFatherMap = new Map<number, number>()
 
     // Process all parent-child relations
-    console.log('Total parentChildRelations:', parentChildRelations.length);
-
-    // 检查 memberMap 中李永泰的数据
-    const liyongtaiFromMap = memberMap.get(79);
-    console.log('*** memberMap.get(79):', liyongtaiFromMap ? JSON.stringify(liyongtaiFromMap) : 'NOT FOUND');
-
     parentChildRelations.forEach(rel => {
-      if (rel.from_member_id === 55 || rel.to_member_id === 55) {
-        console.log('*** FOUND relation for 刘金兰(55):', JSON.stringify(rel));
-      }
       const childMember = memberMap.get(rel.from_member_id)
       const parentMember = memberMap.get(rel.to_member_id)
-      console.log('Processing relation:', rel.from_member_id, '->', rel.to_member_id, 'type:', rel.relation_type, 'parentMember:', parentMember ? 'exists' : 'undefined', 'is_adopted_son:', parentMember?.is_adopted_son);
       // 招夫养子不跟随生父，而是跟随妻子家族
       if (childMember?.is_adopted_son) return
 
       // 如果是父亲关系且父亲是入赘或招夫养子成员
       // 孩子应该显示在妻子的本家丈夫（如刘三友）名下，连接线标注真实父亲
       if (rel.relation_type === 'father' && (parentMember?.is_matrilocal || parentMember?.is_adopted_son)) {
-        console.log('Adopted son case: child=', rel.from_member_id, 'father=', rel.to_member_id, 'is_adopted_son=', parentMember?.is_adopted_son);
         // 记录真实父亲关系，用于显示在连接线上
         childToBioFatherMap.set(rel.from_member_id, rel.to_member_id)
 
@@ -208,34 +197,28 @@ export function GenealogyTree({ members, relations, familyName, familySurname, r
         const motherSpouseRelations = spouseRelations.filter(
           r => (r.from_member_id === fatherId || r.to_member_id === fatherId) && r.relation_type === 'spouse'
         )
-        console.log('*** Father', fatherId, 'spouse relations (mothers):', motherSpouseRelations.map(r => r.from_member_id === fatherId ? r.to_member_id : r.from_member_id));
 
         // 遍历所有母亲，找她们的本家配偶
         let mainFamilySpouseId: number | undefined
         for (const motherSpouseRel of motherSpouseRelations) {
           const motherId = motherSpouseRel.from_member_id === fatherId ? motherSpouseRel.to_member_id : motherSpouseRel.from_member_id
-          console.log('  Checking mother:', motherId, memberMap.get(motherId)?.name);
 
           // 找母亲的所有配偶
           const motherAllSpouseRelations = spouseRelations.filter(
             r => (r.from_member_id === motherId || r.to_member_id === motherId) && r.relation_type === 'spouse'
           )
-          console.log('    Mother', motherId, 'all spouses:', motherAllSpouseRelations.map(r => r.from_member_id === motherId ? r.to_member_id : r.from_member_id));
 
           for (const spouseRel of motherAllSpouseRelations) {
             const spouseId = spouseRel.from_member_id === motherId ? spouseRel.to_member_id : spouseRel.from_member_id
             if (spouseId === fatherId) continue  // 跳过亲生父亲
             const spouse = memberMap.get(spouseId)
-            console.log('    Checking spouse:', spouseId, spouse?.name, 'surname:', spouse?.surname, 'isMainFamily:', spouse && isMainFamily(spouse));
             if (spouse && isMainFamily(spouse)) {
               mainFamilySpouseId = spouseId
-              console.log('    -> Found main family spouse:', spouseId, spouse?.name);
               break
             }
           }
           if (mainFamilySpouseId) break
         }
-        console.log('Final mainFamilySpouseId:', mainFamilySpouseId);
 
         // 如果找到了本家成员，把孩子添加到他名下
         if (mainFamilySpouseId) {
@@ -245,7 +228,6 @@ export function GenealogyTree({ members, relations, familyName, familySurname, r
             existing.push(childId)
           }
           parentToChildrenMap.set(mainFamilySpouseId, existing)
-          console.log('Added child', childId, 'to parent', mainFamilySpouseId);
         }
         return
       }
@@ -373,7 +355,6 @@ export function GenealogyTree({ members, relations, familyName, familySurname, r
     // Build tree recursively
     // Only follows the main family branch (same surname as family surname)
     const buildTree = (member: Member, visited = new Set<number>(), labelParent?: { name: string; surname?: string; gender: string; relation: string }): TreeNode => {
-      console.log('Building tree for:', member.name, 'id:', member.id, 'children:', parentToChildrenMap.get(member.id));
       if (visited.has(member.id)) {
         return {
           name: member.name,
@@ -524,16 +505,12 @@ export function GenealogyTree({ members, relations, familyName, familySurname, r
       }
     }
 
-    // Multiple roots: create a "家族" node to group them, then wrap in virtual root
+    // Multiple roots: directly use them as children of virtual root
     return {
       name: rootName,
       surname: familySurname,
       generation: 0,
-      children: [{
-        name: '家族',
-        generation: 0,
-        children: effectiveRoots.map(m => buildTree(m)),
-      }],
+      children: effectiveRoots.map(m => buildTree(m)),
       isVirtualRoot: true,
     }
   }, [members, relations, familyName, familySurname, rootMemberId])
