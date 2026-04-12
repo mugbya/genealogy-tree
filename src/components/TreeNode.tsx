@@ -12,7 +12,7 @@ interface TreeNode {
   // 本家父母信息（用于连接线标签显示）
   mainParentName?: string
   mainParentSurname?: string
-  spouses?: { name: string; surname?: string; gender: string; isMainFamily: boolean }[]
+  spouses?: { name: string; surname?: string; gender: string; isMainFamily: boolean; memberId?: number; isDeceased?: boolean }[]
   children?: TreeNode[]
   // Position for rendering
   x?: number
@@ -225,20 +225,25 @@ export function GenealogyTree({ members, relations, familyName, familySurname, o
     })
 
     // Helper to find spouses for a member
-    const findSpouses = (memberId: number): { name: string; surname?: string; gender: string; isMainFamily: boolean }[] => {
+    const findSpouses = (memberId: number): { name: string; surname?: string; gender: string; isMainFamily: boolean; memberId?: number; isDeceased?: boolean }[] => {
       const spouseRels = spouseRelations.filter(
         r => r.from_member_id === memberId || r.to_member_id === memberId
       )
-      const spouses: { name: string; surname?: string; gender: string; isMainFamily: boolean }[] = []
+      const spouses: { name: string; surname?: string; gender: string; isMainFamily: boolean; memberId?: number; isDeceased?: boolean }[] = []
+      const seenSpouseIds = new Set<number>()
       spouseRels.forEach(rel => {
         const spouseId = rel.from_member_id === memberId ? rel.to_member_id : rel.from_member_id
+        if (seenSpouseIds.has(spouseId)) return // Skip duplicate
+        seenSpouseIds.add(spouseId)
         const spouse = memberMap.get(spouseId)
         if (spouse) {
           spouses.push({
             name: spouse.name,
             surname: spouse.surname,
             gender: spouse.gender,
-            isMainFamily: isMainFamily(spouse)
+            isMainFamily: isMainFamily(spouse),
+            memberId: spouse.id,
+            isDeceased: spouse.is_deceased
           })
         }
       })
@@ -387,11 +392,14 @@ export function GenealogyTree({ members, relations, familyName, familySurname, o
 
     // Calculate subtree width
     const calcWidth = (node: TreeNode): number => {
+      // Account for spouses width
+      const spouseWidth = node.spouses && node.spouses.length > 0 ? 88 : 0 // 80 + 8 gap
+
       if (!node.children || node.children.length === 0) {
-        return NODE_WIDTH
+        return NODE_WIDTH + spouseWidth
       }
       const childrenWidth = node.children.reduce((sum, child) => sum + calcWidth(child), 0)
-      return Math.max(NODE_WIDTH, childrenWidth + (node.children.length - 1) * H_GAP)
+      return Math.max(NODE_WIDTH + spouseWidth, childrenWidth + (node.children.length - 1) * H_GAP)
     }
 
     // Calculate positions recursively
@@ -674,6 +682,39 @@ export function GenealogyTree({ members, relations, familyName, familySurname, o
         >
           {isMale ? '♂' : '♀'}
         </text>
+
+        {/* Spouses - displayed to the right of the node */}
+        {node.spouses && node.spouses.length > 0 && node.spouses.map((spouse, idx) => {
+          const spouseBgColor = spouse.isDeceased ? '#d1d5db' : (spouse.gender === 'male' ? '#93c5fd' : '#f9a8d4')
+          const spouseBorderColor = spouse.isDeceased ? '#9ca3af' : (spouse.gender === 'male' ? '#3b82f6' : '#ec4899')
+          const spouseTextColor = spouse.isDeceased ? '#9ca3af' : '#1f2937'
+          const spouseX = NODE_WIDTH + 8
+          const spouseY = (node.spouses!.length - 1) * 30 / 2 - idx * 30
+          const spouseWidth = 80
+          const spouseHeight = 26
+
+          return (
+            <g key={`spouse-${idx}`} transform={`translate(${spouseX}, ${spouseY})`}>
+              <rect
+                width={spouseWidth}
+                height={spouseHeight}
+                fill={spouseBgColor}
+                stroke={spouseBorderColor}
+                strokeWidth="1"
+                rx="4"
+              />
+              <text
+                x={spouseWidth / 2}
+                y={spouseHeight / 2 + 4}
+                textAnchor="middle"
+                fontSize="10"
+                fill={spouseTextColor}
+              >
+                {spouse.name}
+              </text>
+            </g>
+          )
+        })}
       </g>
     )
   }
