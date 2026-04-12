@@ -8,7 +8,7 @@ interface TreeNode {
   gender?: string
   generation: number
   // 标签显示的父母（显示在连接线上）
-  labelParent?: { name: string; surname?: string; gender: string; relation: string }
+  labelParent?: { name: string; surname?: string; gender: string; relation: string; memberId?: number; isDeceased?: boolean }
   // 本家父母信息（用于连接线标签显示）
   mainParentName?: string
   mainParentSurname?: string
@@ -290,7 +290,7 @@ export function GenealogyTree({ members, relations, familyName, familySurname, o
 
       // The label parent for this node - show the "other" parent (not the main one in the tree)
       // This is used when displaying connection lines between parent and child
-      let nodeLabelParent: { name: string; surname?: string; gender: string; relation: string } | undefined
+      let nodeLabelParent: { name: string; surname?: string; gender: string; relation: string; memberId?: number; isDeceased?: boolean } | undefined
 
       // Get the "other parent" - if father is mainParentId, show mother; if mother is mainParentId, show father
       if (mainParentId && parents?.fatherId && mainParentId === parents.fatherId && parents.motherId) {
@@ -301,7 +301,9 @@ export function GenealogyTree({ members, relations, familyName, familySurname, o
             name: mother.name,
             surname: mother.surname,
             gender: 'female',
-            relation: 'mother'
+            relation: 'mother',
+            memberId: mother.id,
+            isDeceased: mother.is_deceased
           }
         }
       } else if (mainParentId && parents?.motherId && mainParentId === parents.motherId && parents.fatherId) {
@@ -312,7 +314,9 @@ export function GenealogyTree({ members, relations, familyName, familySurname, o
             name: father.name,
             surname: father.surname,
             gender: 'male',
-            relation: 'father'
+            relation: 'father',
+            memberId: father.id,
+            isDeceased: father.is_deceased
           }
         }
       }
@@ -506,8 +510,8 @@ export function GenealogyTree({ members, relations, familyName, familySurname, o
             y={midY - 12}
             width={textWidth}
             height="20"
-            fill="#fef3c7"
-            stroke="#f59e0b"
+            fill={child.labelParent.isDeceased ? '#e5e7eb' : '#fef3c7'}
+            stroke={child.labelParent.isDeceased ? '#9ca3af' : '#f59e0b'}
             strokeWidth="1"
             rx="4"
           />
@@ -520,7 +524,7 @@ export function GenealogyTree({ members, relations, familyName, familySurname, o
             y={midY + 4}
             textAnchor="middle"
             fontSize="11"
-            fill="#92400e"
+            fill={child.labelParent.isDeceased ? '#9ca3af' : '#92400e'}
             fontWeight="500"
           >
             {labelText}
@@ -585,8 +589,11 @@ export function GenealogyTree({ members, relations, familyName, familySurname, o
     }
 
     const isMale = node.gender === 'male'
-    const bgColor = isMale ? '#93c5fd' : '#f9a8d4'
-    const borderColor = isMale ? '#3b82f6' : '#ec4899'
+    const isDeceased = node.memberId ? members.find(m => m.id === node.memberId)?.is_deceased : false
+    // 离世人员节点变灰
+    const bgColor = isDeceased ? '#d1d5db' : (isMale ? '#93c5fd' : '#f9a8d4')
+    const borderColor = isDeceased ? '#9ca3af' : (isMale ? '#3b82f6' : '#ec4899')
+    const textColor = isDeceased ? '#6b7280' : '#1f2937'
 
     return (
       <g
@@ -639,7 +646,7 @@ export function GenealogyTree({ members, relations, familyName, familySurname, o
           textAnchor="middle"
           fontSize="14"
           fontWeight="bold"
-          fill="#1f2937"
+          fill={textColor}
         >
           {node.surname ? `${node.surname}·${node.name}` : node.name}
         </text>
@@ -663,29 +670,10 @@ export function GenealogyTree({ members, relations, familyName, familySurname, o
           y={NODE_HEIGHT - 12}
           textAnchor="middle"
           fontSize="11"
-          fill="#6b7280"
+          fill={isDeceased ? '#9ca3af' : '#6b7280'}
         >
           {isMale ? '♂' : '♀'}
         </text>
-
-        {/* Deceased indicator */}
-        {node.memberId && (() => {
-          const member = members.find(m => m.id === node.memberId)
-          if (member?.is_deceased) {
-            return (
-              <line
-                x1="10"
-                y1="10"
-                x2={NODE_WIDTH - 10}
-                y2={NODE_HEIGHT - 10}
-                stroke="#ef4444"
-                strokeWidth="2"
-                opacity="0.6"
-              />
-            )
-          }
-          return null
-        })()}
       </g>
     )
   }
