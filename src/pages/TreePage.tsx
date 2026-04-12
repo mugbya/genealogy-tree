@@ -84,6 +84,8 @@ export function TreePage() {
   const [newTagType, setNewTagType] = useState('special')
   const [newTagColor, setNewTagColor] = useState(DEFAULT_TAG_COLORS[0])
   const [activeTab, setActiveTab] = useState('list')
+  // 族谱树起始成员选择
+  const [treeRootMemberId, setTreeRootMemberId] = useState<number | null>(null)
 
   // 标签状态
   const [tags, setTags] = useState<RelationTag[]>([])
@@ -978,11 +980,48 @@ export function TreePage() {
                 <div className={cn(
                   "h-full overflow-auto bg-gradient-to-br from-zinc-50 to-zinc-100/50 p-4",
                 )}>
+                  {/* 族谱树起始成员选择器 */}
+                  <div className="mb-4 flex items-center gap-3 bg-white/80 backdrop-blur-sm rounded-lg px-4 py-2 shadow-sm">
+                    <span className="text-sm text-gray-600">从以下成员开始展示：</span>
+                    <select
+                      value={treeRootMemberId ?? ''}
+                      onChange={(e) => setTreeRootMemberId(e.target.value ? Number(e.target.value) : null)}
+                      className="border border-gray-200 rounded-md px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="">自动（从家族祖先开始）</option>
+                      {members
+                        .filter(m => {
+                          // 如果设置了家族姓氏，只显示同姓的成员
+                          if (familySurname) {
+                            // 检查姓氏字段或名字首字是否匹配
+                            const memberSurname = m.surname || (m.name.length > 0 ? m.name[0] : '')
+                            return memberSurname === familySurname
+                          }
+                          return true
+                        })
+                        .map(m => (
+                          <option key={m.id} value={m.id}>
+                            {m.name} {m.generation ? `(第${m.generation}代)` : ''} {m.is_deceased ? '†' : ''}
+                          </option>
+                        ))}
+                    </select>
+                    {treeRootMemberId && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setTreeRootMemberId(null)}
+                        className="text-xs"
+                      >
+                        重置
+                      </Button>
+                    )}
+                  </div>
                   <GenealogyTree
                     members={members}
                     relations={relationsData?.data || []}
                     familyName={familyName}
                     familySurname={familySurname}
+                    rootMemberId={treeRootMemberId}
                     onNodeClick={(member) => {
                       setSelectedMember(member)
                       setActiveTab('list')

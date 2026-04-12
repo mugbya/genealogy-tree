@@ -28,6 +28,7 @@ interface GenealogyTreeProps {
   relations: MemberRelation[]
   familyName?: string
   familySurname?: string
+  rootMemberId?: number | null  // 指定从哪个成员开始展示
   onNodeClick?: (member: Member) => void
 }
 
@@ -36,7 +37,7 @@ const NODE_HEIGHT = 80
 const H_GAP = 50
 const V_GAP = 120
 
-export function GenealogyTree({ members, relations, familyName, familySurname, onNodeClick }: GenealogyTreeProps) {
+export function GenealogyTree({ members, relations, familyName, familySurname, rootMemberId, onNodeClick }: GenealogyTreeProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [viewBox, setViewBox] = useState({ x: 0, y: 0, width: 1200, height: 800 })
   const [isDragging, setIsDragging] = useState(false)
@@ -361,6 +362,20 @@ export function GenealogyTree({ members, relations, familyName, familySurname, o
       ? `${familySurname}氏家族`
       : familyName || '本家'
 
+    // If rootMemberId is specified, build tree from that member (showing their descendants)
+    if (rootMemberId) {
+      const rootMember = memberMap.get(rootMemberId)
+      if (rootMember) {
+        return {
+          name: rootName,
+          surname: familySurname,
+          generation: 0,
+          children: [buildTree(rootMember)],
+          isVirtualRoot: true,
+        }
+      }
+    }
+
     // If only one effective root, just build the tree directly with virtual root as parent
     if (effectiveRoots.length === 1) {
       return {
@@ -384,7 +399,7 @@ export function GenealogyTree({ members, relations, familyName, familySurname, o
       }],
       isVirtualRoot: true,
     }
-  }, [members, relations, familyName, familySurname])
+  }, [members, relations, familyName, familySurname, rootMemberId])
 
   // Calculate positions using a bottom-up layout
   const positionedTree = useMemo(() => {
