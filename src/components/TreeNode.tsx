@@ -183,8 +183,8 @@ export function GenealogyTree({ members, relations, familyName, familySurname, r
 
       const parentMember = memberMap.get(rel.to_member_id)
 
-      // 如果是父亲关系且父亲是入赘成员，孩子的归属应该转到母亲（配偶）名下
-      if (rel.relation_type === 'father' && parentMember?.is_matrilocal) {
+      // 如果是父亲关系且父亲是入赘或招夫养子成员，孩子的归属应该转到母亲（配偶）名下
+      if (rel.relation_type === 'father' && (parentMember?.is_matrilocal || parentMember?.is_adopted_son)) {
         const spouseId = spouseMap.get(rel.to_member_id)
         if (spouseId) {
           const childId = rel.from_member_id

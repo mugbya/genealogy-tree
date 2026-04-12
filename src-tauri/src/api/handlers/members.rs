@@ -16,6 +16,7 @@ use crate::models::{CreateMemberRequest, Member, UpdateMemberRequest};
 #[derive(Debug, Deserialize)]
 pub struct ImportMemberRow {
     pub 姓名: String,
+    pub 姓氏: Option<String>,
     pub 性别: String,
     #[serde(default)]
     pub 出生日期: Option<String>,
@@ -33,6 +34,10 @@ pub struct ImportMemberRow {
     pub 母亲: Option<String>,
     #[serde(default)]
     pub 配偶: Option<String>,
+    #[serde(default)]
+    pub 是否入赘: Option<String>,
+    #[serde(default)]
+    pub 是否招夫养子: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -93,6 +98,20 @@ pub async fn import_members(
             _ => false,
         };
 
+        // Convert is_matrilocal: 是→true, 否→false
+        let is_matrilocal = match row.是否入赘.as_deref() {
+            Some("是") => true,
+            Some("否") => false,
+            _ => false,
+        };
+
+        // Convert is_adopted_son: 是→true, 否→false
+        let is_adopted_son = match row.是否招夫养子.as_deref() {
+            Some("是") => true,
+            Some("否") => false,
+            _ => false,
+        };
+
         // Check if member exists by name
         let existing_id: Option<i64> = conn
             .query_row("SELECT id FROM family_members WHERE name = ?", params![name], |row| row.get(0))
@@ -101,9 +120,9 @@ pub async fn import_members(
         if let Some(id) = existing_id {
             // Update existing
             let result = conn.execute(
-                "UPDATE family_members SET gender = ?, birth_date = ?, death_date = ?, is_deceased = ?,
-                 birth_place = ?, occupation = ? WHERE id = ?",
-                params![gender, row.出生日期, row.逝世日期, is_deceased, row.籍贯, row.职业, id],
+                "UPDATE family_members SET surname = ?, gender = ?, birth_date = ?, death_date = ?, is_deceased = ?,
+                 birth_place = ?, occupation = ?, is_matrilocal = ?, is_adopted_son = ? WHERE id = ?",
+                params![row.姓氏, gender, row.出生日期, row.逝世日期, is_deceased, row.籍贯, row.职业, is_matrilocal, is_adopted_son, id],
             );
             match result {
                 Ok(_) => updated += 1,
@@ -112,9 +131,9 @@ pub async fn import_members(
         } else {
             // Insert new
             let result = conn.execute(
-                "INSERT INTO family_members (name, gender, birth_date, death_date, is_deceased,
-                 birth_place, occupation) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                params![name, gender, row.出生日期, row.逝世日期, is_deceased, row.籍贯, row.职业],
+                "INSERT INTO family_members (name, surname, gender, birth_date, death_date, is_deceased,
+                 birth_place, occupation, is_matrilocal, is_adopted_son) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                params![name, row.姓氏, gender, row.出生日期, row.逝世日期, is_deceased, row.籍贯, row.职业, is_matrilocal, is_adopted_son],
             );
             match result {
                 Ok(_) => {
@@ -249,6 +268,7 @@ fn parse_excel(bytes: &[u8]) -> Result<Vec<ImportMemberRow>, String> {
 
         let member = ImportMemberRow {
             姓名: map.get("姓名").cloned().unwrap_or_default(),
+            姓氏: map.get("姓氏").and_then(|s| if s.is_empty() { None } else { Some(s.clone()) }),
             性别: map.get("性别").cloned().unwrap_or_default(),
             出生日期: map.get("出生日期").and_then(|s| if s.is_empty() { None } else { Some(s.clone()) }),
             逝世日期: map.get("逝世日期").and_then(|s| if s.is_empty() { None } else { Some(s.clone()) }),
@@ -258,6 +278,8 @@ fn parse_excel(bytes: &[u8]) -> Result<Vec<ImportMemberRow>, String> {
             父亲: map.get("父亲").and_then(|s| if s.is_empty() { None } else { Some(s.clone()) }),
             母亲: map.get("母亲").and_then(|s| if s.is_empty() { None } else { Some(s.clone()) }),
             配偶: map.get("配偶").and_then(|s| if s.is_empty() { None } else { Some(s.clone()) }),
+            是否入赘: map.get("是否入赘").and_then(|s| if s.is_empty() { None } else { Some(s.clone()) }),
+            是否招夫养子: map.get("是否招夫养子").and_then(|s| if s.is_empty() { None } else { Some(s.clone()) }),
         };
 
         rows.push(member);
