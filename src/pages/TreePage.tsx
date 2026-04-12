@@ -303,6 +303,7 @@ export function TreePage() {
     setSelectedMember(member)
     setEditForm({
       name: member.name,
+      surname: member.surname,
       gender: member.gender,
       birth_date: member.birth_date,
       death_date: member.death_date,
@@ -311,6 +312,8 @@ export function TreePage() {
       occupation: member.occupation,
       biography: member.biography,
       remarkable_deeds: member.remarkable_deeds,
+      is_matrilocal: member.is_matrilocal,
+      is_adopted_son: member.is_adopted_son,
     })
     setIsEditOpen(true)
   }
