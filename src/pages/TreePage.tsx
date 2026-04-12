@@ -981,6 +981,7 @@ export function TreePage() {
                   <GenealogyTree
                     members={members}
                     relations={relationsData?.data || []}
+                    familyName={familyName}
                     familySurname={familySurname}
                     onNodeClick={(member) => {
                       setSelectedMember(member)

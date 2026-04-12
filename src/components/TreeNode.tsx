@@ -7,8 +7,8 @@ interface TreeNode {
   memberId?: number
   gender?: string
   generation: number
-  // 标签显示的父母（非本家，显示在连接线上）
-  labelParent?: { name: string; surname?: string; gender: string }
+  // 标签显示的父母（显示在连接线上）
+  labelParent?: { name: string; surname?: string; gender: string; relation: string }
   // 本家父母信息（用于连接线标签显示）
   mainParentName?: string
   mainParentSurname?: string
@@ -19,11 +19,14 @@ interface TreeNode {
   y?: number
   width?: number
   height?: number
+  // 虚拟根节点标识
+  isVirtualRoot?: boolean
 }
 
 interface GenealogyTreeProps {
   members: Member[]
   relations: MemberRelation[]
+  familyName?: string
   familySurname?: string
   onNodeClick?: (member: Member) => void
 }
@@ -33,7 +36,7 @@ const NODE_HEIGHT = 80
 const H_GAP = 50
 const V_GAP = 120
 
-export function GenealogyTree({ members, relations, familySurname, onNodeClick }: GenealogyTreeProps) {
+export function GenealogyTree({ members, relations, familyName, familySurname, onNodeClick }: GenealogyTreeProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [viewBox, setViewBox] = useState({ x: 0, y: 0, width: 1200, height: 800 })
   const [isDragging, setIsDragging] = useState(false)
@@ -57,11 +60,40 @@ export function GenealogyTree({ members, relations, familySurname, onNodeClick }
     // Find spouse relations
     const spouseRelations = relations.filter(r => r.relation_type === 'spouse')
 
-    // Find who is a child (appears as from_member_id in parent relations)
-    const childMemberIds = new Set(parentChildRelations.map(r => r.from_member_id))
+    // Find who is a child (appears as from_member_id in father relations only)
+    // We only consider 'father' relations for establishing family tree roots
+    // 'mother' relations might include incorrect data (e.g., spouse labeled as mother)
+    const childMemberIds = new Set(
+      parentChildRelations.filter(r => r.relation_type === 'father').map(r => r.from_member_id)
+    )
 
-    // First pass: find all potential roots (not someone's child)
-    const potentialRoots = members.filter(m => !childMemberIds.has(m.id))
+    // Find who is a parent in father relations
+    const fatherParentIds = new Set(
+      parentChildRelations.filter(r => r.relation_type === 'father').map(r => r.to_member_id)
+    )
+
+    // A member is in the father chain if they appear as either child or parent in father relations
+    const inFatherChain = (memberId: number) =>
+      childMemberIds.has(memberId) || fatherParentIds.has(memberId)
+
+    // Find who is someone's spouse (appears in spouse relations)
+    const spouseMemberIds = new Set<number>()
+    spouseRelations.forEach(rel => {
+      spouseMemberIds.add(rel.from_member_id)
+      spouseMemberIds.add(rel.to_member_id)
+    })
+
+    // A root must be:
+    // 1. Not someone's child in father relations (not in father chain as child)
+    // 2. If they ARE someone's spouse, they MUST also be in the father chain
+    //    (e.g., 贾演 is spouse of 贾演夫人, but 贾演 IS in father chain, so he's a valid root)
+    //    (贾演夫人 is spouse of 贾演, but 贾演夫人 is NOT in father chain, so she's NOT a valid root)
+    const potentialRoots = members.filter(m => {
+      if (childMemberIds.has(m.id)) return false // Can't be root if you're someone's child
+      if (!spouseMemberIds.has(m.id)) return true // Not a spouse, definitely a root
+      // Is a spouse - only valid root if they're also in the father chain
+      return inFatherChain(m.id)
+    })
 
     // Helper to check if a member is from the main family
     // 如果没有家族姓氏配置，默认所有人都是本家
@@ -95,17 +127,20 @@ export function GenealogyTree({ members, relations, familySurname, onNodeClick }
       childToParentMap.set(childId, existing)
     })
 
-    // Build reverse map: parent_id -> child_ids
+    // Build reverse map: parent_id -> child_ids (only from father relations)
+    // This prevents incorrect 'mother' relations from breaking the tree
     const parentToChildrenMap = new Map<number, number[]>()
-    parentChildRelations.forEach(rel => {
-      const parentId = rel.to_member_id
-      const childId = rel.from_member_id
-      const existing = parentToChildrenMap.get(parentId) || []
-      if (!existing.includes(childId)) {
-        existing.push(childId)
-      }
-      parentToChildrenMap.set(parentId, existing)
-    })
+    parentChildRelations
+      .filter(rel => rel.relation_type === 'father')
+      .forEach(rel => {
+        const parentId = rel.to_member_id
+        const childId = rel.from_member_id
+        const existing = parentToChildrenMap.get(parentId) || []
+        if (!existing.includes(childId)) {
+          existing.push(childId)
+        }
+        parentToChildrenMap.set(parentId, existing)
+      })
 
     // Calculate generations dynamically
     const generations = new Map<number, number>()
@@ -212,7 +247,7 @@ export function GenealogyTree({ members, relations, familySurname, onNodeClick }
 
     // Build tree recursively
     // Only follows the main family branch (same surname as family surname)
-    const buildTree = (member: Member, visited = new Set<number>(), labelParent?: { name: string; surname?: string; gender: string }): TreeNode => {
+    const buildTree = (member: Member, visited = new Set<number>(), labelParent?: { name: string; surname?: string; gender: string; relation: string }): TreeNode => {
       if (visited.has(member.id)) {
         return {
           name: member.name,
@@ -230,24 +265,19 @@ export function GenealogyTree({ members, relations, familySurname, onNodeClick }
       // Get parents
       const parents = childToParentMap.get(member.id)
 
-      // Determine main parent and secondary parent
+      // Determine main parent for building the tree structure
       let mainParentId: number | undefined
-      let secondParent: Member | undefined
 
       if (parents?.fatherId) {
         const father = memberMap.get(parents.fatherId)
         if (father && isMainFamily(father)) {
           mainParentId = parents.fatherId
-        } else {
-          secondParent = father
         }
       }
       if (!mainParentId && parents?.motherId) {
         const mother = memberMap.get(parents.motherId)
         if (mother && isMainFamily(mother)) {
           mainParentId = parents.motherId
-        } else {
-          secondParent = mother
         }
       }
       // If no main parent found yet, use the first available
@@ -258,17 +288,39 @@ export function GenealogyTree({ members, relations, familySurname, onNodeClick }
         mainParentId = parents.motherId
       }
 
-      // The label parent for this node is the secondary parent (非本家)
-      const nodeLabelParent = secondParent ? {
-        name: secondParent.name,
-        surname: secondParent.surname,
-        gender: secondParent.gender
-      } : labelParent
+      // The label parent for this node - show the "other" parent (not the main one in the tree)
+      // This is used when displaying connection lines between parent and child
+      let nodeLabelParent: { name: string; surname?: string; gender: string; relation: string } | undefined
+
+      // Get the "other parent" - if father is mainParentId, show mother; if mother is mainParentId, show father
+      if (mainParentId && parents?.fatherId && mainParentId === parents.fatherId && parents.motherId) {
+        // Father is the main parent in tree, show mother on the connection line
+        const mother = memberMap.get(parents.motherId)
+        if (mother) {
+          nodeLabelParent = {
+            name: mother.name,
+            surname: mother.surname,
+            gender: 'female',
+            relation: 'mother'
+          }
+        }
+      } else if (mainParentId && parents?.motherId && mainParentId === parents.motherId && parents.fatherId) {
+        // Mother is the main parent in tree, show father on the connection line
+        const father = memberMap.get(parents.fatherId)
+        if (father) {
+          nodeLabelParent = {
+            name: father.name,
+            surname: father.surname,
+            gender: 'male',
+            relation: 'father'
+          }
+        }
+      }
 
       const spouses = findSpouses(member.id)
 
-      // Find children - only follow main family branch
-      const childIds = mainParentId ? (parentToChildrenMap.get(mainParentId) || []) : []
+      // Find children - current member is the parent, find their children
+      const childIds = parentToChildrenMap.get(member.id) || []
       const children: TreeNode[] = []
 
       childIds.forEach(childId => {
@@ -291,20 +343,39 @@ export function GenealogyTree({ members, relations, familySurname, onNodeClick }
       }
     }
 
-    // Handle multiple roots - prefer main family root
+    // Handle roots - prefer main family root
     const mainFamilyRoots = rootMembers.filter(m => isMainFamily(m))
     const effectiveRoots = mainFamilyRoots.length > 0 ? mainFamilyRoots : rootMembers
 
+    // Build the root node with family name
+    const rootName = familySurname
+      ? `${familySurname}氏家族`
+      : familyName || '本家'
+
+    // If only one effective root, just build the tree directly with virtual root as parent
     if (effectiveRoots.length === 1) {
-      return buildTree(effectiveRoots[0])
+      return {
+        name: rootName,
+        surname: familySurname,
+        generation: 0,
+        children: [buildTree(effectiveRoots[0])],
+        isVirtualRoot: true,
+      }
     }
 
+    // Multiple roots: create a "家族" node to group them, then wrap in virtual root
     return {
-      name: '家族',
+      name: rootName,
+      surname: familySurname,
       generation: 0,
-      children: effectiveRoots.map(m => buildTree(m)),
+      children: [{
+        name: '家族',
+        generation: 0,
+        children: effectiveRoots.map(m => buildTree(m)),
+      }],
+      isVirtualRoot: true,
     }
-  }, [members, relations])
+  }, [members, relations, familyName, familySurname])
 
   // Calculate positions using a bottom-up layout
   const positionedTree = useMemo(() => {
@@ -415,9 +486,16 @@ export function GenealogyTree({ members, relations, familySurname, onNodeClick }
         />
       )
 
-      // Draw label parent (非本家) on the connection line
+      // Draw label parent on the connection line
+      // labelParent.relation tells us what labelParent IS (father or mother)
+      // We display the OPPOSITE because the current node (parent in tree) is already that person
+      // Example: if labelParent.relation === 'mother', it means labelParent is mother,
+      // and current node (parent in tree) is father, so we show "母:" on the line
       if (child.labelParent) {
-        const labelText = `${child.labelParent.gender === 'male' ? '父' : '母'}: ${child.labelParent.name}`
+        const isLabelParentMother = child.labelParent.relation === 'mother'
+        const labelText = isLabelParentMother
+          ? `母: ${child.labelParent.name}`   // labelParent is mother
+          : `父: ${child.labelParent.name}`    // labelParent is father
 
         const textWidth = labelText.length * 14 + 20
 
@@ -460,6 +538,51 @@ export function GenealogyTree({ members, relations, familySurname, onNodeClick }
   // Render a single node
   const renderNode = (node: TreeNode): React.ReactElement => {
     if (node.x === undefined || node.y === undefined) return <g key={node.memberId || node.name} />
+
+    // Virtual root node styling
+    if (node.isVirtualRoot) {
+      return (
+        <g
+          key={node.memberId || node.name}
+          transform={`translate(${node.x}, ${node.y})`}
+        >
+          {/* Root node rectangle - larger and golden */}
+          <rect
+            width={NODE_WIDTH + 40}
+            height={NODE_HEIGHT + 20}
+            fill="#fef3c7"
+            stroke="#f59e0b"
+            strokeWidth="3"
+            rx="12"
+          />
+
+          {/* Family name */}
+          <text
+            x={(NODE_WIDTH + 40) / 2}
+            y={(NODE_HEIGHT + 20) / 2 - 6}
+            textAnchor="middle"
+            fontSize="18"
+            fontWeight="bold"
+            fill="#92400e"
+          >
+            {node.name}
+          </text>
+
+          {/* Surname tree indicator */}
+          {node.surname && (
+            <text
+              x={(NODE_WIDTH + 40) / 2}
+              y={(NODE_HEIGHT + 20) / 2 + 16}
+              textAnchor="middle"
+              fontSize="12"
+              fill="#b45309"
+            >
+              {node.surname}氏宗谱
+            </text>
+          )}
+        </g>
+      )
+    }
 
     const isMale = node.gender === 'male'
     const bgColor = isMale ? '#93c5fd' : '#f9a8d4'
