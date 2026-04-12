@@ -32,6 +32,7 @@ pub fn create_router(db: Arc<Mutex<Connection>>, dist_path: Option<PathBuf>) -> 
         .route("/api/config", get(handlers::config::get_all_configs))
         .route("/api/config/:key", get(handlers::config::get_config))
         .route("/api/config", post(handlers::config::set_config))
+        .route("/api/config/batch", post(handlers::config::set_configs_batch))
         .route("/api/config/:key", delete(handlers::config::delete_config))
         .route("/api/config/public", get(handlers::config::get_public_config))
         // Members (public for now, can add auth later)

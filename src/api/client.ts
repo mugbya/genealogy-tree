@@ -81,6 +81,7 @@ export const configApi = {
   list: () => api.get<Config[]>('/api/config'),
   get: (key: string) => api.get<Config>(`/api/config/${key}`),
   set: (key: string, value: string) => api.post('/api/config', { key, value }),
+  setBatch: (configs: { key: string; value: string }[]) => api.post('/api/config/batch', configs),
   delete: (key: string) => api.delete(`/api/config/${key}`),
   getPublic: () => api.get<PublicConfig>('/api/config/public'),
 }

@@ -103,6 +103,48 @@ pub async fn set_config(
     }
 }
 
+pub async fn set_configs_batch(
+    State(db): State<Arc<Mutex<rusqlite::Connection>>>,
+    Json(req): Json<Value>,
+) -> (StatusCode, Json<Value>) {
+    #[derive(serde::Deserialize)]
+    struct ConfigItem {
+        key: String,
+        value: String,
+    }
+
+    let configs: Vec<ConfigItem> = match serde_json::from_value(req) {
+        Ok(c) => c,
+        Err(_) => return (StatusCode::BAD_REQUEST, Json(json!({ "error": "Invalid request body, expected array of {key, value}" }))),
+    };
+
+    let conn = match db.lock() {
+        Ok(conn) => conn,
+        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))),
+    };
+
+    // Start transaction for batch update
+    let tx = match conn.unchecked_transaction() {
+        Ok(tx) => tx,
+        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))),
+    };
+
+    for config in configs {
+        if let Err(e) = tx.execute(
+            "INSERT INTO family_config (key, value) VALUES (?1, ?2)
+             ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = datetime('now')",
+            params![config.key, config.value],
+        ) {
+            return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() })));
+        }
+    }
+
+    match tx.commit() {
+        Ok(_) => (StatusCode::OK, Json(json!({ "success": true }))),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))),
+    }
+}
+
 pub async fn delete_config(
     State(db): State<Arc<Mutex<rusqlite::Connection>>>,
     Path(key): Path<String>,
@@ -133,14 +175,24 @@ pub async fn get_public_config(
         conn.query_row(
             "SELECT value FROM family_config WHERE key = ?",
             params![key],
-            |row| row.get(1),
+            |row| row.get(0),
         )
-        .unwrap_or_else(|_| "false".to_string())
+        .unwrap_or_default()  // Return empty string if not found
+    };
+
+    let get_bool = |key: &str| -> bool {
+        conn.query_row(
+            "SELECT value FROM family_config WHERE key = ?",
+            params![key],
+            |row| row.get::<_, String>(0),
+        )
+        .map(|v| v == "true")
+        .unwrap_or(false)
     };
 
     let config = serde_json::json!({
-        "allow_create_family": get_value(CONFIG_ALLOW_CREATE_FAMILY) == "true",
-        "allow_public_access": get_value(CONFIG_ALLOW_PUBLIC_ACCESS) == "true",
+        "allow_create_family": get_bool(CONFIG_ALLOW_CREATE_FAMILY),
+        "allow_public_access": get_bool(CONFIG_ALLOW_PUBLIC_ACCESS),
         "family_name": get_value(CONFIG_FAMILY_NAME),
         "family_surname": get_value(CONFIG_FAMILY_SURNAME),
         "family_origin": get_value(CONFIG_FAMILY_ORIGIN),

@@ -24,6 +24,7 @@ interface TreeNode {
 interface GenealogyTreeProps {
   members: Member[]
   relations: MemberRelation[]
+  familySurname?: string
   onNodeClick?: (member: Member) => void
 }
 
@@ -32,7 +33,7 @@ const NODE_HEIGHT = 80
 const H_GAP = 50
 const V_GAP = 120
 
-export function GenealogyTree({ members, relations, onNodeClick }: GenealogyTreeProps) {
+export function GenealogyTree({ members, relations, familySurname, onNodeClick }: GenealogyTreeProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [viewBox, setViewBox] = useState({ x: 0, y: 0, width: 1200, height: 800 })
   const [isDragging, setIsDragging] = useState(false)
@@ -62,28 +63,11 @@ export function GenealogyTree({ members, relations, onNodeClick }: GenealogyTree
     // First pass: find all potential roots (not someone's child)
     const potentialRoots = members.filter(m => !childMemberIds.has(m.id))
 
-    // Determine the family surname
-    // Count surnames among ALL members (not just roots) to get the most common surname
-    const surnameCounts = new Map<string, number>()
-    members.forEach(m => {
-      if (m.surname) {
-        const count = (surnameCounts.get(m.surname) || 0) + 1
-        surnameCounts.set(m.surname, count)
-      }
-    })
-
-    // If we have surname data, use the most common surname as family surname
-    // If no surnames are provided at all, treat everyone as main family (legacy behavior)
-    let familySurname = ''
-    if (surnameCounts.size > 0) {
-      familySurname = [...surnameCounts.entries()].sort((a, b) => b[1] - a[1])[0][0]
-    }
-
     // Helper to check if a member is from the main family
-    // 如果没有家族姓氏（没有人填写姓氏），默认所有人都是本家
-    // 如果有家族姓氏，只有同姓的才是本家
+    // 如果没有家族姓氏配置，默认所有人都是本家
+    // 如果有家族姓氏配置，只有同姓的才是本家
     const isMainFamily = (member: Member): boolean => {
-      if (!familySurname) return true  // No surname data, treat as main family
+      if (!familySurname) return true  // No config, treat as main family
       if (!member.surname) return true  // No surname on this member, treat as main family
       return member.surname === familySurname
     }

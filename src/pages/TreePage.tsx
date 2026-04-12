@@ -129,10 +129,10 @@ export function TreePage() {
   const saveFamilyConfig = async () => {
     setFamilyConfigSaving(true)
     try {
-      await Promise.all([
-        configApi.set('family_name', familyName),
-        configApi.set('family_surname', familySurname),
-        configApi.set('family_origin', familyOrigin),
+      await configApi.setBatch([
+        { key: 'family_name', value: familyName },
+        { key: 'family_surname', value: familySurname },
+        { key: 'family_origin', value: familyOrigin },
       ])
       alert('保存成功！')
     } catch (error) {
@@ -981,6 +981,7 @@ export function TreePage() {
                   <GenealogyTree
                     members={members}
                     relations={relationsData?.data || []}
+                    familySurname={familySurname}
                     onNodeClick={(member) => {
                       setSelectedMember(member)
                       setActiveTab('list')
