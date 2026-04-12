@@ -46,6 +46,28 @@ pub fn init_database(db_path: &Path) -> Result<Connection> {
         conn.execute("ALTER TABLE family_members ADD COLUMN surname TEXT", [])?;
     }
 
+    // Migration: add is_matrilocal column if it doesn't exist (for existing databases)
+    let has_is_matrilocal: bool = conn.query_row(
+        "SELECT COUNT(*) FROM pragma_table_info('family_members') WHERE name = 'is_matrilocal'",
+        [],
+        |row| Ok(row.get::<_, i32>(0)? > 0),
+    ).unwrap_or(false);
+
+    if !has_is_matrilocal {
+        conn.execute("ALTER TABLE family_members ADD COLUMN is_matrilocal INTEGER NOT NULL DEFAULT 0", [])?;
+    }
+
+    // Migration: add is_adopted_son column if it doesn't exist (for existing databases)
+    let has_is_adopted_son: bool = conn.query_row(
+        "SELECT COUNT(*) FROM pragma_table_info('family_members') WHERE name = 'is_adopted_son'",
+        [],
+        |row| Ok(row.get::<_, i32>(0)? > 0),
+    ).unwrap_or(false);
+
+    if !has_is_adopted_son {
+        conn.execute("ALTER TABLE family_members ADD COLUMN is_adopted_son INTEGER NOT NULL DEFAULT 0", [])?;
+    }
+
     conn.execute(
         "CREATE TABLE IF NOT EXISTS relation_tags (
             id INTEGER PRIMARY KEY AUTOINCREMENT,

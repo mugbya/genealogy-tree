@@ -179,6 +179,8 @@ export interface Member {
   photo_path?: string
   biography?: string
   remarkable_deeds?: string
+  is_matrilocal?: boolean  // 是否入赘
+  is_adopted_son?: boolean  // 是否招夫养子
   created_at: string
   updated_at: string
 }
@@ -195,6 +197,8 @@ export interface CreateMemberInput {
   photo_path?: string
   biography?: string
   remarkable_deeds?: string
+  is_matrilocal?: boolean
+  is_adopted_son?: boolean
 }
 
 export interface UpdateMemberInput {
@@ -210,6 +214,8 @@ export interface UpdateMemberInput {
   photo_path?: string
   biography?: string
   remarkable_deeds?: string
+  is_matrilocal?: boolean
+  is_adopted_son?: boolean
 }
 
 export interface RelationTag {

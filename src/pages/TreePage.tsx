@@ -1358,6 +1358,8 @@ function MemberFormDialog({
     occupation: '',
     biography: '',
     remarkable_deeds: '',
+    is_matrilocal: undefined,
+    is_adopted_son: undefined,
   })
 
   // 当 initialData 变化时更新 form
@@ -1374,6 +1376,8 @@ function MemberFormDialog({
         occupation: initialData.occupation || '',
         biography: initialData.biography || '',
         remarkable_deeds: initialData.remarkable_deeds || '',
+        is_matrilocal: initialData.is_matrilocal,
+        is_adopted_son: initialData.is_adopted_son,
       })
     }
   }, [initialData])
@@ -1392,6 +1396,8 @@ function MemberFormDialog({
       occupation: '',
       biography: '',
       remarkable_deeds: '',
+      is_matrilocal: undefined,
+      is_adopted_son: undefined,
     })
   }
 
@@ -1508,6 +1514,24 @@ function MemberFormDialog({
               {form.is_deceased ? '已离世' : '在世'}
             </span>
             <span className="text-xs text-zinc-400">（可手动切换，也可在逝世日期中填写自动确定）</span>
+          </div>
+
+          {/* 入赘/招夫养子 Toggle */}
+          <div className="flex items-center gap-4 p-3 bg-zinc-50 rounded-lg">
+            <div className="flex items-center gap-2">
+              <Switch
+                checked={form.is_matrilocal || false}
+                onCheckedChange={(checked) => handleChange('is_matrilocal', checked)}
+              />
+              <span className="text-sm text-zinc-600">入赘</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Switch
+                checked={form.is_adopted_son || false}
+                onCheckedChange={(checked) => handleChange('is_adopted_son', checked)}
+              />
+              <span className="text-sm text-zinc-600">招夫养子</span>
+            </div>
           </div>
 
           {/* Birth Place */}

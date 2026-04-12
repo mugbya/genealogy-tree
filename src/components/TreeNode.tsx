@@ -12,7 +12,7 @@ interface TreeNode {
   // 本家父母信息（用于连接线标签显示）
   mainParentName?: string
   mainParentSurname?: string
-  spouses?: { name: string; surname?: string; gender: string; isMainFamily: boolean; memberId?: number; isDeceased?: boolean }[]
+  spouses?: { name: string; surname?: string; gender: string; isMainFamily: boolean; memberId?: number; isDeceased?: boolean; is_matrilocal?: boolean; is_adopted_son?: boolean }[]
   children?: TreeNode[]
   // Position for rendering
   x?: number
@@ -106,13 +106,23 @@ export function GenealogyTree({ members, relations, familyName, familySurname, r
       return member.surname === familySurname
     }
 
-    // Root members: those who are not someone's child AND are from main family
-    let rootMembers = potentialRoots.filter(m => isMainFamily(m))
+    // Root members: those who are not someone's child, are from main family, and are not matrilocal/adopted
+    let rootMembers = potentialRoots.filter(m => {
+      if (!isMainFamily(m)) return false
+      // 入赘成员不作为独立根节点
+      if (m.is_matrilocal) return false
+      // 招夫养子不作为独立根节点（他们跟随妻子的家族）
+      if (m.is_adopted_son) return false
+      return true
+    })
 
     // If no main family roots found (e.g., all roots have different surnames),
-    // use the first potential root as the family root
+    // use the first potential root as the family root (excluding matrilocal/adopted)
     if (rootMembers.length === 0 && potentialRoots.length > 0) {
-      rootMembers = [potentialRoots[0]]
+      const validRoots = potentialRoots.filter(m => !m.is_matrilocal && !m.is_adopted_son)
+      if (validRoots.length > 0) {
+        rootMembers = [validRoots[0]]
+      }
     }
 
     // Build a map: child_id -> {father_id, mother_id}
@@ -131,10 +141,15 @@ export function GenealogyTree({ members, relations, familyName, familySurname, r
 
     // Build reverse map: parent_id -> child_ids (only from father relations)
     // This prevents incorrect 'mother' relations from breaking the tree
+    // Also skip adopted_son members from father chain - they follow wife's family
     const parentToChildrenMap = new Map<number, number[]>()
     parentChildRelations
       .filter(rel => rel.relation_type === 'father')
       .forEach(rel => {
+        const childMember = memberMap.get(rel.from_member_id)
+        // 招夫养子不跟随生父，而是跟随妻子家族
+        if (childMember?.is_adopted_son) return
+
         const parentId = rel.to_member_id
         const childId = rel.from_member_id
         const existing = parentToChildrenMap.get(parentId) || []
@@ -227,11 +242,11 @@ export function GenealogyTree({ members, relations, familyName, familySurname, r
     })
 
     // Helper to find spouses for a member
-    const findSpouses = (memberId: number): { name: string; surname?: string; gender: string; isMainFamily: boolean; memberId?: number; isDeceased?: boolean }[] => {
+    const findSpouses = (memberId: number): { name: string; surname?: string; gender: string; isMainFamily: boolean; memberId?: number; isDeceased?: boolean; is_matrilocal?: boolean; is_adopted_son?: boolean }[] => {
       const spouseRels = spouseRelations.filter(
         r => r.from_member_id === memberId || r.to_member_id === memberId
       )
-      const spouses: { name: string; surname?: string; gender: string; isMainFamily: boolean; memberId?: number; isDeceased?: boolean }[] = []
+      const spouses: { name: string; surname?: string; gender: string; isMainFamily: boolean; memberId?: number; isDeceased?: boolean; is_matrilocal?: boolean; is_adopted_son?: boolean }[] = []
       const seenSpouseIds = new Set<number>()
       spouseRels.forEach(rel => {
         const spouseId = rel.from_member_id === memberId ? rel.to_member_id : rel.from_member_id
@@ -245,7 +260,9 @@ export function GenealogyTree({ members, relations, familyName, familySurname, r
             gender: spouse.gender,
             isMainFamily: isMainFamily(spouse),
             memberId: spouse.id,
-            isDeceased: spouse.is_deceased
+            isDeceased: spouse.is_deceased,
+            is_matrilocal: spouse.is_matrilocal,
+            is_adopted_son: spouse.is_adopted_son
           })
         }
       })

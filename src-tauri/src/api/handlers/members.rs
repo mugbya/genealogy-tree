@@ -276,7 +276,7 @@ pub async fn get_members(
 
     let mut stmt = match conn.prepare(
         "SELECT id, name, surname, gender, generation, birth_date, death_date, is_deceased,
-         birth_place, occupation, photo_path, biography, created_at, updated_at
+         birth_place, occupation, photo_path, biography, is_matrilocal, is_adopted_son, created_at, updated_at
          FROM family_members ORDER BY generation, name"
     ) {
         Ok(stmt) => stmt,
@@ -297,8 +297,10 @@ pub async fn get_members(
             occupation: row.get(9)?,
             photo_path: row.get(10)?,
             biography: row.get(11)?,
-            created_at: row.get(12)?,
-            updated_at: row.get(13)?,
+            is_matrilocal: row.get::<_, i32>(12)? != 0,
+            is_adopted_son: row.get::<_, i32>(13)? != 0,
+            created_at: row.get(14)?,
+            updated_at: row.get(15)?,
         })
     });
 
@@ -322,7 +324,7 @@ pub async fn get_member(
 
     let result = conn.query_row(
         "SELECT id, name, surname, gender, generation, birth_date, death_date, is_deceased,
-         birth_place, occupation, photo_path, biography, created_at, updated_at
+         birth_place, occupation, photo_path, biography, is_matrilocal, is_adopted_son, created_at, updated_at
          FROM family_members WHERE id = ?",
         params![id],
         |row| {
@@ -339,8 +341,10 @@ pub async fn get_member(
                 occupation: row.get(9)?,
                 photo_path: row.get(10)?,
                 biography: row.get(11)?,
-                created_at: row.get(12)?,
-                updated_at: row.get(13)?,
+                is_matrilocal: row.get::<_, i32>(12)? != 0,
+                is_adopted_son: row.get::<_, i32>(13)? != 0,
+                created_at: row.get(14)?,
+                updated_at: row.get(15)?,
             })
         },
     );
@@ -362,7 +366,7 @@ pub async fn create_member(
 
     let result = conn.execute(
         "INSERT INTO family_members (name, surname, gender, generation, birth_date, death_date, is_deceased,
-         birth_place, occupation, photo_path, biography) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+         birth_place, occupation, photo_path, biography, is_matrilocal, is_adopted_son) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
         params![
             req.name,
             req.surname,
@@ -375,6 +379,8 @@ pub async fn create_member(
             req.occupation,
             req.photo_path,
             req.biography,
+            req.is_matrilocal.unwrap_or(false),
+            req.is_adopted_son.unwrap_or(false),
         ],
     );
 
@@ -443,6 +449,14 @@ pub async fn update_member(
     if let Some(ref biography) = req.biography {
         updates.push("biography = ?");
         values.push(Box::new(biography.clone()));
+    }
+    if let Some(ref is_matrilocal) = req.is_matrilocal {
+        updates.push("is_matrilocal = ?");
+        values.push(Box::new(*is_matrilocal as i32));
+    }
+    if let Some(ref is_adopted_son) = req.is_adopted_son {
+        updates.push("is_adopted_son = ?");
+        values.push(Box::new(*is_adopted_son as i32));
     }
 
     if updates.is_empty() {
