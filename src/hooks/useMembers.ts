@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { membersApi, healthApi } from '@/api/client'
+import { membersApi, healthApi, memberRelationsApi } from '@/api/client'
 import { useMembersStore } from '@/stores'
 
 export function useHealthCheck() {
@@ -57,6 +57,35 @@ export function useDeleteMember() {
     mutationFn: membersApi.delete,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['members'] })
+    },
+  })
+}
+
+export function useMemberRelations() {
+  return useQuery({
+    queryKey: ['member-relations'],
+    queryFn: memberRelationsApi.list,
+  })
+}
+
+export function useCreateMemberRelation() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: memberRelationsApi.create,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['member-relations'] })
+    },
+  })
+}
+
+export function useDeleteMemberRelation() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: memberRelationsApi.delete,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['member-relations'] })
     },
   })
 }

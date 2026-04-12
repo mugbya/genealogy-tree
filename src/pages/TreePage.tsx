@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef } from 'react'
-import { useMembers, useCreateMember, useUpdateMember, useDeleteMember } from '@/hooks/useMembers'
+import { useMembers, useCreateMember, useUpdateMember, useDeleteMember, useMemberRelations, useCreateMemberRelation, useDeleteMemberRelation } from '@/hooks/useMembers'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -65,9 +65,12 @@ const DEFAULT_TAG_COLORS = [
 export function TreePage() {
   // 成员相关
   const { data: membersData, isLoading, refetch } = useMembers()
+  const { data: relationsData } = useMemberRelations()
   const createMember = useCreateMember()
   const updateMember = useUpdateMember()
   const deleteMember = useDeleteMember()
+  const createMemberRelation = useCreateMemberRelation()
+  const deleteMemberRelation = useDeleteMemberRelation()
 
   // 状态
   const [searchKeyword, setSearchKeyword] = useState('')
@@ -88,6 +91,15 @@ export function TreePage() {
   // 配偶状态 - 支持多配偶，每个配偶有各自的标签
   const [selectedSpouseIds, setSelectedSpouseIds] = useState<number[]>([])
   const [spouseTagsBySpouseId, setSpouseTagsBySpouseId] = useState<Record<number, number[]>>({})
+
+  // 编辑时记录原有的配偶IDs，用于比较变更
+  const [originalSpouseIds, setOriginalSpouseIds] = useState<number[]>([])
+
+  // 父母状态
+  const [selectedFatherId, setSelectedFatherId] = useState<number | undefined>()
+  const [selectedMotherId, setSelectedMotherId] = useState<number | undefined>()
+  const [originalFatherId, setOriginalFatherId] = useState<number | undefined>()
+  const [originalMotherId, setOriginalMotherId] = useState<number | undefined>()
 
   // 导入状态
   const [isImporting, setIsImporting] = useState(false)
@@ -152,6 +164,60 @@ export function TreePage() {
     )
   }, [members, searchKeyword])
 
+  // 计算成员的亲缘关系（父亲、母亲、配偶）
+  const memberRelations = useMemo(() => {
+    const relations = relationsData?.data || []
+    const memberMap = new Map(members.map(m => [m.id, m]))
+
+    // parentChildRelations: from_member_id = child, to_member_id = parent
+    const parentRelations = relations.filter(r => r.relation_type === 'father' || r.relation_type === 'mother')
+    const spouseRelations = relations.filter(r => r.relation_type === 'spouse')
+
+    const result = new Map<number, { father?: string; mother?: string; spouses: string[] }>()
+
+    // 计算父亲和母亲
+    members.forEach(member => {
+      const parentRels = parentRelations.filter(r => r.from_member_id === member.id)
+      let father: string | undefined
+      let mother: string | undefined
+
+      parentRels.forEach(rel => {
+        const parent = memberMap.get(rel.to_member_id)
+        if (parent) {
+          if (rel.relation_type === 'father') {
+            father = parent.name
+          } else if (rel.relation_type === 'mother') {
+            mother = parent.name
+          }
+        }
+      })
+
+      result.set(member.id, { father, mother, spouses: [] })
+    })
+
+    // 计算配偶
+    members.forEach(member => {
+      const spouseRels = spouseRelations.filter(
+        r => r.from_member_id === member.id || r.to_member_id === member.id
+      )
+      const spouses: string[] = []
+
+      spouseRels.forEach(rel => {
+        const spouseId = rel.from_member_id === member.id ? rel.to_member_id : rel.from_member_id
+        const spouse = memberMap.get(spouseId)
+        if (spouse && !spouses.includes(spouse.name)) {
+          spouses.push(spouse.name)
+        }
+      })
+
+      const existing = result.get(member.id) || { father: undefined, mother: undefined, spouses: [] }
+      existing.spouses = spouses
+      result.set(member.id, existing)
+    })
+
+    return result
+  }, [members, relationsData])
+
   // 加载标签
   const loadTags = async () => {
     const result = await relationTagsApi.list()
@@ -169,12 +235,34 @@ export function TreePage() {
   // 打开编辑对话框
   const handleOpenEdit = async (member: Member) => {
     await loadTags()
+
+    // 加载该成员现有的关系
+    const relations = relationsData?.data || []
+
+    // 加载配偶关系
+    const existingSpouses = relations
+      .filter(r => r.relation_type === 'spouse' && (r.from_member_id === member.id || r.to_member_id === member.id))
+      .map(r => r.from_member_id === member.id ? r.to_member_id : r.from_member_id)
+
+    setSelectedSpouseIds(existingSpouses)
+    setOriginalSpouseIds(existingSpouses)
+
+    // 加载父亲和母亲关系
+    const fatherRel = relations.find(r => r.relation_type === 'father' && r.from_member_id === member.id)
+    const motherRel = relations.find(r => r.relation_type === 'mother' && r.from_member_id === member.id)
+
+    setSelectedFatherId(fatherRel?.to_member_id)
+    setSelectedMotherId(motherRel?.to_member_id)
+    setOriginalFatherId(fatherRel?.to_member_id)
+    setOriginalMotherId(motherRel?.to_member_id)
+
     setSelectedMember(member)
     setEditForm({
       name: member.name,
       gender: member.gender,
       birth_date: member.birth_date,
       death_date: member.death_date,
+      is_deceased: member.is_deceased,
       birth_place: member.birth_place,
       occupation: member.occupation,
       biography: member.biography,
@@ -193,9 +281,87 @@ export function TreePage() {
   // 更新成员
   const handleUpdateSubmit = async (data: CreateMemberInput) => {
     if (!selectedMember) return
+
+    // 更新成员基本信息
     await updateMember.mutateAsync({ id: selectedMember.id, data })
+
+    // 同步配偶关系
+    const relations = relationsData?.data || []
+    const memberId = selectedMember.id
+
+    // 找出需要添加和删除的配偶
+    const currentSpouseIds = selectedSpouseIds
+    const originalSpouseIdsSet = new Set(originalSpouseIds)
+
+    // 需要删除的配偶（原有名单中有，但现在没有的）
+    const toRemove = originalSpouseIds.filter(id => !currentSpouseIds.includes(id))
+    // 需要添加的配偶（当前有，但原有名单中没有的）
+    const toAdd = currentSpouseIds.filter(id => !originalSpouseIdsSet.has(id))
+
+    // 查找现有的配偶关系记录ID（用于删除）
+    const existingSpouseRels = relations.filter(
+      r => r.relation_type === 'spouse' && (r.from_member_id === memberId || r.to_member_id === memberId)
+    )
+
+    // 删除移除的配偶关系
+    for (const spouseId of toRemove) {
+      const rel = existingSpouseRels.find(
+        r => (r.from_member_id === memberId && r.to_member_id === spouseId) ||
+             (r.to_member_id === memberId && r.from_member_id === spouseId)
+      )
+      if (rel) {
+        await deleteMemberRelation.mutateAsync(rel.id)
+      }
+    }
+
+    // 添加新的配偶关系
+    for (const spouseId of toAdd) {
+      await createMemberRelation.mutateAsync({
+        from_member_id: memberId,
+        to_member_id: spouseId,
+        relation_type: 'spouse',
+      })
+    }
+
+    // 同步父亲关系
+    const existingFatherRel = relations.find(r => r.relation_type === 'father' && r.from_member_id === memberId)
+    if (selectedFatherId !== originalFatherId) {
+      // 删除原有的父亲关系
+      if (existingFatherRel) {
+        await deleteMemberRelation.mutateAsync(existingFatherRel.id)
+      }
+      // 添加新的父亲关系
+      if (selectedFatherId) {
+        await createMemberRelation.mutateAsync({
+          from_member_id: memberId,
+          to_member_id: selectedFatherId,
+          relation_type: 'father',
+        })
+      }
+    }
+
+    // 同步母亲关系
+    const existingMotherRel = relations.find(r => r.relation_type === 'mother' && r.from_member_id === memberId)
+    if (selectedMotherId !== originalMotherId) {
+      // 删除原有的母亲关系
+      if (existingMotherRel) {
+        await deleteMemberRelation.mutateAsync(existingMotherRel.id)
+      }
+      // 添加新的母亲关系
+      if (selectedMotherId) {
+        await createMemberRelation.mutateAsync({
+          from_member_id: memberId,
+          to_member_id: selectedMotherId,
+          relation_type: 'mother',
+        })
+      }
+    }
+
     setIsEditOpen(false)
     setSelectedMember(null)
+    setOriginalSpouseIds([])
+    setOriginalFatherId(undefined)
+    setOriginalMotherId(undefined)
     refetch()
   }
 
@@ -417,23 +583,37 @@ export function TreePage() {
                             gender={member.gender as "male" | "female"}
                           />
                           <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
-                              <p className="font-medium text-gray-900 truncate">{member.name}</p>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <p className="font-medium text-gray-900 truncate text-sm">{member.name}</p>
                               <Badge
                                 variant={member.gender === 'male' ? 'default' : 'danger'}
                                 className="text-xs"
                               >
                                 {member.gender === 'male' ? '男' : '女'}
                               </Badge>
+                              {member.occupation && <span className="text-sm text-zinc-600"> · {member.occupation}</span>}
                               {member.is_deceased && (
                                 <Badge variant="outline" className="text-xs text-zinc-500">
                                   已离世
                                 </Badge>
                               )}
+                              {/* 亲缘关系信息 - 全部在一行 */}
+                              {(() => {
+                                const rels = memberRelations.get(member.id)
+                                const parts: string[] = []
+                                if (rels?.father) parts.push(`父 ${rels.father}`)
+                                if (rels?.mother) parts.push(`母 ${rels.mother}`)
+                                if (rels?.spouses.length) parts.push(`配偶 ${rels.spouses.join(', ')}`)
+                                return parts.length > 0 ? (
+                                  <span className="text-sm text-indigo-600 truncate">
+                                    {parts.join(' · ')}
+                                  </span>
+                                ) : null
+                              })()}
                             </div>
-                            <p className="text-xs text-zinc-500 truncate">
+                            <p className="text-sm text-zinc-500 truncate">
                               {member.birth_date || '无出生日期'}
-                              {member.occupation && ` · ${member.occupation}`}
+
                             </p>
                           </div>
                           <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -650,7 +830,7 @@ export function TreePage() {
                 )}>
                   <GenealogyTree
                     members={members}
-                    relations={[]}
+                    relations={relationsData?.data || []}
                     onNodeClick={(member) => {
                       setSelectedMember(member)
                       setActiveTab('list')
@@ -786,10 +966,10 @@ export function TreePage() {
         selectedTagIds={selectedTagIds}
         onToggleTag={toggleTag}
         members={members}
-        fatherId={undefined}
-        motherId={undefined}
-        onFatherChange={() => {}}
-        onMotherChange={() => {}}
+        fatherId={selectedFatherId}
+        motherId={selectedMotherId}
+        onFatherChange={(id) => setSelectedFatherId(id)}
+        onMotherChange={(id) => setSelectedMotherId(id)}
         selectedSpouseIds={selectedSpouseIds}
         onToggleSpouse={toggleSpouse}
         spouseTagsBySpouseId={spouseTagsBySpouseId}
@@ -1112,12 +1292,18 @@ function MemberFormDialog({
           <div className="flex items-center gap-3 p-3 bg-zinc-50 rounded-lg">
             <Switch
               checked={form.is_deceased || false}
-              disabled={true}
+              onCheckedChange={(checked) => {
+                handleChange('is_deceased', checked)
+                // 如果设置为"在世"，清空逝世日期
+                if (!checked) {
+                  handleChange('death_date', undefined)
+                }
+              }}
             />
             <span className="text-sm text-zinc-600">
               {form.is_deceased ? '已离世' : '在世'}
             </span>
-            <span className="text-xs text-zinc-400">（根据逝世日期自动确定）</span>
+            <span className="text-xs text-zinc-400">（可手动切换，也可在逝世日期中填写自动确定）</span>
           </div>
 
           {/* Birth Place */}
