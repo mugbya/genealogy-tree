@@ -802,27 +802,14 @@ export function GenealogyTree({ members, relations, familyName, familySurname, r
         {/* Name */}
         <text
           x={NODE_WIDTH / 2}
-          y={NODE_HEIGHT / 2 - (node.surname ? 8 : 0)}
+          y={NODE_HEIGHT / 2 - 8}
           textAnchor="middle"
           fontSize="14"
           fontWeight="bold"
           fill={textColor}
         >
-          {node.surname ? `${node.surname}·${node.name}` : node.name}
+          {node.name}
         </text>
-
-        {/* Only show name if surname is different */}
-        {node.surname && (
-          <text
-            x={NODE_WIDTH / 2}
-            y={NODE_HEIGHT / 2 + 12}
-            textAnchor="middle"
-            fontSize="11"
-            fill="#6b7280"
-          >
-            {node.name}
-          </text>
-        )}
 
         {/* Gender indicator */}
         <text
