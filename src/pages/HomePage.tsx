@@ -140,7 +140,7 @@ export function HomePage() {
                 </div>
                 <div>
                   <h3 className="font-semibold text-gray-900 text-lg">族谱</h3>
-                  <p className="text-sm text-muted-foreground">可视化谱系图</p>
+                  <p className="text-sm text-muted-foreground">族谱信息与成员</p>
                 </div>
               </div>
             </CardContent>

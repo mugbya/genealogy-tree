@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 pub struct Member {
     pub id: i64,
     pub name: String,
+    pub surname: Option<String>,
     pub gender: String,
     pub generation: Option<i32>,
     pub birth_date: Option<String>,
@@ -20,6 +21,7 @@ pub struct Member {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateMemberRequest {
     pub name: String,
+    pub surname: Option<String>,
     pub gender: String,
     pub generation: Option<i32>,
     pub birth_date: Option<String>,
@@ -34,6 +36,7 @@ pub struct CreateMemberRequest {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UpdateMemberRequest {
     pub name: Option<String>,
+    pub surname: Option<String>,
     pub gender: Option<String>,
     pub generation: Option<i32>,
     pub birth_date: Option<String>,

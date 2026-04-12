@@ -9,6 +9,7 @@ use std::sync::{Arc, Mutex};
 
 use crate::models::{
     Config, CONFIG_ALLOW_CREATE_FAMILY, CONFIG_ALLOW_PUBLIC_ACCESS, CONFIG_FAMILY_NAME,
+    CONFIG_FAMILY_SURNAME, CONFIG_FAMILY_ORIGIN,
 };
 
 pub async fn get_all_configs(
@@ -141,6 +142,8 @@ pub async fn get_public_config(
         "allow_create_family": get_value(CONFIG_ALLOW_CREATE_FAMILY) == "true",
         "allow_public_access": get_value(CONFIG_ALLOW_PUBLIC_ACCESS) == "true",
         "family_name": get_value(CONFIG_FAMILY_NAME),
+        "family_surname": get_value(CONFIG_FAMILY_SURNAME),
+        "family_origin": get_value(CONFIG_FAMILY_ORIGIN),
     });
 
     (StatusCode::OK, Json(json!({ "data": config })))

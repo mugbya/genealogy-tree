@@ -8,6 +8,7 @@ pub fn init_database(db_path: &Path) -> Result<Connection> {
         "CREATE TABLE IF NOT EXISTS family_members (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT NOT NULL,
+            surname TEXT,
             gender TEXT NOT NULL DEFAULT 'male',
             generation INTEGER,
             birth_date TEXT,
@@ -32,6 +33,17 @@ pub fn init_database(db_path: &Path) -> Result<Connection> {
 
     if !has_is_deceased {
         conn.execute("ALTER TABLE family_members ADD COLUMN is_deceased INTEGER NOT NULL DEFAULT 0", [])?;
+    }
+
+    // Migration: add surname column if it doesn't exist (for existing databases)
+    let has_surname: bool = conn.query_row(
+        "SELECT COUNT(*) FROM pragma_table_info('family_members') WHERE name = 'surname'",
+        [],
+        |row| Ok(row.get::<_, i32>(0)? > 0),
+    ).unwrap_or(false);
+
+    if !has_surname {
+        conn.execute("ALTER TABLE family_members ADD COLUMN surname TEXT", [])?;
     }
 
     conn.execute(

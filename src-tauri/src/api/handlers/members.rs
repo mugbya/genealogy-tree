@@ -275,7 +275,7 @@ pub async fn get_members(
     };
 
     let mut stmt = match conn.prepare(
-        "SELECT id, name, gender, generation, birth_date, death_date, is_deceased,
+        "SELECT id, name, surname, gender, generation, birth_date, death_date, is_deceased,
          birth_place, occupation, photo_path, biography, created_at, updated_at
          FROM family_members ORDER BY generation, name"
     ) {
@@ -287,17 +287,18 @@ pub async fn get_members(
         Ok(Member {
             id: row.get(0)?,
             name: row.get(1)?,
-            gender: row.get(2)?,
-            generation: row.get(3)?,
-            birth_date: row.get(4)?,
-            death_date: row.get(5)?,
-            is_deceased: row.get::<_, i32>(6)? != 0,
-            birth_place: row.get(7)?,
-            occupation: row.get(8)?,
-            photo_path: row.get(9)?,
-            biography: row.get(10)?,
-            created_at: row.get(11)?,
-            updated_at: row.get(12)?,
+            surname: row.get(2)?,
+            gender: row.get(3)?,
+            generation: row.get(4)?,
+            birth_date: row.get(5)?,
+            death_date: row.get(6)?,
+            is_deceased: row.get::<_, i32>(7)? != 0,
+            birth_place: row.get(8)?,
+            occupation: row.get(9)?,
+            photo_path: row.get(10)?,
+            biography: row.get(11)?,
+            created_at: row.get(12)?,
+            updated_at: row.get(13)?,
         })
     });
 
@@ -320,7 +321,7 @@ pub async fn get_member(
     };
 
     let result = conn.query_row(
-        "SELECT id, name, gender, generation, birth_date, death_date, is_deceased,
+        "SELECT id, name, surname, gender, generation, birth_date, death_date, is_deceased,
          birth_place, occupation, photo_path, biography, created_at, updated_at
          FROM family_members WHERE id = ?",
         params![id],
@@ -328,17 +329,18 @@ pub async fn get_member(
             Ok(Member {
                 id: row.get(0)?,
                 name: row.get(1)?,
-                gender: row.get(2)?,
-                generation: row.get(3)?,
-                birth_date: row.get(4)?,
-                death_date: row.get(5)?,
-                is_deceased: row.get::<_, i32>(6)? != 0,
-                birth_place: row.get(7)?,
-                occupation: row.get(8)?,
-                photo_path: row.get(9)?,
-                biography: row.get(10)?,
-                created_at: row.get(11)?,
-                updated_at: row.get(12)?,
+                surname: row.get(2)?,
+                gender: row.get(3)?,
+                generation: row.get(4)?,
+                birth_date: row.get(5)?,
+                death_date: row.get(6)?,
+                is_deceased: row.get::<_, i32>(7)? != 0,
+                birth_place: row.get(8)?,
+                occupation: row.get(9)?,
+                photo_path: row.get(10)?,
+                biography: row.get(11)?,
+                created_at: row.get(12)?,
+                updated_at: row.get(13)?,
             })
         },
     );
@@ -359,10 +361,11 @@ pub async fn create_member(
     };
 
     let result = conn.execute(
-        "INSERT INTO family_members (name, gender, generation, birth_date, death_date, is_deceased,
-         birth_place, occupation, photo_path, biography) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+        "INSERT INTO family_members (name, surname, gender, generation, birth_date, death_date, is_deceased,
+         birth_place, occupation, photo_path, biography) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
         params![
             req.name,
+            req.surname,
             req.gender,
             req.generation,
             req.birth_date,
@@ -400,6 +403,10 @@ pub async fn update_member(
     if let Some(ref name) = req.name {
         updates.push("name = ?");
         values.push(Box::new(name.clone()));
+    }
+    if let Some(ref surname) = req.surname {
+        updates.push("surname = ?");
+        values.push(Box::new(surname.clone()));
     }
     if let Some(ref gender) = req.gender {
         updates.push("gender = ?");

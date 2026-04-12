@@ -160,11 +160,14 @@ export interface PublicConfig {
   allow_create_family: boolean
   allow_public_access: boolean
   family_name: string
+  family_surname: string
+  family_origin: string
 }
 
 export interface Member {
   id: number
   name: string
+  surname?: string
   gender: string
   generation?: number
   birth_date?: string
@@ -181,6 +184,7 @@ export interface Member {
 
 export interface CreateMemberInput {
   name: string
+  surname?: string
   gender: string
   birth_date?: string
   death_date?: string
@@ -194,6 +198,7 @@ export interface CreateMemberInput {
 
 export interface UpdateMemberInput {
   name?: string
+  surname?: string
   gender?: string
   generation?: number
   birth_date?: string

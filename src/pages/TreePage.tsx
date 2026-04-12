@@ -1,6 +1,6 @@
-import React, { useState, useMemo, useRef } from 'react'
+import React, { useState, useMemo, useRef, useEffect } from 'react'
 import { useMembers, useCreateMember, useUpdateMember, useDeleteMember, useMemberRelations, useCreateMemberRelation, useDeleteMemberRelation } from '@/hooks/useMembers'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge'
 import { Avatar } from '@/components/ui/avatar'
 import { Switch } from '@/components/ui/switch'
 import { GenealogyTree } from '@/components/TreeNode'
-import { membersApi, relationTagsApi, type Member, type RelationTag, type CreateMemberInput } from '@/api/client'
+import { membersApi, relationTagsApi, configApi, type Member, type RelationTag, type CreateMemberInput } from '@/api/client'
 import {
   Dialog,
   DialogContent,
@@ -44,6 +44,7 @@ import {
   X,
   Download,
   Upload,
+  Save,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -100,6 +101,47 @@ export function TreePage() {
   const [selectedMotherId, setSelectedMotherId] = useState<number | undefined>()
   const [originalFatherId, setOriginalFatherId] = useState<number | undefined>()
   const [originalMotherId, setOriginalMotherId] = useState<number | undefined>()
+
+  // 族谱配置状态
+  const [familyName, setFamilyName] = useState('')
+  const [familySurname, setFamilySurname] = useState('')
+  const [familyOrigin, setFamilyOrigin] = useState('')
+  const [familyConfigSaving, setFamilyConfigSaving] = useState(false)
+
+  // 加载族谱配置
+  useEffect(() => {
+    loadFamilyConfig()
+  }, [])
+
+  const loadFamilyConfig = async () => {
+    try {
+      const result = await configApi.getPublic()
+      if (result.data) {
+        setFamilyName(result.data.family_name || '')
+        setFamilySurname(result.data.family_surname || '')
+        setFamilyOrigin(result.data.family_origin || '')
+      }
+    } catch (error) {
+      console.error('Failed to load family config:', error)
+    }
+  }
+
+  const saveFamilyConfig = async () => {
+    setFamilyConfigSaving(true)
+    try {
+      await Promise.all([
+        configApi.set('family_name', familyName),
+        configApi.set('family_surname', familySurname),
+        configApi.set('family_origin', familyOrigin),
+      ])
+      alert('保存成功！')
+    } catch (error) {
+      console.error('Failed to save family config:', error)
+      alert('保存失败')
+    } finally {
+      setFamilyConfigSaving(false)
+    }
+  }
 
   // 导入状态
   const [isImporting, setIsImporting] = useState(false)
@@ -456,6 +498,10 @@ export function TreePage() {
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0">
         <TabsList className="shrink-0">
+          <TabsTrigger value="info" className="gap-2">
+            <BookOpen className="w-4 h-4" />
+            族谱信息
+          </TabsTrigger>
           <TabsTrigger value="list" className="gap-2">
             <Users className="w-4 h-4" />
             家族成员列表
@@ -469,6 +515,110 @@ export function TreePage() {
             标签管理
           </TabsTrigger>
         </TabsList>
+
+        {/* 族谱信息 */}
+        <TabsContent value="info" className="flex-1 min-h-0 mt-4">
+          <div className="max-w-2xl space-y-6">
+            <Card className="border-0 shadow-sm">
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <span className="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center">
+                    <span className="text-indigo-600 font-bold">姓</span>
+                  </span>
+                  姓氏信息
+                </CardTitle>
+                <CardDescription>
+                  族谱树会根据姓氏判断本家与外姓，<strong>请务必正确设置姓氏</strong>
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">家族姓氏</label>
+                  <Input
+                    value={familySurname}
+                    onChange={(e) => setFamilySurname(e.target.value)}
+                    placeholder="如：贾、王、张"
+                    className="h-12 text-lg"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    同姓成员将作为本家显示为节点，不同姓的配偶将显示在连接线上
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-0 shadow-sm">
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <span className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center">
+                    <span className="text-amber-600 font-bold">名</span>
+                  </span>
+                  家族名称
+                </CardTitle>
+                <CardDescription>
+                  设置族谱的名称，如"红楼梦贾府族谱"
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">族谱名称</label>
+                  <Input
+                    value={familyName}
+                    onChange={(e) => setFamilyName(e.target.value)}
+                    placeholder="如：红楼梦贾府"
+                    className="h-12 text-lg"
+                  />
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-0 shadow-sm">
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <span className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center">
+                    <span className="text-emerald-600 font-bold">源</span>
+                  </span>
+                  家族来源
+                </CardTitle>
+                <CardDescription>
+                  记录家族的起源或迁移历史
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">籍贯/来源</label>
+                  <Input
+                    value={familyOrigin}
+                    onChange={(e) => setFamilyOrigin(e.target.value)}
+                    placeholder="如：京城、江南金陵"
+                    className="h-12 text-lg"
+                  />
+                </div>
+              </CardContent>
+            </Card>
+
+            <div className="flex gap-3">
+              <Button
+                onClick={saveFamilyConfig}
+                disabled={familyConfigSaving}
+                className="gap-2 bg-indigo-600 hover:bg-indigo-700"
+              >
+                <Save className="w-4 h-4" />
+                {familyConfigSaving ? '保存中...' : '保存修改'}
+              </Button>
+            </div>
+
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+              <h3 className="font-medium text-amber-800 mb-2">设置说明</h3>
+              <ul className="text-sm text-amber-700 space-y-1">
+                <li>• <strong>家族姓氏</strong>：用于判断本家与外姓，是族谱树正确展示的关键</li>
+                <li>• <strong>同姓本家</strong>：如贾姓成员，将作为族谱树上的节点展示</li>
+                <li>• <strong>外姓配偶</strong>：如王氏（贾宝玉的妻子）、史氏（贾母），将显示在连接线上</li>
+                <li>• <strong>入赘情况</strong>：如果女子招外姓入赘，子女随母姓（贾姓)，则入赘者显示在线上</li>
+              </ul>
+            </div>
+          </div>
+        </TabsContent>
 
         {/* 家族成员列表 */}
         <TabsContent value="list" className="flex-1 min-h-0 mt-4">
@@ -1158,6 +1308,7 @@ function MemberFormDialog({
 }: MemberFormDialogProps) {
   const [form, setForm] = useState<CreateMemberInput>({
     name: '',
+    surname: '',
     gender: 'male',
     birth_date: undefined,
     death_date: undefined,
@@ -1173,6 +1324,7 @@ function MemberFormDialog({
     if (initialData) {
       setForm({
         name: initialData.name || '',
+        surname: initialData.surname || '',
         gender: initialData.gender || 'male',
         birth_date: initialData.birth_date,
         death_date: initialData.death_date,
@@ -1225,10 +1377,21 @@ function MemberFormDialog({
         </DialogHeader>
         <div className="flex-1 overflow-y-auto py-4 space-y-6">
           {/* Name & Gender */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-3 gap-4">
             <div className="space-y-2">
               <label className="text-sm font-medium flex items-center gap-1">
-                <span className="text-red-500">*</span>姓名
+                <span className="text-red-500">*</span>姓氏
+              </label>
+              <Input
+                value={form.surname || ''}
+                onChange={(e) => handleChange('surname', e.target.value || undefined)}
+                placeholder="如：贾"
+                className="h-11"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium flex items-center gap-1">
+                <span className="text-red-500">*</span>名字
               </label>
               <Input
                 value={form.name}

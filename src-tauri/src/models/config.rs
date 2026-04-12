@@ -24,8 +24,12 @@ pub struct ConfigResponse {
     pub allow_create_family: bool,
     pub allow_public_access: bool,
     pub family_name: String,
+    pub family_surname: String,
+    pub family_origin: String,
 }
 
 pub const CONFIG_ALLOW_CREATE_FAMILY: &str = "allow_create_family";
 pub const CONFIG_ALLOW_PUBLIC_ACCESS: &str = "allow_public_access";
 pub const CONFIG_FAMILY_NAME: &str = "family_name";
+pub const CONFIG_FAMILY_SURNAME: &str = "family_surname";
+pub const CONFIG_FAMILY_ORIGIN: &str = "family_origin";
