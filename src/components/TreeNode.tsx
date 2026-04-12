@@ -64,19 +64,9 @@ export function GenealogyTree({ members, relations, familyName, familySurname, r
 
     // Find who is a child (appears as from_member_id in father relations only)
     // We only consider 'father' relations for establishing family tree roots
-    // 'mother' relations might include incorrect data (e.g., spouse labeled as mother)
     const childMemberIds = new Set(
       parentChildRelations.filter(r => r.relation_type === 'father').map(r => r.from_member_id)
     )
-
-    // Find who is a parent in father relations
-    const fatherParentIds = new Set(
-      parentChildRelations.filter(r => r.relation_type === 'father').map(r => r.to_member_id)
-    )
-
-    // A member is in the father chain if they appear as either child or parent in father relations
-    const inFatherChain = (memberId: number) =>
-      childMemberIds.has(memberId) || fatherParentIds.has(memberId)
 
     // Find who is someone's spouse (appears in spouse relations)
     const spouseMemberIds = new Set<number>()
@@ -85,16 +75,46 @@ export function GenealogyTree({ members, relations, familyName, familySurname, r
       spouseMemberIds.add(rel.to_member_id)
     })
 
+    // Find who is a parent in father relations (for father chain)
+    const fatherParentIds = new Set<number>()
+    parentChildRelations
+      .filter(r => r.relation_type === 'father')
+      .forEach(r => fatherParentIds.add(r.to_member_id))
+
+    // Find who is a parent in any relation
+    const isParentInAnyRelation = (memberId: number): boolean => {
+      return parentChildRelations.some(r => r.to_member_id === memberId)
+    }
+
+    // A member is in the father chain if they appear as either child or parent in father relations
+    const inFatherChain = (memberId: number) =>
+      childMemberIds.has(memberId) || fatherParentIds.has(memberId)
+
     // A root must be:
-    // 1. Not someone's child in father relations (not in father chain as child)
+    // 1. Not someone's child in father relations
     // 2. If they ARE someone's spouse, they MUST also be in the father chain
-    //    (e.g., 贾演 is spouse of 贾演夫人, but 贾演 IS in father chain, so he's a valid root)
+    //    (e.g., 贾演 is spouse of 贾演夫人, and 贾演 IS in father chain, so he's a valid root)
     //    (贾演夫人 is spouse of 贾演, but 贾演夫人 is NOT in father chain, so she's NOT a valid root)
+    // EXCEPTION: Women who are spouses of matrilocal husbands can be roots if they are parents
     const potentialRoots = members.filter(m => {
       if (childMemberIds.has(m.id)) return false // Can't be root if you're someone's child
       if (!spouseMemberIds.has(m.id)) return true // Not a spouse, definitely a root
-      // Is a spouse - only valid root if they're also in the father chain
-      return inFatherChain(m.id)
+
+      // Is a spouse - valid root if in father chain
+      if (inFatherChain(m.id)) return true
+
+      // For 入赘 (matrilocal) case: the wife of a matrilocal husband
+      // She should be a root if she is a parent and her husband is matrilocal
+      if (isParentInAnyRelation(m.id)) {
+        // She is a parent, check if her husband is matrilocal
+        const husbandRel = spouseRelations.find(r => r.to_member_id === m.id && r.relation_type === 'spouse')
+        if (husbandRel) {
+          const husband = memberMap.get(husbandRel.from_member_id)
+          if (husband?.is_matrilocal) return true
+        }
+      }
+
+      return false
     })
 
     // Helper to check if a member is from the main family
@@ -139,25 +159,53 @@ export function GenealogyTree({ members, relations, familyName, familySurname, r
       childToParentMap.set(childId, existing)
     })
 
-    // Build reverse map: parent_id -> child_ids (only from father relations)
-    // This prevents incorrect 'mother' relations from breaking the tree
-    // Also skip adopted_son members from father chain - they follow wife's family
-    const parentToChildrenMap = new Map<number, number[]>()
-    parentChildRelations
-      .filter(rel => rel.relation_type === 'father')
-      .forEach(rel => {
-        const childMember = memberMap.get(rel.from_member_id)
-        // 招夫养子不跟随生父，而是跟随妻子家族
-        if (childMember?.is_adopted_son) return
+    // Build spouse map: member_id -> spouse_id
+    const spouseMap = new Map<number, number>()
+    spouseRelations.forEach(rel => {
+      if (!spouseMap.has(rel.from_member_id)) {
+        spouseMap.set(rel.from_member_id, rel.to_member_id)
+      }
+      if (!spouseMap.has(rel.to_member_id)) {
+        spouseMap.set(rel.to_member_id, rel.from_member_id)
+      }
+    })
 
-        const parentId = rel.to_member_id
-        const childId = rel.from_member_id
-        const existing = parentToChildrenMap.get(parentId) || []
-        if (!existing.includes(childId)) {
-          existing.push(childId)
+    // Build reverse map: parent_id -> child_ids
+    // For father relations, children should be attached to the spouse if the father is matrilocal
+    // For mother relations, children are naturally under the mother
+    const parentToChildrenMap = new Map<number, number[]>()
+
+    // Process all parent-child relations
+    parentChildRelations.forEach(rel => {
+      const childMember = memberMap.get(rel.from_member_id)
+      // 招夫养子不跟随生父，而是跟随妻子家族
+      if (childMember?.is_adopted_son) return
+
+      const parentMember = memberMap.get(rel.to_member_id)
+
+      // 如果是父亲关系且父亲是入赘成员，孩子的归属应该转到母亲（配偶）名下
+      if (rel.relation_type === 'father' && parentMember?.is_matrilocal) {
+        const spouseId = spouseMap.get(rel.to_member_id)
+        if (spouseId) {
+          const childId = rel.from_member_id
+          const existing = parentToChildrenMap.get(spouseId) || []
+          if (!existing.includes(childId)) {
+            existing.push(childId)
+          }
+          parentToChildrenMap.set(spouseId, existing)
         }
-        parentToChildrenMap.set(parentId, existing)
-      })
+        return
+      }
+
+      // 其他情况：正常添加到父亲或母亲名下
+      const parentId = rel.to_member_id
+      const childId = rel.from_member_id
+      const existing = parentToChildrenMap.get(parentId) || []
+      if (!existing.includes(childId)) {
+        existing.push(childId)
+      }
+      parentToChildrenMap.set(parentId, existing)
+    })
 
     // Calculate generations dynamically
     const generations = new Map<number, number>()
