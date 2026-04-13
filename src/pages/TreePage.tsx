@@ -1080,6 +1080,7 @@ export function TreePage() {
                         variant="outline"
                         className="flex-1 gap-2"
                         onClick={() => {
+                          setTreeRootMemberId(selectedMember.id)
                           setActiveTab('tree')
                         }}
                       >
