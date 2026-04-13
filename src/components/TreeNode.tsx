@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState, useEffect } from 'react'
+import React, { useMemo, useRef, useState, useEffect, useImperativeHandle, forwardRef } from 'react'
 import type { Member, MemberRelation } from '@/api/client'
 
 interface TreeNode {
@@ -32,13 +32,20 @@ interface GenealogyTreeProps {
   onNodeClick?: (member: Member) => void
 }
 
+export interface GenealogyTreeRef {
+  container: HTMLDivElement | null
+}
+
 const NODE_WIDTH = 120
 const NODE_HEIGHT = 80
 const H_GAP = 50
 const V_GAP = 120
 
-export function GenealogyTree({ members, relations, familyName, familySurname, rootMemberId, onNodeClick }: GenealogyTreeProps) {
+export const GenealogyTree = forwardRef<HTMLDivElement, GenealogyTreeProps>(function GenealogyTree({ members, relations, familyName, familySurname, rootMemberId, onNodeClick }, ref) {
   const containerRef = useRef<HTMLDivElement>(null)
+
+  // Expose container ref to parent
+  useImperativeHandle(ref, () => containerRef.current as HTMLDivElement)
   const [viewBox, setViewBox] = useState({ x: 0, y: 0, width: 1200, height: 800 })
   const [isDragging, setIsDragging] = useState(false)
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
@@ -1078,4 +1085,4 @@ export function GenealogyTree({ members, relations, familyName, familySurname, r
       </div>
     </div>
   )
-}
+})

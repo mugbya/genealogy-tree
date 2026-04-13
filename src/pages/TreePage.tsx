@@ -9,6 +9,7 @@ import { Avatar } from '@/components/ui/avatar'
 import { Switch } from '@/components/ui/switch'
 import { GenealogyTree } from '@/components/TreeNode'
 import { membersApi, relationTagsApi, configApi, type Member, type RelationTag, type CreateMemberInput } from '@/api/client'
+import { toPng } from 'html-to-image'
 import {
   Dialog,
   DialogContent,
@@ -29,8 +30,6 @@ import {
   Calendar,
   Briefcase,
   BookOpen,
-  ZoomIn,
-  ZoomOut,
   TreeDeciduous,
   Clock,
   Home,
@@ -76,7 +75,6 @@ export function TreePage() {
   // 状态
   const [searchKeyword, setSearchKeyword] = useState('')
   const [selectedMember, setSelectedMember] = useState<Member | null>(null)
-  const [isZoomed, setIsZoomed] = useState(false)
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [isEditOpen, setIsEditOpen] = useState(false)
   const [isCreateTagOpen, setIsCreateTagOpen] = useState(false)
@@ -86,6 +84,7 @@ export function TreePage() {
   const [activeTab, setActiveTab] = useState('list')
   // 族谱树起始成员选择
   const [treeRootMemberId, setTreeRootMemberId] = useState<number | null>(null)
+  const treeRef = useRef<HTMLDivElement>(null)
 
   // 标签状态
   const [tags, setTags] = useState<RelationTag[]>([])
@@ -274,6 +273,32 @@ export function TreePage() {
   const handleOpenCreate = async () => {
     await loadTags()
     setIsCreateOpen(true)
+  }
+
+  // 截图下载族谱树
+  const handleScreenshot = async () => {
+    if (!treeRef.current) return
+    try {
+      // 确定导出文件名：优先使用根成员姓名，其次使用家族名
+      let exportName = familyName || '族谱树'
+      if (treeRootMemberId) {
+        const rootMember = members.find(m => m.id === treeRootMemberId)
+        if (rootMember) {
+          exportName = rootMember.name
+        }
+      }
+
+      const dataUrl = await toPng(treeRef.current, {
+        backgroundColor: '#ffffff',
+        pixelRatio: 2,
+      })
+      const link = document.createElement('a')
+      link.download = `${exportName}_${new Date().toISOString().slice(0, 10)}.png`
+      link.href = dataUrl
+      link.click()
+    } catch (err) {
+      console.error('截图失败:', err)
+    }
   }
 
   // 打开编辑对话框
@@ -944,19 +969,11 @@ export function TreePage() {
                 </CardTitle>
                 <div className="flex items-center gap-2">
                   <Button
-                    variant="outline"
-                    size="icon"
-                    onClick={() => setIsZoomed(!isZoomed)}
+                    onClick={handleScreenshot}
                     className="gap-2"
                   >
-                    {isZoomed ? <ZoomOut className="w-4 h-4" /> : <ZoomIn className="w-4 h-4" />}
-                  </Button>
-                  <Button
-                    onClick={handleOpenCreate}
-                    className="gap-2 bg-gray-900 hover:bg-gray-800"
-                  >
-                    <Plus className="w-4 h-4" />
-                    添加成员
+                    <Download className="w-4 h-4" />
+                    截图下载
                   </Button>
                 </div>
               </div>
@@ -1020,6 +1037,7 @@ export function TreePage() {
                     )}
                   </div>
                   <GenealogyTree
+                    ref={treeRef}
                     members={members}
                     relations={relationsData?.data || []}
                     familyName={familyName}
