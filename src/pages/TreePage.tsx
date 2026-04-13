@@ -9,7 +9,6 @@ import { Avatar } from '@/components/ui/avatar'
 import { Switch } from '@/components/ui/switch'
 import { GenealogyTree } from '@/components/TreeNode'
 import { membersApi, relationTagsApi, configApi, type Member, type RelationTag, type CreateMemberInput } from '@/api/client'
-import { toPng } from 'html-to-image'
 import {
   Dialog,
   DialogContent,
@@ -84,7 +83,7 @@ export function TreePage() {
   const [activeTab, setActiveTab] = useState('list')
   // 族谱树起始成员选择
   const [treeRootMemberId, setTreeRootMemberId] = useState<number | null>(null)
-  const treeRef = useRef<HTMLDivElement>(null)
+  const treeRef = useRef<{ container: HTMLDivElement | null; exportSvgAsDataUrl: () => string }>(null)
 
   // 标签状态
   const [tags, setTags] = useState<RelationTag[]>([])
@@ -288,14 +287,37 @@ export function TreePage() {
         }
       }
 
-      const dataUrl = await toPng(treeRef.current, {
-        backgroundColor: '#ffffff',
-        pixelRatio: 2,
-      })
-      const link = document.createElement('a')
-      link.download = `${exportName}_${new Date().toISOString().slice(0, 10)}.png`
-      link.href = dataUrl
-      link.click()
+      // 使用 SVG 方式导出完整族谱树
+      const svgContent = treeRef.current.exportSvgAsDataUrl()
+      if (!svgContent) return
+
+      const svgBlob = new Blob([svgContent], { type: 'image/svg+xml;charset=utf-8' })
+      const url = URL.createObjectURL(svgBlob)
+
+      const img = new Image()
+      img.onload = () => {
+        const svgMatch = svgContent.match(/width="(\d+)" height="(\d+)"/)
+        const width = svgMatch ? parseInt(svgMatch[1]) : 2000
+        const height = svgMatch ? parseInt(svgMatch[2]) : 2000
+
+        const canvas = document.createElement('canvas')
+        canvas.width = width * 2
+        canvas.height = height * 2
+        const ctx = canvas.getContext('2d')
+        if (ctx) {
+          ctx.scale(2, 2)
+          ctx.fillStyle = '#ffffff'
+          ctx.fillRect(0, 0, width, height)
+          ctx.drawImage(img, 0, 0)
+
+          const link = document.createElement('a')
+          link.download = `${exportName}_${new Date().toISOString().slice(0, 10)}.png`
+          link.href = canvas.toDataURL('image/png')
+          link.click()
+        }
+        URL.revokeObjectURL(url)
+      }
+      img.src = url
     } catch (err) {
       console.error('截图失败:', err)
     }

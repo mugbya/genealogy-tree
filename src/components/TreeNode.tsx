@@ -34,6 +34,7 @@ interface GenealogyTreeProps {
 
 export interface GenealogyTreeRef {
   container: HTMLDivElement | null
+  exportSvgAsDataUrl: () => string
 }
 
 const NODE_WIDTH = 120
@@ -41,11 +42,14 @@ const NODE_HEIGHT = 80
 const H_GAP = 50
 const V_GAP = 120
 
-export const GenealogyTree = forwardRef<HTMLDivElement, GenealogyTreeProps>(function GenealogyTree({ members, relations, familyName, familySurname, rootMemberId, onNodeClick }, ref) {
+export const GenealogyTree = forwardRef<GenealogyTreeRef, GenealogyTreeProps>(function GenealogyTree({ members, relations, familyName, familySurname, rootMemberId, onNodeClick }, ref) {
   const containerRef = useRef<HTMLDivElement>(null)
 
-  // Expose container ref to parent
-  useImperativeHandle(ref, () => containerRef.current as HTMLDivElement)
+  // Expose container ref and methods to parent
+  useImperativeHandle(ref, () => ({
+    container: containerRef.current,
+    exportSvgAsDataUrl,
+  }))
   const [viewBox, setViewBox] = useState({ x: 0, y: 0, width: 1200, height: 800 })
   const [isDragging, setIsDragging] = useState(false)
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
@@ -595,6 +599,166 @@ export const GenealogyTree = forwardRef<HTMLDivElement, GenealogyTreeProps>(func
 
     return calcPositions(treeData, startX, startY)
   }, [treeData, viewBox.width])
+
+  // Calculate tree bounds (for full tree screenshot)
+  const getTreeBounds = (node: TreeNode, bounds = { minX: Infinity, maxX: -Infinity, minY: Infinity, maxY: -Infinity }): typeof bounds => {
+    if (node.x !== undefined && node.y !== undefined) {
+      const spouseWidth = node.spouses && node.spouses.length > 0 ? 88 : 0
+      const nodeWidth = (node.isVirtualRoot ? NODE_WIDTH + 40 : NODE_WIDTH) + spouseWidth
+      const nodeHeight = node.isVirtualRoot ? NODE_HEIGHT + 20 : NODE_HEIGHT
+      bounds.minX = Math.min(bounds.minX, node.x)
+      bounds.maxX = Math.max(bounds.maxX, node.x + nodeWidth)
+      bounds.minY = Math.min(bounds.minY, node.y)
+      bounds.maxY = Math.max(bounds.maxY, node.y + nodeHeight)
+    }
+    node.children?.forEach(child => getTreeBounds(child, bounds))
+    return bounds
+  }
+
+  // Log all node positions for debugging
+  const logNodePositions = (node: TreeNode, depth = 0) => {
+    const indent = '  '.repeat(depth)
+    if (node.x !== undefined && node.y !== undefined) {
+      console.log(`${indent}${node.name} (id:${node.memberId}): x=${node.x}, y=${node.y}, generation=${node.generation}`)
+    }
+    node.children?.forEach(child => logNodePositions(child, depth + 1))
+  }
+
+  // Export tree as SVG string (for full tree screenshot)
+  const exportSvgAsDataUrl = (): string => {
+    if (!positionedTree) {
+      console.log('positionedTree is null')
+      return ''
+    }
+
+    console.log('positionedTree children:', positionedTree.children?.length)
+    logNodePositions(positionedTree)
+
+    const bounds = getTreeBounds(positionedTree)
+    console.log('Export bounds:', bounds)
+    const padding = 100
+    const svgWidth = bounds.maxX - bounds.minX + padding * 2
+    const svgHeight = bounds.maxY - bounds.minY + padding * 2
+    console.log('SVG size:', svgWidth, 'x', svgHeight)
+    const offsetX = bounds.minX - padding
+    const offsetY = bounds.minY - padding
+
+    // Generate SVG content
+    const renderConnectionsSVG = (node: TreeNode): string => {
+      if (!node.children) return ''
+
+      let svg = ''
+      node.children.forEach((child) => {
+        if (child.x === undefined || child.y === undefined || node.x === undefined || node.y === undefined) return
+
+        const parentX = node.x + NODE_WIDTH / 2 - offsetX
+        const parentY = node.y + NODE_HEIGHT - offsetY
+        const childX = child.x + NODE_WIDTH / 2 - offsetX
+        const childY = child.y - offsetY
+        const midY = (parentY + childY) / 2
+
+        svg += `<line x1="${parentX}" y1="${parentY}" x2="${parentX}" y2="${midY}" stroke="#94a3b8" stroke-width="2"/>`
+        svg += `<line x1="${childX}" y1="${midY}" x2="${childX}" y2="${childY}" stroke="#94a3b8" stroke-width="2"/>`
+        svg += `<line x1="${parentX}" y1="${midY}" x2="${childX}" y2="${midY}" stroke="#94a3b8" stroke-width="2"/>`
+
+        // Label background and text
+        if (child.labelParent) {
+          const isLabelParentMother = child.labelParent.relation === 'mother'
+          const labelText = isLabelParentMother ? `母: ${child.labelParent.name}` : `父: ${child.labelParent.name}`
+          const textWidth = labelText.length * 14 + 20
+          const bgColor = child.labelParent.isDeceased ? '#e5e7eb' : '#fef3c7'
+          const strokeColor = child.labelParent.isDeceased ? '#9ca3af' : '#f59e0b'
+          const textColor = child.labelParent.isDeceased ? '#9ca3af' : '#92400e'
+
+          svg += `<rect x="${childX - textWidth / 2}" y="${midY - 12}" width="${textWidth}" height="20" fill="${bgColor}" fill-opacity="0.5" stroke="${strokeColor}" stroke-opacity="0.5" stroke-width="1" rx="4"/>`
+          svg += `<text x="${childX}" y="${midY + 4}" text-anchor="middle" font-size="11" fill="${textColor}" font-weight="500">${labelText}</text>`
+        }
+
+        svg += renderConnectionsSVG(child)
+      })
+
+      return svg
+    }
+
+    const renderNodeSVG = (node: TreeNode): string => {
+      if (node.x === undefined || node.y === undefined) return ''
+
+      const x = node.x - offsetX
+      const y = node.y - offsetY
+
+      // Virtual root node
+      if (node.isVirtualRoot) {
+        const rootWidth = NODE_WIDTH + 40
+        const rootHeight = NODE_HEIGHT + 20
+        return `<g>
+          <rect x="${x}" y="${y}" width="${rootWidth}" height="${rootHeight}" fill="#fef3c7" stroke="#f59e0b" stroke-width="3" rx="12"/>
+          <text x="${x + rootWidth / 2}" y="${y + rootHeight / 2 - 6}" text-anchor="middle" font-size="18" font-weight="bold" fill="#92400e">${node.name}</text>
+          ${node.surname ? `<text x="${x + rootWidth / 2}" y="${y + rootHeight / 2 + 16}" text-anchor="middle" font-size="12" fill="#b45309">${node.surname}氏宗谱</text>` : ''}
+        </g>`
+      }
+
+      const isMale = node.gender === 'male'
+      const member = node.memberId ? members.find(m => m.id === node.memberId) : null
+      const isDeceased = member?.is_deceased || false
+      const bgColor = isDeceased ? '#d1d5db' : (isMale ? '#93c5fd' : '#f9a8d4')
+      const borderColor = isDeceased ? '#9ca3af' : (isMale ? '#3b82f6' : '#ec4899')
+      const textColor = isDeceased ? '#6b7280' : '#1f2937'
+
+      let svg = `<g>
+        <rect x="${x}" y="${y}" width="${NODE_WIDTH}" height="${NODE_HEIGHT}" fill="${bgColor}" stroke="${borderColor}" stroke-width="2" rx="8"/>
+        ${node.generation > 0 ? `<circle cx="${x + NODE_WIDTH - 10}" cy="${y + 10}" r="12" fill="${borderColor}"/><text x="${x + NODE_WIDTH - 10}" y="${y + 14}" text-anchor="middle" font-size="10" fill="white" font-weight="bold">${node.generation}代</text>` : ''}
+        <text x="${x + NODE_WIDTH / 2}" y="${y + NODE_HEIGHT / 2 - 8}" text-anchor="middle" font-size="14" font-weight="bold" fill="${textColor}">${node.name}</text>
+        <text x="${x + NODE_WIDTH / 2}" y="${y + NODE_HEIGHT - 12}" text-anchor="middle" font-size="11" fill="${isDeceased ? '#9ca3af' : '#6b7280'}">${isMale ? '♂' : '♀'}</text>
+      `
+
+      // Spouses
+      if (node.spouses && node.spouses.length > 0) {
+        node.spouses.forEach((spouse, idx) => {
+          const spouseBgColor = spouse.isDeceased ? '#d1d5db' : (spouse.gender === 'male' ? '#93c5fd' : '#f9a8d4')
+          const spouseBorderColor = spouse.isDeceased ? '#9ca3af' : (spouse.gender === 'male' ? '#3b82f6' : '#ec4899')
+          const spouseTextColor = spouse.isDeceased ? '#9ca3af' : '#1f2937'
+          const spouseX = x + NODE_WIDTH + 8
+          const spouseY = y + (node.spouses!.length - 1) * 30 / 2 - idx * 30
+          const spouseWidth = 80
+          const spouseHeight = 26
+
+          svg += `<rect x="${spouseX}" y="${spouseY}" width="${spouseWidth}" height="${spouseHeight}" fill="${spouseBgColor}" stroke="${spouseBorderColor}" stroke-width="1" rx="4"/>`
+          svg += `<text x="${spouseX + spouseWidth / 2}" y="${spouseY + spouseHeight / 2 + 4}" text-anchor="middle" font-size="10" fill="${spouseTextColor}">${spouse.name}</text>`
+        })
+      }
+
+      svg += '</g>'
+      return svg
+    }
+
+    const renderAllNodesSVG = (node: TreeNode): string => {
+      let svg = renderNodeSVG(node)
+      if (node.children) {
+        node.children.forEach(child => {
+          svg += renderAllNodesSVG(child)
+        })
+      }
+      return svg
+    }
+
+    const connectionsSVG = renderConnectionsSVG(positionedTree)
+    const nodesSVG = renderAllNodesSVG(positionedTree)
+
+    const svgContent = `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="${svgWidth}" height="${svgHeight}" viewBox="0 0 ${svgWidth} ${svgHeight}">
+  <rect x="0" y="0" width="${svgWidth}" height="${svgHeight}" fill="white"/>
+  <defs>
+    <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">
+      <path d="M 20 0 L 0 0 0 20" fill="none" stroke="#e5e7eb" stroke-width="0.5"/>
+    </pattern>
+  </defs>
+  <rect x="0" y="0" width="${svgWidth}" height="${svgHeight}" fill="url(#grid)"/>
+  ${connectionsSVG}
+  ${nodesSVG}
+</svg>`
+
+    return svgContent
+  }
 
   // Render connections with parent labels (for non-main family parents)
   const renderConnections = (node: TreeNode): React.ReactElement[] => {
