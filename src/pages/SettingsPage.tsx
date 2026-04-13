@@ -18,6 +18,7 @@ import {
   Check,
 } from 'lucide-react'
 import { wechatApi } from '@/api/client'
+import { useAuthStore } from '@/stores'
 
 type TabType = 'general' | '穿透' | 'platinum'
 
@@ -399,6 +400,7 @@ function PlatinumSettings() {
   const [isWechatLoggedIn, setIsWechatLoggedIn] = useState(false)
   const [wechatUser, setWechatUser] = useState('')
   const [isPaid] = useState(false) // TODO: 从后端获取
+  const { logout } = useAuthStore()
 
   // 微信登录相关状态
   const [showQrcode, setShowQrcode] = useState(false)
@@ -501,9 +503,10 @@ function PlatinumSettings() {
     setScanStatus('pending')
   }
 
-  // 退出微信登录
+  // 退出微信登录（同时退出应用登录，清除自动登录凭据）
   const handleWechatLogout = () => {
-    localStorage.removeItem('wechat_nickname')
+    // 清除所有登录状态，包括自动登录凭据
+    logout()
     setWechatUser('')
     setIsWechatLoggedIn(false)
   }

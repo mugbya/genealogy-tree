@@ -45,6 +45,8 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
   logout: () => {
     localStorage.removeItem('token')
+    localStorage.removeItem('genealogy_remember')
+    localStorage.removeItem('wechat_nickname')
     set({ user: null, token: null, isAdmin: false })
   },
 }))
