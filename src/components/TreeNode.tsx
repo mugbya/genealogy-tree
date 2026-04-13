@@ -355,6 +355,7 @@ export function GenealogyTree({ members, relations, familyName, familySurname, r
     // Build tree recursively
     // Only follows the main family branch (same surname as family surname)
     const buildTree = (member: Member, visited = new Set<number>(), labelParent?: { name: string; surname?: string; gender: string; relation: string }): TreeNode => {
+      console.log('buildTree called for:', member.name, 'id:', member.id, 'children count:', parentToChildrenMap.get(member.id)?.length);
       if (visited.has(member.id)) {
         return {
           name: member.name,
@@ -474,6 +475,7 @@ export function GenealogyTree({ members, relations, familyName, familySurname, r
     // Handle roots - prefer main family root
     const mainFamilyRoots = rootMembers.filter(m => isMainFamily(m))
     const effectiveRoots = mainFamilyRoots.length > 0 ? mainFamilyRoots : rootMembers
+    console.log('mainFamilyRoots:', mainFamilyRoots.map(m => m.name), 'effectiveRoots:', effectiveRoots.map(m => m.name));
 
     // Build the root node with family name
     const rootName = familySurname
@@ -483,14 +485,22 @@ export function GenealogyTree({ members, relations, familyName, familySurname, r
     // If rootMemberId is specified, build tree from that member (showing their descendants)
     if (rootMemberId) {
       const rootMember = memberMap.get(rootMemberId)
+      console.log('rootMemberId:', rootMemberId, 'rootMember:', rootMember?.name);
       if (rootMember) {
-        return {
+        const tree = {
           name: rootName,
           surname: familySurname,
           generation: 0,
           children: [buildTree(rootMember)],
           isVirtualRoot: true,
         }
+        console.log('Built tree with rootMemberId, tree:', JSON.stringify(tree, (key, value) => {
+          if (key === 'children' || key === 'spouses') {
+            return value?.map((c: any) => c?.name)
+          }
+          return value
+        }));
+        return tree
       }
     }
 
@@ -518,6 +528,13 @@ export function GenealogyTree({ members, relations, familyName, familySurname, r
   // Calculate positions using a bottom-up layout
   const positionedTree = useMemo(() => {
     if (!treeData) return null
+
+    console.log('positionedTree treeData:', JSON.stringify(treeData, (key, value) => {
+      if (key === 'children' || key === 'spouses') {
+        return value?.map((c: any) => c?.name)
+      }
+      return value
+    }));
 
     // Calculate subtree width
     const calcWidth = (node: TreeNode): number => {
@@ -676,15 +693,16 @@ export function GenealogyTree({ members, relations, familyName, familySurname, r
     return elements
   }
 
-  // Render a single node
-  const renderNode = (node: TreeNode): React.ReactElement => {
-    if (node.x === undefined || node.y === undefined) return <g key={node.memberId || node.name} />
+  // Render a single node with optional custom key
+  const renderNode = (node: TreeNode, customKey?: string): React.ReactElement => {
+    const key = customKey || node.memberId || node.name
+    if (node.x === undefined || node.y === undefined) return <g key={key} />
 
     // Virtual root node styling
     if (node.isVirtualRoot) {
       return (
         <g
-          key={node.memberId || node.name}
+          key={key}
           transform={`translate(${node.x}, ${node.y})`}
         >
           {/* Root node rectangle - larger and golden */}
@@ -734,7 +752,7 @@ export function GenealogyTree({ members, relations, familyName, familySurname, r
 
     return (
       <g
-        key={node.memberId || node.name}
+        key={key}
         transform={`translate(${node.x}, ${node.y})`}
         onClick={() => {
           if (onNodeClick && node.memberId) {
@@ -835,12 +853,13 @@ export function GenealogyTree({ members, relations, familyName, familySurname, r
     )
   }
 
-  // Render all nodes recursively
-  const renderAllNodes = (node: TreeNode): React.ReactElement[] => {
-    const elements = [renderNode(node)]
+  // Render all nodes recursively - add path parameter for unique keys
+  const renderAllNodes = (node: TreeNode, path: string = ''): React.ReactElement[] => {
+    const nodePath = path ? `${path}-${node.memberId || node.name}` : `${node.memberId || node.name}`
+    const elements = [renderNode(node, nodePath)]
     if (node.children) {
-      node.children.forEach(child => {
-        elements.push(...renderAllNodes(child))
+      node.children.forEach((child, index) => {
+        elements.push(...renderAllNodes(child, `${nodePath}-${index}`))
       })
     }
     return elements
