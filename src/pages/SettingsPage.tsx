@@ -13,6 +13,7 @@ import {
   Wifi,
   Shield,
   Zap,
+  Download,
 } from 'lucide-react'
 
 type TabType = 'general' | '穿透' | 'platinum'
@@ -173,12 +174,12 @@ function GeneralSettings() {
 
 function IntranetPenetration() {
   const [isEnabled, setIsEnabled] = useState(false)
-  const [serverAddress, setServerAddress] = useState('')
-  const [serverPort, setServerPort] = useState('')
+  const [subdomain, setSubdomain] = useState('')
   const [isConnected, setIsConnected] = useState(false)
+  const [isPlatinum, setIsPlatinum] = useState(false) // TODO: 从后端获取
+  const [frpcInstalled, setFrpcInstalled] = useState(false) // TODO: 从后端获取
 
   const handleConnect = () => {
-    // TODO: 实现内网穿透连接逻辑
     console.log('连接内网穿透服务...')
   }
 
@@ -186,6 +187,92 @@ function IntranetPenetration() {
     setIsConnected(false)
   }
 
+  // 未开通白金版
+  if (!isPlatinum) {
+    return (
+      <Card className="border-0 shadow-sm">
+        <CardHeader>
+          <CardTitle className="text-lg font-semibold flex items-center gap-2">
+            <Network className="w-5 h-5" />
+            内网穿透
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-6 max-w-xl">
+          <div className="p-6 bg-gradient-to-r from-yellow-50 to-orange-50 border border-yellow-200 rounded-lg">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-12 h-12 rounded-full bg-gradient-to-br from-yellow-400 to-orange-500 flex items-center justify-center">
+                <Crown className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-zinc-900">需要开通白金版</h3>
+                <p className="text-sm text-zinc-600">内网穿透功能需要白金版支持</p>
+              </div>
+            </div>
+            <div className="space-y-2 text-sm text-zinc-600 mb-4">
+              <div className="flex items-center gap-2">
+                <Shield className="w-4 h-4 text-green-600" />
+                <span>无限内网穿透流量</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Shield className="w-4 h-4 text-green-600" />
+                <span>自定义二级域名</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Shield className="w-4 h-4 text-green-600" />
+                <span>优先客服支持</span>
+              </div>
+            </div>
+            <Button className="gap-2 bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 text-white border-0">
+              <Crown className="w-4 h-4" />
+              扫码升级
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  // frpc 未安装
+  if (!frpcInstalled) {
+    return (
+      <Card className="border-0 shadow-sm">
+        <CardHeader>
+          <CardTitle className="text-lg font-semibold flex items-center gap-2">
+            <Network className="w-5 h-5" />
+            内网穿透
+            <Badge variant="outline" className="ml-2 text-xs">
+              插件未安装
+            </Badge>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-6 max-w-xl">
+          <div className="p-6 bg-zinc-50 border border-zinc-200 rounded-lg">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-12 h-12 rounded-full bg-zinc-200 flex items-center justify-center">
+                <RefreshCw className="w-6 h-6 text-zinc-500" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-zinc-900">frpc 插件未安装</h3>
+                <p className="text-sm text-zinc-600">请先安装 frpc 插件以使用内网穿透功能</p>
+              </div>
+            </div>
+            <div className="space-y-2 text-sm text-zinc-600 mb-4 p-3 bg-white rounded border">
+              <p className="font-medium">安装步骤：</p>
+              <p>1. 下载 frpc 插件</p>
+              <p>2. 将 frpc 放置在应用目录下</p>
+              <p>3. 重启应用</p>
+            </div>
+            <Button className="gap-2 bg-gray-900 hover:bg-gray-800">
+              <Download className="w-4 h-4" />
+              下载 frpc 插件
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  // 正常配置界面
   return (
     <Card className="border-0 shadow-sm">
       <CardHeader>
@@ -197,98 +284,119 @@ function IntranetPenetration() {
           </Badge>
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-6">
+      <CardContent className="space-y-6 max-w-xl">
         <div className="p-4 bg-zinc-50 rounded-lg">
           <p className="text-sm text-zinc-600">
-            开启内网穿透后，您可以通过互联网远程访问您的族谱数据。扫描付费后可开通此功能。
+            配置二级域名后，您可以通过互联网远程访问您的族谱。例如您的域名为 genealogy-tree.com，配置二级域名 myfamily，则访问地址为 https://myfamily.genealogy-tree.com
           </p>
         </div>
 
-        <div className="space-y-4">
-          <div className="flex items-center justify-between p-4 border rounded-lg">
-            <div className="flex items-center gap-3">
-              <div className={`w-10 h-10 rounded-full flex items-center justify-center ${isEnabled ? 'bg-green-100' : 'bg-zinc-100'}`}>
-                <Wifi className={`w-5 h-5 ${isEnabled ? 'text-green-600' : 'text-zinc-400'}`} />
-              </div>
-              <div>
-                <p className="font-medium">启用内网穿透</p>
-                <p className="text-sm text-zinc-500">通过互联网访问族谱</p>
+        {/* 启用开关 */}
+        <div className="flex items-center justify-between p-4 border rounded-lg">
+          <div className="flex items-center gap-3">
+            <div className={`w-10 h-10 rounded-full flex items-center justify-center ${isEnabled ? 'bg-green-100' : 'bg-zinc-100'}`}>
+              <Wifi className={`w-5 h-5 ${isEnabled ? 'text-green-600' : 'text-zinc-400'}`} />
+            </div>
+            <div>
+              <p className="font-medium">启用内网穿透</p>
+              <p className="text-sm text-zinc-500">通过互联网访问族谱</p>
+            </div>
+          </div>
+          <button
+            onClick={() => setIsEnabled(!isEnabled)}
+            className={`relative w-12 h-6 rounded-full transition-colors ${
+              isEnabled ? 'bg-green-500' : 'bg-zinc-300'
+            }`}
+          >
+            <span
+              className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform ${
+                isEnabled ? 'left-7' : 'left-1'
+              }`}
+            />
+          </button>
+        </div>
+
+        {/* 插件状态 */}
+        <div className="p-4 border rounded-lg">
+          <p className="text-sm font-medium text-zinc-700 mb-3">插件状态</p>
+          <div className="flex items-center gap-2 text-sm">
+            <div className="w-2 h-2 rounded-full bg-green-500" />
+            <span className="text-green-600">frpc 已安装</span>
+            <span className="text-zinc-400 mx-2">|</span>
+            <span className="text-zinc-500">v0.58.0</span>
+          </div>
+        </div>
+
+        {isEnabled && (
+          <>
+            {/* 二级域名配置 */}
+            <div className="space-y-4">
+              <div className="grid gap-2">
+                <label className="text-sm text-zinc-600">二级域名</label>
+                <div className="flex items-center gap-2">
+                  <Input
+                    placeholder="请输入二级域名"
+                    value={subdomain}
+                    onChange={(e) => setSubdomain(e.target.value)}
+                    className="max-w-xs"
+                  />
+                  <span className="text-sm text-zinc-500">.genealogy-tree.com</span>
+                </div>
+                <p className="text-xs text-zinc-400">例如：myfamily，完整地址为 https://myfamily.genealogy-tree.com</p>
               </div>
             </div>
-            <button
-              onClick={() => setIsEnabled(!isEnabled)}
-              className={`relative w-12 h-6 rounded-full transition-colors ${
-                isEnabled ? 'bg-green-500' : 'bg-zinc-300'
-              }`}
-            >
-              <span
-                className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform ${
-                  isEnabled ? 'left-7' : 'left-1'
-                }`}
-              />
-            </button>
-          </div>
 
-          {isEnabled && (
-            <>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="grid gap-2">
-                  <label className="text-sm text-zinc-600">服务器地址</label>
-                  <Input
-                    placeholder="如: frp.example.com"
-                    value={serverAddress}
-                    onChange={(e) => setServerAddress(e.target.value)}
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <label className="text-sm text-zinc-600">服务器端口</label>
-                  <Input
-                    placeholder="如: 7000"
-                    value={serverPort}
-                    onChange={(e) => setServerPort(e.target.value)}
-                  />
-                </div>
+            {/* 连接状态 */}
+            <div className="p-4 border rounded-lg space-y-3">
+              <p className="text-sm font-medium text-zinc-700">连接状态</p>
+              <div className="flex items-center gap-2 text-sm">
+                <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-zinc-300'}`} />
+                <span className={isConnected ? 'text-green-600' : 'text-zinc-500'}>
+                  {isConnected ? '已连接' : '未连接'}
+                </span>
               </div>
-
-              <div className="flex gap-3">
-                {!isConnected ? (
-                  <Button
-                    onClick={handleConnect}
-                    className="gap-2 bg-gray-900 hover:bg-gray-800"
-                  >
-                    <RefreshCw className="w-4 h-4" />
-                    连接
-                  </Button>
-                ) : (
-                  <Button
-                    onClick={handleDisconnect}
-                    variant="outline"
-                    className="gap-2"
-                  >
-                    断开连接
-                  </Button>
-                )}
-              </div>
-
               {isConnected && (
-                <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
-                  <p className="text-sm text-green-700">
-                    连接成功！您的族谱可通过以下地址访问：
-                  </p>
-                  <p className="mt-2 font-mono text-sm">
-                    http://{serverAddress || 'your-domain.com'}:8080
+                <div className="p-3 bg-green-50 border border-green-200 rounded text-sm">
+                  <p className="text-green-700">您的族谱已上线！</p>
+                  <p className="font-mono text-green-600 mt-1">
+                    https://{subdomain || 'your-subdomain'}.genealogy-tree.com
                   </p>
                 </div>
               )}
-            </>
-          )}
-        </div>
+            </div>
+
+            {/* 操作按钮 */}
+            <div className="flex gap-3">
+              {!isConnected ? (
+                <Button
+                  onClick={handleConnect}
+                  className="gap-2 bg-gray-900 hover:bg-gray-800"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                  连接
+                </Button>
+              ) : (
+                <Button
+                  onClick={handleDisconnect}
+                  variant="outline"
+                  className="gap-2"
+                >
+                  断开连接
+                </Button>
+              )}
+            </div>
+          </>
+        )}
       </CardContent>
     </Card>
   )
 }
 
 function PlatinumSettings() {
+  const [isWechatLoggedIn, setIsWechatLoggedIn] = useState(false)
+  const [wechatUser, setWechatUser] = useState('')
+  const [isPaid, setIsPaid] = useState(false) // TODO: 从后端获取
+
   return (
     <Card className="border-0 shadow-sm">
       <CardHeader>
@@ -297,49 +405,145 @@ function PlatinumSettings() {
           白金版
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-6">
-        <div className="p-6 bg-gradient-to-r from-yellow-50 to-orange-50 border border-yellow-200 rounded-lg">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-yellow-400 to-orange-500 flex items-center justify-center">
-              <Zap className="w-6 h-6 text-white" />
+      <CardContent>
+        {/* 左右布局 */}
+        <div className="grid grid-cols-2 gap-6">
+          {/* 左侧：当前版本 + 微信登录 */}
+          <div className="space-y-6">
+            {/* 当前版本状态 */}
+            <div className="p-4 border rounded-lg">
+              <p className="text-sm font-medium text-zinc-700 mb-3">当前版本</p>
+              <div className="flex items-center gap-3">
+                <div className={`w-12 h-12 rounded-full flex items-center justify-center ${
+                  isPaid ? 'bg-gradient-to-br from-yellow-400 to-orange-500' : 'bg-zinc-200'
+                }`}>
+                  {isPaid ? (
+                    <Crown className="w-6 h-6 text-white" />
+                  ) : (
+                    <Zap className="w-6 h-6 text-zinc-500" />
+                  )}
+                </div>
+                <div>
+                  <p className={`font-semibold ${isPaid ? 'text-yellow-600' : 'text-zinc-600'}`}>
+                    {isPaid ? '白金版' : '免费版'}
+                  </p>
+                  <p className="text-sm text-zinc-500">
+                    {isPaid ? '已激活全部高级功能' : '当前版本功能受限'}
+                  </p>
+                </div>
+              </div>
             </div>
-            <div>
-              <h3 className="text-lg font-semibold text-zinc-900">升级到白金版</h3>
-              <p className="text-sm text-zinc-600">解锁全部高级功能</p>
+
+            {/* 微信登录状态 */}
+            <div className="p-4 border rounded-lg">
+              <p className="text-sm font-medium text-zinc-700 mb-3">微信登录</p>
+              {isWechatLoggedIn ? (
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center">
+                      <span className="text-green-600 font-medium">微</span>
+                    </div>
+                    <div>
+                      <p className="font-medium text-zinc-900">微信用户</p>
+                      <p className="text-sm text-zinc-500">{wechatUser}</p>
+                    </div>
+                  </div>
+                  <Button variant="outline" size="sm" onClick={() => setIsWechatLoggedIn(false)}>
+                    退出
+                  </Button>
+                </div>
+              ) : (
+                <div className="text-center py-4">
+                  <p className="text-sm text-zinc-500 mb-4">请先微信扫码登录，以便我们确认您的身份</p>
+                  <Button className="gap-2 bg-green-600 hover:bg-green-700">
+                    <span className="text-lg">微</span>
+                    微信扫码登录
+                  </Button>
+                </div>
+              )}
             </div>
           </div>
 
-          <div className="space-y-3">
-            <div className="flex items-center gap-2 text-sm">
-              <Shield className="w-4 h-4 text-green-600" />
-              <span>无限家族成员数量</span>
-            </div>
-            <div className="flex items-center gap-2 text-sm">
-              <Shield className="w-4 h-4 text-green-600" />
-              <span>无限内网穿透流量</span>
-            </div>
-            <div className="flex items-center gap-2 text-sm">
-              <Shield className="w-4 h-4 text-green-600" />
-              <span>自定义域名绑定</span>
-            </div>
-            <div className="flex items-center gap-2 text-sm">
-              <Shield className="w-4 h-4 text-green-600" />
-              <span>优先客服支持</span>
+          {/* 右侧：升级/已付费 + 联系客服 */}
+          <div className="space-y-6">
+            {/* 升级白金版 - 仅未付费用户显示 */}
+            {!isPaid ? (
+              <div className="p-6 bg-gradient-to-r from-yellow-50 to-orange-50 border border-yellow-200 rounded-lg">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-12 h-12 rounded-full bg-gradient-to-br from-yellow-400 to-orange-500 flex items-center justify-center">
+                    <Crown className="w-6 h-6 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-zinc-900">升级到白金版</h3>
+                    <p className="text-sm text-zinc-600">解锁全部高级功能</p>
+                  </div>
+                </div>
+
+                <div className="space-y-2 mb-4">
+                  <div className="flex items-center gap-2 text-sm">
+                    <Shield className="w-4 h-4 text-green-600" />
+                    <span>无限家族成员数量</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm">
+                    <Shield className="w-4 h-4 text-green-600" />
+                    <span>无限内网穿透流量</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm">
+                    <Shield className="w-4 h-4 text-green-600" />
+                    <span>自定义域名绑定</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm">
+                    <Shield className="w-4 h-4 text-green-600" />
+                    <span>优先客服支持</span>
+                  </div>
+                </div>
+
+                <div className="border-t pt-4 mt-4">
+                  <p className="text-sm text-zinc-600 mb-3">扫码支付开通白金版</p>
+                  <Button
+                    className="gap-2 bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 text-white border-0"
+                    disabled={!isWechatLoggedIn}
+                  >
+                    <span className="text-lg">微</span>
+                    微信扫码支付
+                  </Button>
+                  {!isWechatLoggedIn && (
+                    <p className="text-xs text-zinc-400 mt-2">请先登录微信后再支付</p>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center">
+                    <Crown className="w-5 h-5 text-green-600" />
+                  </div>
+                  <div>
+                    <p className="font-medium text-green-700">您已是白金版用户</p>
+                    <p className="text-sm text-green-600">感谢您的支持，尽情使用全部高级功能吧！</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* 联系客服 */}
+            <div className="p-4 border rounded-lg">
+              <p className="text-sm font-medium text-zinc-700 mb-3">联系客服</p>
+              <div className="flex items-center gap-4">
+                <Button variant="outline" className="gap-2">
+                  <span className="text-lg">微</span>
+                  微信客服
+                </Button>
+                <Button variant="outline" className="gap-2">
+                  <span>📧</span>
+                  邮箱联系
+                </Button>
+              </div>
+              <p className="text-xs text-zinc-400 mt-3">
+                工作时间：周一至周五 9:00-18:00
+              </p>
             </div>
           </div>
-
-          <div className="mt-6">
-            <Button className="gap-2 bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 text-white border-0">
-              <Crown className="w-4 h-4" />
-              扫码升级
-            </Button>
-          </div>
-        </div>
-
-        <div className="p-4 bg-zinc-50 rounded-lg">
-          <p className="text-sm text-zinc-600">
-            白金版用户专享更多高级功能，包括无限成员数量、内网穿透、Custom Domain 等。扫描上方二维码即可开通。
-          </p>
         </div>
       </CardContent>
     </Card>
