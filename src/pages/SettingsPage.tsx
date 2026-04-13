@@ -69,6 +69,23 @@ export function SettingsPage() {
 }
 
 function GeneralSettings() {
+  const [autoStart, setAutoStart] = useState(false)
+  const [httpPort, setHttpPort] = useState('8080')
+  const [httpsPort, setHttpsPort] = useState('8443')
+  const [isSaving, setIsSaving] = useState(false)
+
+  const handleSave = async () => {
+    setIsSaving(true)
+    // TODO: 调用后端 API 保存设置
+    try {
+      // await configApi.setBatch([...])
+      console.log('保存设置:', { autoStart, httpPort, httpsPort })
+    } catch (err) {
+      console.error('保存失败:', err)
+    }
+    setIsSaving(false)
+  }
+
   return (
     <Card className="border-0 shadow-sm">
       <CardHeader>
@@ -77,28 +94,75 @@ function GeneralSettings() {
           通用设置
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-6">
+      <CardContent className="space-y-8 max-w-xl">
+        {/* 开机启动 */}
         <div className="space-y-4">
-          <h3 className="text-sm font-medium text-zinc-700">家族信息</h3>
-          <div className="grid gap-4">
+          <h3 className="text-sm font-medium text-zinc-700">系统设置</h3>
+          <div className="flex items-center justify-between p-4 border rounded-lg">
+            <div className="flex items-center gap-3">
+              <div className={`w-10 h-10 rounded-full flex items-center justify-center ${autoStart ? 'bg-green-100' : 'bg-zinc-100'}`}>
+                <Zap className={`w-5 h-5 ${autoStart ? 'text-green-600' : 'text-zinc-400'}`} />
+              </div>
+              <div>
+                <p className="font-medium">开机启动</p>
+                <p className="text-sm text-zinc-500">开机时自动启动族谱服务</p>
+              </div>
+            </div>
+            <button
+              onClick={() => setAutoStart(!autoStart)}
+              className={`relative w-12 h-6 rounded-full transition-colors ${
+                autoStart ? 'bg-green-500' : 'bg-zinc-300'
+              }`}
+            >
+              <span
+                className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform ${
+                  autoStart ? 'left-7' : 'left-1'
+                }`}
+              />
+            </button>
+          </div>
+        </div>
+
+        {/* 端口设置 */}
+        <div className="space-y-4">
+          <h3 className="text-sm font-medium text-zinc-700">端口设置</h3>
+          <div className="space-y-4">
             <div className="grid gap-2">
-              <label className="text-sm text-zinc-600">家族名称</label>
-              <Input placeholder="请输入家族名称" className="max-w-md" />
+              <label className="text-sm text-zinc-600">HTTP 端口</label>
+              <Input
+                type="number"
+                value={httpPort}
+                onChange={(e) => setHttpPort(e.target.value)}
+                placeholder="8080"
+                className="max-w-xs"
+              />
+              <p className="text-xs text-zinc-400">用于局域网访问族谱服务</p>
             </div>
             <div className="grid gap-2">
-              <label className="text-sm text-zinc-600">家族姓氏</label>
-              <Input placeholder="请输入家族姓氏" className="max-w-md" />
-            </div>
-            <div className="grid gap-2">
-              <label className="text-sm text-zinc-600">家族起源</label>
-              <Input placeholder="请输入家族起源" className="max-w-md" />
+              <label className="text-sm text-zinc-600">HTTPS 端口</label>
+              <Input
+                type="number"
+                value={httpsPort}
+                onChange={(e) => setHttpsPort(e.target.value)}
+                placeholder="8443"
+                className="max-w-xs"
+              />
+              <p className="text-xs text-zinc-400">用于安全连接（需配置证书）</p>
             </div>
           </div>
         </div>
 
         <div className="pt-4 border-t">
-          <Button className="gap-2 bg-gray-900 hover:bg-gray-800">
-            <Save className="w-4 h-4" />
+          <Button
+            onClick={handleSave}
+            disabled={isSaving}
+            className="gap-2 bg-gray-900 hover:bg-gray-800"
+          >
+            {isSaving ? (
+              <RefreshCw className="w-4 h-4 animate-spin" />
+            ) : (
+              <Save className="w-4 h-4" />
+            )}
             保存设置
           </Button>
         </div>
