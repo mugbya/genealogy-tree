@@ -88,6 +88,8 @@ export function TreePage() {
   // 标签状态
   const [tags, setTags] = useState<RelationTag[]>([])
   const [selectedTagIds, setSelectedTagIds] = useState<number[]>([])
+  const [isDeleteTagOpen, setIsDeleteTagOpen] = useState(false)
+  const [tagToDelete, setTagToDelete] = useState<RelationTag | null>(null)
 
   // 配偶状态 - 支持多配偶，每个配偶有各自的标签
   const [selectedSpouseIds, setSelectedSpouseIds] = useState<number[]>([])
@@ -112,6 +114,13 @@ export function TreePage() {
   useEffect(() => {
     loadFamilyConfig()
   }, [])
+
+  // 切换到标签tab时加载标签
+  useEffect(() => {
+    if (activeTab === 'tags') {
+      loadTags()
+    }
+  }, [activeTab])
 
   const loadFamilyConfig = async () => {
     try {
@@ -265,6 +274,19 @@ export function TreePage() {
     const result = await relationTagsApi.list()
     if (result.data) {
       setTags(result.data)
+    }
+  }
+
+  // 删除标签
+  const handleDeleteTag = async () => {
+    if (!tagToDelete) return
+    try {
+      await relationTagsApi.delete(tagToDelete.id)
+      setTags(tags.filter(t => t.id !== tagToDelete.id))
+      setIsDeleteTagOpen(false)
+      setTagToDelete(null)
+    } catch (err) {
+      console.error('删除标签失败:', err)
     }
   }
 
@@ -1130,6 +1152,16 @@ export function TreePage() {
                             >
                               {tag.name}
                             </span>
+                            <button
+                              onClick={() => {
+                                setTagToDelete(tag)
+                                setIsDeleteTagOpen(true)
+                              }}
+                              className="ml-1 p-1 rounded hover:bg-black/10 transition-colors"
+                              style={{ color: tag.color }}
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
                           </div>
                         ))}
                       </div>
@@ -1291,6 +1323,37 @@ export function TreePage() {
               className="gap-2 bg-gray-900 hover:bg-gray-800"
             >
               创建标签
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Tag Confirmation Dialog */}
+      <Dialog open={isDeleteTagOpen} onOpenChange={setIsDeleteTagOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-semibold flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-red-50 flex items-center justify-center">
+                <Trash2 className="w-4 h-4 text-red-600" />
+              </div>
+              删除标签
+            </DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <p className="text-sm text-zinc-600">
+              确定要删除标签 "<span className="font-medium" style={{ color: tagToDelete?.color }}>{tagToDelete?.name}</span>" 吗？
+            </p>
+            <p className="text-sm text-zinc-500 mt-2">删除后，该标签将从所有使用该标签的成员中移除。</p>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setIsDeleteTagOpen(false)}>
+              取消
+            </Button>
+            <Button
+              onClick={handleDeleteTag}
+              className="gap-2 bg-red-600 hover:bg-red-700"
+            >
+              删除
             </Button>
           </DialogFooter>
         </DialogContent>
