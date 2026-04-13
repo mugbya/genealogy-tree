@@ -5,14 +5,14 @@ use axum::{
 };
 use rusqlite::params;
 use serde_json::{json, Value};
-use std::sync::{Arc, Mutex};
 
+use crate::api::router::AppState;
 use crate::models::{CreateRelationTagRequest, RelationTag, UpdateRelationTagRequest};
 
 pub async fn get_relation_tags(
-    State(db): State<Arc<Mutex<rusqlite::Connection>>>,
+    State(state): State<AppState>,
 ) -> (StatusCode, Json<Value>) {
-    let conn = match db.lock() {
+    let conn = match state.db.lock() {
         Ok(conn) => conn,
         Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))),
     };
@@ -44,10 +44,10 @@ pub async fn get_relation_tags(
 }
 
 pub async fn create_relation_tag(
-    State(db): State<Arc<Mutex<rusqlite::Connection>>>,
+    State(state): State<AppState>,
     Json(req): Json<CreateRelationTagRequest>,
 ) -> (StatusCode, Json<Value>) {
-    let conn = match db.lock() {
+    let conn = match state.db.lock() {
         Ok(conn) => conn,
         Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))),
     };
@@ -67,11 +67,11 @@ pub async fn create_relation_tag(
 }
 
 pub async fn update_relation_tag(
-    State(db): State<Arc<Mutex<rusqlite::Connection>>>,
+    State(state): State<AppState>,
     Path(id): Path<i64>,
     Json(req): Json<UpdateRelationTagRequest>,
 ) -> (StatusCode, Json<Value>) {
-    let conn = match db.lock() {
+    let conn = match state.db.lock() {
         Ok(conn) => conn,
         Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))),
     };
@@ -111,10 +111,10 @@ pub async fn update_relation_tag(
 }
 
 pub async fn delete_relation_tag(
-    State(db): State<Arc<Mutex<rusqlite::Connection>>>,
+    State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> (StatusCode, Json<Value>) {
-    let conn = match db.lock() {
+    let conn = match state.db.lock() {
         Ok(conn) => conn,
         Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))),
     };

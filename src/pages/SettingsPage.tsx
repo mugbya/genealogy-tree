@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -14,7 +14,10 @@ import {
   Shield,
   Zap,
   Download,
+  QrCode,
+  Check,
 } from 'lucide-react'
+import { wechatApi } from '@/api/client'
 
 type TabType = 'general' | '穿透' | 'platinum'
 
@@ -176,8 +179,8 @@ function IntranetPenetration() {
   const [isEnabled, setIsEnabled] = useState(false)
   const [subdomain, setSubdomain] = useState('')
   const [isConnected, setIsConnected] = useState(false)
-  const [isPlatinum, setIsPlatinum] = useState(false) // TODO: 从后端获取
-  const [frpcInstalled, setFrpcInstalled] = useState(false) // TODO: 从后端获取
+  const [isPlatinum] = useState(false) // TODO: 从后端获取
+  const [frpcInstalled] = useState(false) // TODO: 从后端获取
 
   const handleConnect = () => {
     console.log('连接内网穿透服务...')
@@ -395,7 +398,115 @@ function IntranetPenetration() {
 function PlatinumSettings() {
   const [isWechatLoggedIn, setIsWechatLoggedIn] = useState(false)
   const [wechatUser, setWechatUser] = useState('')
-  const [isPaid, setIsPaid] = useState(false) // TODO: 从后端获取
+  const [isPaid] = useState(false) // TODO: 从后端获取
+
+  // 微信登录相关状态
+  const [showQrcode, setShowQrcode] = useState(false)
+  const [qrcodeUrl, setQrcodeUrl] = useState('')
+  const [qrcodeScene, setQrcodeScene] = useState('')
+  const [scanStatus, setScanStatus] = useState<'pending' | 'scanned' | 'confirmed' | 'expired'>('pending')
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState('')
+  const pollingRef = useRef<number | null>(null)
+
+  // 清理轮询
+  useEffect(() => {
+    return () => {
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current)
+      }
+    }
+  }, [])
+
+  // 生成二维码
+  const handleGenerateQrcode = async () => {
+    setIsLoading(true)
+    setError('')
+    setScanStatus('pending')
+
+    try {
+      const result = await wechatApi.generateQrcode()
+      if (result.data) {
+        // 先生成二维码，成功后再显示弹窗
+        setQrcodeUrl(result.data.qrcode_url)
+        setQrcodeScene(result.data.scene)
+        setShowQrcode(true)
+        // 开始轮询状态
+        startPolling(result.data.scene)
+      } else {
+        setError(result.error || '生成二维码失败')
+        setShowQrcode(false)
+      }
+    } catch (err) {
+      setError('网络错误')
+      setShowQrcode(false)
+    }
+    setIsLoading(false)
+  }
+
+  // 轮询登录状态
+  const startPolling = (scene: string) => {
+    if (pollingRef.current) {
+      clearInterval(pollingRef.current)
+    }
+
+    pollingRef.current = window.setInterval(async () => {
+      try {
+        const result = await wechatApi.checkStatus(scene)
+        if (result.data) {
+          setScanStatus(result.data.status as typeof scanStatus)
+
+          if (result.data.status === 'confirmed') {
+            // 登录成功
+            if (pollingRef.current) {
+              clearInterval(pollingRef.current)
+            }
+            // 保存 token
+            if (result.data.nickname) {
+              localStorage.setItem('wechat_nickname', result.data.nickname)
+              setWechatUser(result.data.nickname)
+              setIsWechatLoggedIn(true)
+              setShowQrcode(false)
+            }
+          } else if (result.data.status === 'expired') {
+            if (pollingRef.current) {
+              clearInterval(pollingRef.current)
+            }
+          }
+        }
+      } catch (err) {
+        console.error('轮询错误:', err)
+      }
+    }, 2000)
+  }
+
+  // 模拟扫码确认（用于测试）
+  const handleSimulateScan = async () => {
+    if (!qrcodeScene) return
+    try {
+      await wechatApi.confirmLogin(qrcodeScene, 'mock_openid_' + Date.now(), '测试用户')
+    } catch (err) {
+      console.error('模拟扫码失败:', err)
+    }
+  }
+
+  // 关闭二维码
+  const handleCloseQrcode = () => {
+    if (pollingRef.current) {
+      clearInterval(pollingRef.current)
+    }
+    setShowQrcode(false)
+    setQrcodeScene('')
+    setQrcodeUrl('')
+    setScanStatus('pending')
+  }
+
+  // 退出微信登录
+  const handleWechatLogout = () => {
+    localStorage.removeItem('wechat_nickname')
+    setWechatUser('')
+    setIsWechatLoggedIn(false)
+  }
 
   return (
     <Card className="border-0 shadow-sm">
@@ -448,20 +559,87 @@ function PlatinumSettings() {
                       <p className="text-sm text-zinc-500">{wechatUser}</p>
                     </div>
                   </div>
-                  <Button variant="outline" size="sm" onClick={() => setIsWechatLoggedIn(false)}>
+                  <Button variant="outline" size="sm" onClick={handleWechatLogout}>
                     退出
                   </Button>
                 </div>
               ) : (
                 <div className="text-center py-4">
                   <p className="text-sm text-zinc-500 mb-4">请先微信扫码登录，以便我们确认您的身份</p>
-                  <Button className="gap-2 bg-green-600 hover:bg-green-700">
-                    <span className="text-lg">微</span>
+                  <Button className="gap-2 bg-green-600 hover:bg-green-700" onClick={handleGenerateQrcode} disabled={isLoading}>
+                    {isLoading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <span className="text-lg">微</span>}
                     微信扫码登录
                   </Button>
+                  {error && (
+                    <p className="text-sm text-red-500 mt-2">{error}</p>
+                  )}
                 </div>
               )}
             </div>
+
+            {/* 二维码弹窗 */}
+            {showQrcode && (
+              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+                <Card className="w-80 border-0 shadow-xl">
+                  <CardHeader className="pb-2">
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-base flex items-center gap-2">
+                        <QrCode className="w-5 h-5" />
+                        微信扫码登录
+                      </CardTitle>
+                      <button onClick={handleCloseQrcode} className="text-zinc-400 hover:text-zinc-600">✕</button>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {/* 二维码 */}
+                    <div className="flex justify-center bg-white p-4 rounded-lg">
+                      {qrcodeUrl ? (
+                        <img
+                          src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrcodeUrl)}`}
+                          alt="QR Code"
+                          className="w-48 h-48"
+                        />
+                      ) : (
+                        <div className="w-48 h-48 flex items-center justify-center bg-zinc-100">
+                          <RefreshCw className="w-8 h-8 animate-spin text-zinc-400" />
+                        </div>
+                      )}
+                    </div>
+
+                    {/* 状态提示 */}
+                    <div className="text-center">
+                      {scanStatus === 'pending' && (
+                        <p className="text-sm text-zinc-500">请使用微信扫描二维码</p>
+                      )}
+                      {scanStatus === 'scanned' && (
+                        <p className="text-sm text-yellow-600">已扫码，请确认登录</p>
+                      )}
+                      {scanStatus === 'confirmed' && (
+                        <p className="text-sm text-green-600 flex items-center justify-center gap-1">
+                          <Check className="w-4 h-4" />
+                          登录成功
+                        </p>
+                      )}
+                      {scanStatus === 'expired' && (
+                        <p className="text-sm text-red-500">二维码已过期，请重新生成</p>
+                      )}
+                    </div>
+
+                    {error && (
+                      <p className="text-sm text-red-500 text-center">{error}</p>
+                    )}
+
+                    {/* 测试用：模拟扫码按钮 */}
+                    <div className="border-t pt-4">
+                      <p className="text-xs text-zinc-400 text-center mb-2">测试用按钮（实际使用微信扫一扫）</p>
+                      <Button variant="outline" className="w-full gap-2" onClick={handleSimulateScan} size="sm">
+                        模拟扫码确认
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
           </div>
 
           {/* 右侧：升级/已付费 + 联系客服 */}

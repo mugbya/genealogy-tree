@@ -5,17 +5,17 @@ use axum::{
 };
 use rusqlite::params;
 use serde_json::{json, Value};
-use std::sync::{Arc, Mutex};
 
+use crate::api::router::AppState;
 use crate::models::{
     Config, CONFIG_ALLOW_CREATE_FAMILY, CONFIG_ALLOW_PUBLIC_ACCESS, CONFIG_FAMILY_NAME,
     CONFIG_FAMILY_SURNAME, CONFIG_FAMILY_ORIGIN,
 };
 
 pub async fn get_all_configs(
-    State(db): State<Arc<Mutex<rusqlite::Connection>>>,
+    State(state): State<AppState>,
 ) -> (StatusCode, Json<Value>) {
-    let conn = match db.lock() {
+    let conn = match state.db.lock() {
         Ok(conn) => conn,
         Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))),
     };
@@ -44,10 +44,10 @@ pub async fn get_all_configs(
 }
 
 pub async fn get_config(
-    State(db): State<Arc<Mutex<rusqlite::Connection>>>,
+    State(state): State<AppState>,
     Path(key): Path<String>,
 ) -> (StatusCode, Json<Value>) {
-    let conn = match db.lock() {
+    let conn = match state.db.lock() {
         Ok(conn) => conn,
         Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))),
     };
@@ -72,7 +72,7 @@ pub async fn get_config(
 }
 
 pub async fn set_config(
-    State(db): State<Arc<Mutex<rusqlite::Connection>>>,
+    State(state): State<AppState>,
     Json(req): Json<serde_json::Value>,
 ) -> (StatusCode, Json<Value>) {
     #[derive(serde::Deserialize)]
@@ -86,7 +86,7 @@ pub async fn set_config(
         Err(_) => return (StatusCode::BAD_REQUEST, Json(json!({ "error": "Invalid request body" }))),
     };
 
-    let conn = match db.lock() {
+    let conn = match state.db.lock() {
         Ok(conn) => conn,
         Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))),
     };
@@ -104,7 +104,7 @@ pub async fn set_config(
 }
 
 pub async fn set_configs_batch(
-    State(db): State<Arc<Mutex<rusqlite::Connection>>>,
+    State(state): State<AppState>,
     Json(req): Json<Value>,
 ) -> (StatusCode, Json<Value>) {
     #[derive(serde::Deserialize)]
@@ -118,7 +118,7 @@ pub async fn set_configs_batch(
         Err(_) => return (StatusCode::BAD_REQUEST, Json(json!({ "error": "Invalid request body, expected array of {key, value}" }))),
     };
 
-    let conn = match db.lock() {
+    let conn = match state.db.lock() {
         Ok(conn) => conn,
         Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))),
     };
@@ -146,10 +146,10 @@ pub async fn set_configs_batch(
 }
 
 pub async fn delete_config(
-    State(db): State<Arc<Mutex<rusqlite::Connection>>>,
+    State(state): State<AppState>,
     Path(key): Path<String>,
 ) -> (StatusCode, Json<Value>) {
-    let conn = match db.lock() {
+    let conn = match state.db.lock() {
         Ok(conn) => conn,
         Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))),
     };
@@ -164,9 +164,9 @@ pub async fn delete_config(
 }
 
 pub async fn get_public_config(
-    State(db): State<Arc<Mutex<rusqlite::Connection>>>,
+    State(state): State<AppState>,
 ) -> (StatusCode, Json<Value>) {
-    let conn = match db.lock() {
+    let conn = match state.db.lock() {
         Ok(conn) => conn,
         Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))),
     };

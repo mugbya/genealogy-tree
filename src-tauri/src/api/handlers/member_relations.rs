@@ -5,14 +5,14 @@ use axum::{
 };
 use rusqlite::params;
 use serde_json::{json, Value};
-use std::sync::{Arc, Mutex};
 
+use crate::api::router::AppState;
 use crate::models::{CreateMemberRelationRequest, MemberRelation};
 
 pub async fn get_member_relations(
-    State(db): State<Arc<Mutex<rusqlite::Connection>>>,
+    State(state): State<AppState>,
 ) -> (StatusCode, Json<Value>) {
-    let conn = match db.lock() {
+    let conn = match state.db.lock() {
         Ok(conn) => conn,
         Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))),
     };
@@ -58,10 +58,10 @@ pub async fn get_member_relations(
 }
 
 pub async fn get_member_relations_by_member(
-    State(db): State<Arc<Mutex<rusqlite::Connection>>>,
+    State(state): State<AppState>,
     Path(member_id): Path<i64>,
 ) -> (StatusCode, Json<Value>) {
-    let conn = match db.lock() {
+    let conn = match state.db.lock() {
         Ok(conn) => conn,
         Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))),
     };
@@ -108,10 +108,10 @@ pub async fn get_member_relations_by_member(
 }
 
 pub async fn create_member_relation(
-    State(db): State<Arc<Mutex<rusqlite::Connection>>>,
+    State(state): State<AppState>,
     Json(req): Json<CreateMemberRelationRequest>,
 ) -> (StatusCode, Json<Value>) {
-    let conn = match db.lock() {
+    let conn = match state.db.lock() {
         Ok(conn) => conn,
         Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))),
     };
@@ -132,10 +132,10 @@ pub async fn create_member_relation(
 }
 
 pub async fn delete_member_relation(
-    State(db): State<Arc<Mutex<rusqlite::Connection>>>,
+    State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> (StatusCode, Json<Value>) {
-    let conn = match db.lock() {
+    let conn = match state.db.lock() {
         Ok(conn) => conn,
         Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))),
     };

@@ -5,8 +5,8 @@ use axum::{
 };
 use rusqlite::params;
 use serde_json::{json, Value};
-use std::sync::{Arc, Mutex};
 
+use crate::api::router::AppState;
 use crate::auth::{create_token, hash_password, verify_password, verify_token};
 use crate::models::{
     CreateUserRequest, LoginRequest, LoginResponse, ROLE_ADMIN, ROLE_USER, User, UserResponse,
@@ -27,10 +27,10 @@ fn extract_auth(headers: &HeaderMap) -> Result<(i64, String), (StatusCode, Json<
 }
 
 pub async fn register(
-    State(db): State<Arc<Mutex<rusqlite::Connection>>>,
+    State(state): State<AppState>,
     Json(req): Json<CreateUserRequest>,
 ) -> (StatusCode, Json<Value>) {
-    let conn = match db.lock() {
+    let conn = match state.db.lock() {
         Ok(conn) => conn,
         Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))),
     };
@@ -77,10 +77,10 @@ pub async fn register(
 }
 
 pub async fn login(
-    State(db): State<Arc<Mutex<rusqlite::Connection>>>,
+    State(state): State<AppState>,
     Json(req): Json<LoginRequest>,
 ) -> (StatusCode, Json<Value>) {
-    let conn = match db.lock() {
+    let conn = match state.db.lock() {
         Ok(conn) => conn,
         Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))),
     };
@@ -125,7 +125,7 @@ pub async fn login(
 }
 
 pub async fn get_users(
-    State(db): State<Arc<Mutex<rusqlite::Connection>>>,
+    State(state): State<AppState>,
     headers: HeaderMap,
 ) -> (StatusCode, Json<Value>) {
     let (_, role) = match extract_auth(&headers) {
@@ -137,7 +137,7 @@ pub async fn get_users(
         return (StatusCode::FORBIDDEN, Json(json!({ "error": "Admin access required" })));
     }
 
-    let conn = match db.lock() {
+    let conn = match state.db.lock() {
         Ok(conn) => conn,
         Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))),
     };
@@ -169,7 +169,7 @@ pub async fn get_users(
 }
 
 pub async fn get_current_user(
-    State(db): State<Arc<Mutex<rusqlite::Connection>>>,
+    State(state): State<AppState>,
     headers: HeaderMap,
 ) -> (StatusCode, Json<Value>) {
     let (user_id, _) = match extract_auth(&headers) {
@@ -177,7 +177,7 @@ pub async fn get_current_user(
         Err(e) => return e,
     };
 
-    let conn = match db.lock() {
+    let conn = match state.db.lock() {
         Ok(conn) => conn,
         Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))),
     };
@@ -212,7 +212,7 @@ pub struct UpdateUserRequestWithAuth {
 }
 
 pub async fn update_user(
-    State(db): State<Arc<Mutex<rusqlite::Connection>>>,
+    State(state): State<AppState>,
     Path(id): Path<i64>,
     Json(req): Json<UpdateUserRequestWithAuth>,
 ) -> (StatusCode, Json<Value>) {
@@ -220,7 +220,7 @@ pub async fn update_user(
         return (StatusCode::FORBIDDEN, Json(json!({ "error": "Cannot update other users" })));
     }
 
-    let conn = match db.lock() {
+    let conn = match state.db.lock() {
         Ok(conn) => conn,
         Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))),
     };
@@ -269,7 +269,7 @@ pub async fn update_user(
 }
 
 pub async fn delete_user(
-    State(db): State<Arc<Mutex<rusqlite::Connection>>>,
+    State(state): State<AppState>,
     Path(id): Path<i64>,
     headers: HeaderMap,
 ) -> (StatusCode, Json<Value>) {
@@ -282,7 +282,7 @@ pub async fn delete_user(
         return (StatusCode::FORBIDDEN, Json(json!({ "error": "Admin access required" })));
     }
 
-    let conn = match db.lock() {
+    let conn = match state.db.lock() {
         Ok(conn) => conn,
         Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))),
     };

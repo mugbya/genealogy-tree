@@ -281,3 +281,34 @@ export interface UpdateUserInput {
   role?: string
   member_id?: number | null
 }
+
+// 微信扫码登录 API
+export interface WechatQrcodeResponse {
+  scene: string
+  qrcode_url: string
+  expire_seconds: number
+}
+
+export interface WechatLoginStatusResponse {
+  status: 'pending' | 'scanned' | 'confirmed' | 'expired'
+  nickname?: string
+  avatar?: string
+}
+
+export interface WechatLoginConfirmResponse {
+  status: string
+  token: string
+  user: {
+    openid: string
+    nickname: string
+  }
+}
+
+export const wechatApi = {
+  generateQrcode: (redirectUri?: string) =>
+    api.get<WechatQrcodeResponse>('/api/auth/wechat/qrcode' + (redirectUri ? `?redirect_uri=${encodeURIComponent(redirectUri)}` : '')),
+  checkStatus: (scene: string) =>
+    api.get<WechatLoginStatusResponse>(`/api/auth/wechat/status/${scene}`),
+  confirmLogin: (scene: string, openid?: string, nickname?: string) =>
+    api.post<WechatLoginConfirmResponse>('/api/auth/wechat/confirm', { scene, openid, nickname }),
+}

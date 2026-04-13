@@ -9,8 +9,22 @@ use axum::routing::get_service;
 use rusqlite::Connection;
 
 use crate::api::handlers;
+use crate::api::handlers::wechat::SharedWechatStore;
 
-pub fn create_router(db: Arc<Mutex<Connection>>, dist_path: Option<PathBuf>) -> Router {
+// 应用状态
+#[derive(Clone)]
+pub struct AppState {
+    pub db: Arc<Mutex<Connection>>,
+    pub wechat_store: SharedWechatStore,
+}
+
+pub fn create_router(
+    db: Arc<Mutex<Connection>>,
+    wechat_store: SharedWechatStore,
+    dist_path: Option<PathBuf>
+) -> Router {
+    let state = AppState { db, wechat_store };
+
     let cors = CorsLayer::new()
         .allow_origin(Any)
         .allow_methods(Any)
@@ -22,6 +36,11 @@ pub fn create_router(db: Arc<Mutex<Connection>>, dist_path: Option<PathBuf>) -> 
         // Auth (public)
         .route("/api/auth/register", post(handlers::auth::register))
         .route("/api/auth/login", post(handlers::auth::login))
+        // WeChat login
+        .route("/api/auth/wechat/qrcode", get(handlers::generate_qrcode))
+        .route("/api/auth/wechat/status/:scene", get(handlers::check_login_status))
+        .route("/api/auth/wechat/confirm", post(handlers::simulate_scan_confirm))
+        .route("/api/auth/wechat/callback", get(handlers::wechat_callback))
         // Users (auth required)
         .route("/api/users/me", get(handlers::auth::get_current_user))
         .route("/api/users/:id", put(handlers::auth::update_user))
@@ -56,7 +75,7 @@ pub fn create_router(db: Arc<Mutex<Connection>>, dist_path: Option<PathBuf>) -> 
         .route("/api/system/info", get(handlers::get_system_info))
         .route("/api/system/network-interfaces", get(handlers::get_network_interfaces))
         .layer(cors)
-        .with_state(db);
+        .with_state(state);
 
     if let Some(dist_path) = dist_path {
         let static_service = get_service(ServeDir::new(dist_path));

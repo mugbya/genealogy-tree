@@ -9,8 +9,8 @@ use rusqlite::params;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
 
+use crate::api::router::AppState;
 use crate::models::{CreateMemberRequest, Member, UpdateMemberRequest};
 
 #[derive(Debug, Deserialize)]
@@ -48,10 +48,10 @@ pub struct ImportResult {
 }
 
 pub async fn import_members(
-    State(db): State<Arc<Mutex<rusqlite::Connection>>>,
+    State(state): State<AppState>,
     Json(data): Json<ImportData>,
 ) -> (StatusCode, Json<Value>) {
-    let conn = match db.lock() {
+    let conn = match state.db.lock() {
         Ok(conn) => conn,
         Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))),
     };
@@ -289,9 +289,9 @@ fn parse_excel(bytes: &[u8]) -> Result<Vec<ImportMemberRow>, String> {
 }
 
 pub async fn get_members(
-    State(db): State<Arc<Mutex<rusqlite::Connection>>>,
+    State(state): State<AppState>,
 ) -> (StatusCode, Json<Value>) {
-    let conn = match db.lock() {
+    let conn = match state.db.lock() {
         Ok(conn) => conn,
         Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))),
     };
@@ -336,10 +336,10 @@ pub async fn get_members(
 }
 
 pub async fn get_member(
-    State(db): State<Arc<Mutex<rusqlite::Connection>>>,
+    State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> (StatusCode, Json<Value>) {
-    let conn = match db.lock() {
+    let conn = match state.db.lock() {
         Ok(conn) => conn,
         Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))),
     };
@@ -378,10 +378,10 @@ pub async fn get_member(
 }
 
 pub async fn create_member(
-    State(db): State<Arc<Mutex<rusqlite::Connection>>>,
+    State(state): State<AppState>,
     Json(req): Json<CreateMemberRequest>,
 ) -> (StatusCode, Json<Value>) {
-    let conn = match db.lock() {
+    let conn = match state.db.lock() {
         Ok(conn) => conn,
         Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))),
     };
@@ -416,11 +416,11 @@ pub async fn create_member(
 }
 
 pub async fn update_member(
-    State(db): State<Arc<Mutex<rusqlite::Connection>>>,
+    State(state): State<AppState>,
     Path(id): Path<i64>,
     Json(req): Json<UpdateMemberRequest>,
 ) -> (StatusCode, Json<Value>) {
-    let conn = match db.lock() {
+    let conn = match state.db.lock() {
         Ok(conn) => conn,
         Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))),
     };
@@ -501,10 +501,10 @@ pub async fn update_member(
 }
 
 pub async fn delete_member(
-    State(db): State<Arc<Mutex<rusqlite::Connection>>>,
+    State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> (StatusCode, Json<Value>) {
-    let conn = match db.lock() {
+    let conn = match state.db.lock() {
         Ok(conn) => conn,
         Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))),
     };

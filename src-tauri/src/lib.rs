@@ -152,6 +152,10 @@ pub fn run() {
             let db = Arc::new(Mutex::new(conn));
             let http_db = db.clone();
 
+            // 创建微信登录状态存储
+            let wechat_store = Arc::new(Mutex::new(api::WechatLoginStore::default()));
+            let http_wechat_store = wechat_store.clone();
+
             // 获取 dist 目录路径（在 spawn 线程之前）
             let dist_path = if cfg!(debug_assertions) {
                 // Debug 模式：从项目根目录的 dist
@@ -171,7 +175,7 @@ pub fn run() {
             std::thread::spawn(move || {
                 let rt = tokio::runtime::Runtime::new().expect("Failed to create runtime");
                 rt.block_on(async {
-                    let app = api::create_router(http_db, Some(dist_path));
+                    let app = api::create_router(http_db, http_wechat_store, Some(dist_path));
                     let listener = tokio::net::TcpListener::bind("0.0.0.0:8080").await.expect("Failed to bind port 8080");
                     eprintln!("[genealogy] HTTP server running on http://localhost:8080");
                     axum::serve(listener, app).await.expect("HTTP server error");
