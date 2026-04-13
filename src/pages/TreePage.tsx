@@ -549,21 +549,21 @@ export function TreePage() {
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0">
-        <TabsList className="shrink-0">
-          <TabsTrigger value="info" className="gap-2">
-            <BookOpen className="w-4 h-4" />
+        <TabsList className="shrink-0 bg-white">
+          <TabsTrigger value="info" className="gap-2 text-base py-3 px-4">
+            <BookOpen className="w-5 h-5" />
             族谱信息
           </TabsTrigger>
-          <TabsTrigger value="list" className="gap-2">
-            <Users className="w-4 h-4" />
+          <TabsTrigger value="list" className="gap-2 text-base py-3 px-4">
+            <Users className="w-5 h-5" />
             家族成员列表
           </TabsTrigger>
-          <TabsTrigger value="tree" className="gap-2">
-            <TreeDeciduous className="w-4 h-4" />
+          <TabsTrigger value="tree" className="gap-2 text-base py-3 px-4">
+            <TreeDeciduous className="w-5 h-5" />
             族谱树
           </TabsTrigger>
-          <TabsTrigger value="tags" className="gap-2">
-            <TagIcon className="w-4 h-4" />
+          <TabsTrigger value="tags" className="gap-2 text-base py-3 px-4">
+            <TagIcon className="w-5 h-5" />
             标签管理
           </TabsTrigger>
         </TabsList>

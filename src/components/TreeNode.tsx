@@ -37,10 +37,10 @@ export interface GenealogyTreeRef {
   exportSvgAsDataUrl: () => string
 }
 
-const NODE_WIDTH = 120
-const NODE_HEIGHT = 80
-const H_GAP = 50
-const V_GAP = 120
+const NODE_WIDTH = 150
+const NODE_HEIGHT = 100
+const H_GAP = 60
+const V_GAP = 140
 
 export const GenealogyTree = forwardRef<GenealogyTreeRef, GenealogyTreeProps>(function GenealogyTree({ members, relations, familyName, familySurname, rootMemberId, onNodeClick }, ref) {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -665,13 +665,13 @@ export const GenealogyTree = forwardRef<GenealogyTreeRef, GenealogyTreeProps>(fu
         if (child.labelParent) {
           const isLabelParentMother = child.labelParent.relation === 'mother'
           const labelText = isLabelParentMother ? `母: ${child.labelParent.name}` : `父: ${child.labelParent.name}`
-          const textWidth = labelText.length * 14 + 20
+          const textWidth = labelText.length * 18 + 24
           const bgColor = child.labelParent.isDeceased ? '#e5e7eb' : '#fef3c7'
           const strokeColor = child.labelParent.isDeceased ? '#9ca3af' : '#f59e0b'
           const textColor = child.labelParent.isDeceased ? '#9ca3af' : '#92400e'
 
-          svg += `<rect x="${childX - textWidth / 2}" y="${midY - 12}" width="${textWidth}" height="20" fill="${bgColor}" fill-opacity="0.5" stroke="${strokeColor}" stroke-opacity="0.5" stroke-width="1" rx="4"/>`
-          svg += `<text x="${childX}" y="${midY + 4}" text-anchor="middle" font-size="11" fill="${textColor}" font-weight="500">${labelText}</text>`
+          svg += `<rect x="${childX - textWidth / 2}" y="${midY - 14}" width="${textWidth}" height="24" fill="${bgColor}" fill-opacity="0.5" stroke="${strokeColor}" stroke-opacity="0.5" stroke-width="1" rx="4"/>`
+          svg += `<text x="${childX}" y="${midY + 5}" text-anchor="middle" font-size="14" fill="${textColor}" font-weight="500">${labelText}</text>`
         }
 
         svg += renderConnectionsSVG(child)
@@ -692,8 +692,8 @@ export const GenealogyTree = forwardRef<GenealogyTreeRef, GenealogyTreeProps>(fu
         const rootHeight = NODE_HEIGHT + 20
         return `<g>
           <rect x="${x}" y="${y}" width="${rootWidth}" height="${rootHeight}" fill="#fef3c7" stroke="#f59e0b" stroke-width="3" rx="12"/>
-          <text x="${x + rootWidth / 2}" y="${y + rootHeight / 2 - 6}" text-anchor="middle" font-size="18" font-weight="bold" fill="#92400e">${node.name}</text>
-          ${node.surname ? `<text x="${x + rootWidth / 2}" y="${y + rootHeight / 2 + 16}" text-anchor="middle" font-size="12" fill="#b45309">${node.surname}氏宗谱</text>` : ''}
+          <text x="${x + rootWidth / 2}" y="${y + rootHeight / 2 - 6}" text-anchor="middle" font-size="28" font-weight="bold" fill="#92400e">${node.name}</text>
+          ${node.surname ? `<text x="${x + rootWidth / 2}" y="${y + rootHeight / 2 + 16}" text-anchor="middle" font-size="18" fill="#b45309">${node.surname}氏宗谱</text>` : ''}
         </g>`
       }
 
@@ -706,9 +706,9 @@ export const GenealogyTree = forwardRef<GenealogyTreeRef, GenealogyTreeProps>(fu
 
       let svg = `<g>
         <rect x="${x}" y="${y}" width="${NODE_WIDTH}" height="${NODE_HEIGHT}" fill="${bgColor}" stroke="${borderColor}" stroke-width="2" rx="8"/>
-        ${node.generation > 0 ? `<circle cx="${x + NODE_WIDTH - 10}" cy="${y + 10}" r="12" fill="${borderColor}"/><text x="${x + NODE_WIDTH - 10}" y="${y + 14}" text-anchor="middle" font-size="10" fill="white" font-weight="bold">${node.generation}代</text>` : ''}
-        <text x="${x + NODE_WIDTH / 2}" y="${y + NODE_HEIGHT / 2 - 8}" text-anchor="middle" font-size="14" font-weight="bold" fill="${textColor}">${node.name}</text>
-        <text x="${x + NODE_WIDTH / 2}" y="${y + NODE_HEIGHT - 12}" text-anchor="middle" font-size="11" fill="${isDeceased ? '#9ca3af' : '#6b7280'}">${isMale ? '♂' : '♀'}</text>
+        ${node.generation > 0 ? `<circle cx="${x + NODE_WIDTH - 10}" cy="${y + 10}" r="14" fill="${borderColor}"/><text x="${x + NODE_WIDTH - 10}" y="${y + 15}" text-anchor="middle" font-size="14" fill="white" font-weight="bold">${node.generation}代</text>` : ''}
+        <text x="${x + NODE_WIDTH / 2}" y="${y + NODE_HEIGHT / 2 - 6}" text-anchor="middle" font-size="18" font-weight="bold" fill="${textColor}">${node.name}</text>
+        <text x="${x + NODE_WIDTH / 2}" y="${y + NODE_HEIGHT - 10}" text-anchor="middle" font-size="14" fill="${isDeceased ? '#9ca3af' : '#6b7280'}">${isMale ? '♂' : '♀'}</text>
       `
 
       // Spouses
@@ -718,12 +718,12 @@ export const GenealogyTree = forwardRef<GenealogyTreeRef, GenealogyTreeProps>(fu
           const spouseBorderColor = spouse.isDeceased ? '#9ca3af' : (spouse.gender === 'male' ? '#3b82f6' : '#ec4899')
           const spouseTextColor = spouse.isDeceased ? '#9ca3af' : '#1f2937'
           const spouseX = x + NODE_WIDTH + 8
-          const spouseY = y + (node.spouses!.length - 1) * 30 / 2 - idx * 30
-          const spouseWidth = 80
-          const spouseHeight = 26
+          const spouseY = y + (node.spouses!.length - 1) * 35 / 2 - idx * 35
+          const spouseWidth = 90
+          const spouseHeight = 30
 
           svg += `<rect x="${spouseX}" y="${spouseY}" width="${spouseWidth}" height="${spouseHeight}" fill="${spouseBgColor}" stroke="${spouseBorderColor}" stroke-width="1" rx="4"/>`
-          svg += `<text x="${spouseX + spouseWidth / 2}" y="${spouseY + spouseHeight / 2 + 4}" text-anchor="middle" font-size="10" fill="${spouseTextColor}">${spouse.name}</text>`
+          svg += `<text x="${spouseX + spouseWidth / 2}" y="${spouseY + spouseHeight / 2 + 5}" text-anchor="middle" font-size="14" fill="${spouseTextColor}">${spouse.name}</text>`
         })
       }
 
