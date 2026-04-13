@@ -253,6 +253,14 @@ export function TreePage() {
     })
   }, [members, searchKeyword, filterGender, filterIsDeceased, filterIsMatrilocal, filterIsAdoptedSon, filterOccupation])
 
+  // 计算有子女的成员（用于族谱树起始成员选择）
+  const membersWithChildren = useMemo(() => {
+    const relations = relationsData?.data || []
+    const parentChildRelations = relations.filter(r => r.relation_type === 'father' || r.relation_type === 'mother')
+    const parentIds = new Set(parentChildRelations.map(r => r.to_member_id))
+    return members.filter(m => parentIds.has(m.id))
+  }, [members, relationsData])
+
   // 计算成员的亲缘关系（父亲、母亲、配偶）
   const memberRelations = useMemo(() => {
     const relations = relationsData?.data || []
@@ -1160,7 +1168,7 @@ export function TreePage() {
                       className="border border-gray-200 rounded-md px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                     >
                       <option value="">自动（从家族祖先开始）</option>
-                      {members
+                      {membersWithChildren
                         .filter(m => {
                           // 如果设置了家族姓氏，只显示同姓的成员
                           if (familySurname) {
