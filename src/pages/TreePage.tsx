@@ -74,6 +74,12 @@ export function TreePage() {
   // 状态
   const [searchKeyword, setSearchKeyword] = useState('')
   const [selectedMember, setSelectedMember] = useState<Member | null>(null)
+  // 搜索过滤器
+  const [filterGender, setFilterGender] = useState<string>('')
+  const [filterIsDeceased, setFilterIsDeceased] = useState<string>('')
+  const [filterIsMatrilocal, setFilterIsMatrilocal] = useState<string>('')
+  const [filterIsAdoptedSon, setFilterIsAdoptedSon] = useState<string>('')
+  const [filterOccupation, setFilterOccupation] = useState<string>('')
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [isEditOpen, setIsEditOpen] = useState(false)
   const [isCreateTagOpen, setIsCreateTagOpen] = useState(false)
@@ -206,14 +212,46 @@ export function TreePage() {
 
   // 过滤成员
   const filteredMembers = useMemo(() => {
-    if (!searchKeyword.trim()) return members
-    const keyword = searchKeyword.toLowerCase()
-    return members.filter(m =>
-      m.name.toLowerCase().includes(keyword) ||
-      (m.birth_place && m.birth_place.toLowerCase().includes(keyword)) ||
-      (m.occupation && m.occupation.toLowerCase().includes(keyword))
-    )
-  }, [members, searchKeyword])
+    return members.filter(m => {
+      // 关键词搜索
+      if (searchKeyword.trim()) {
+        const keyword = searchKeyword.toLowerCase()
+        if (
+          !m.name.toLowerCase().includes(keyword) &&
+          !(m.birth_place && m.birth_place.toLowerCase().includes(keyword)) &&
+          !(m.occupation && m.occupation.toLowerCase().includes(keyword))
+        ) {
+          return false
+        }
+      }
+
+      // 性别过滤
+      if (filterGender && m.gender !== filterGender) {
+        return false
+      }
+
+      // 在离世过滤
+      if (filterIsDeceased === 'deceased' && !m.is_deceased) return false
+      if (filterIsDeceased === 'alive' && m.is_deceased) return false
+
+      // 入赘过滤
+      if (filterIsMatrilocal === 'yes' && !m.is_matrilocal) return false
+      if (filterIsMatrilocal === 'no' && m.is_matrilocal) return false
+
+      // 招夫养子过滤
+      if (filterIsAdoptedSon === 'yes' && !m.is_adopted_son) return false
+      if (filterIsAdoptedSon === 'no' && m.is_adopted_son) return false
+
+      // 职业过滤
+      if (filterOccupation.trim()) {
+        if (!m.occupation || !m.occupation.toLowerCase().includes(filterOccupation.toLowerCase())) {
+          return false
+        }
+      }
+
+      return true
+    })
+  }, [members, searchKeyword, filterGender, filterIsDeceased, filterIsMatrilocal, filterIsAdoptedSon, filterOccupation])
 
   // 计算成员的亲缘关系（父亲、母亲、配偶）
   const memberRelations = useMemo(() => {
@@ -749,15 +787,83 @@ export function TreePage() {
                     }}
                   />
                 </div>
-                {/* 搜索 */}
-                <div className="relative mt-3">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <Input
-                    value={searchKeyword}
-                    onChange={(e) => setSearchKeyword(e.target.value)}
-                    placeholder="搜索成员..."
-                    className="pl-9 h-10"
-                  />
+                {/* 搜索和过滤器 */}
+                <div className="mt-3 space-y-3">
+                  {/* 关键词搜索 */}
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Input
+                      value={searchKeyword}
+                      onChange={(e) => setSearchKeyword(e.target.value)}
+                      placeholder="搜索成员姓名、出生地、职业..."
+                      className="pl-9 h-10"
+                    />
+                  </div>
+                  {/* 筛选条件 */}
+                  <div className="flex flex-wrap gap-2">
+                    {/* 性别 */}
+                    <select
+                      value={filterGender}
+                      onChange={(e) => setFilterGender(e.target.value)}
+                      className="h-9 px-3 text-sm border border-zinc-200 rounded-lg bg-white text-zinc-700 focus:outline-none focus:ring-2 focus:ring-zinc-400"
+                    >
+                      <option value="">性别</option>
+                      <option value="male">男</option>
+                      <option value="female">女</option>
+                    </select>
+                    {/* 在离世 */}
+                    <select
+                      value={filterIsDeceased}
+                      onChange={(e) => setFilterIsDeceased(e.target.value)}
+                      className="h-9 px-3 text-sm border border-zinc-200 rounded-lg bg-white text-zinc-700 focus:outline-none focus:ring-2 focus:ring-zinc-400"
+                    >
+                      <option value="">在离世</option>
+                      <option value="alive">在世</option>
+                      <option value="deceased">离世</option>
+                    </select>
+                    {/* 入赘 */}
+                    <select
+                      value={filterIsMatrilocal}
+                      onChange={(e) => setFilterIsMatrilocal(e.target.value)}
+                      className="h-9 px-3 text-sm border border-zinc-200 rounded-lg bg-white text-zinc-700 focus:outline-none focus:ring-2 focus:ring-zinc-400"
+                    >
+                      <option value="">入赘</option>
+                      <option value="yes">是</option>
+                      <option value="no">否</option>
+                    </select>
+                    {/* 招夫养子 */}
+                    <select
+                      value={filterIsAdoptedSon}
+                      onChange={(e) => setFilterIsAdoptedSon(e.target.value)}
+                      className="h-9 px-3 text-sm border border-zinc-200 rounded-lg bg-white text-zinc-700 focus:outline-none focus:ring-2 focus:ring-zinc-400"
+                    >
+                      <option value="">招夫养子</option>
+                      <option value="yes">是</option>
+                      <option value="no">否</option>
+                    </select>
+                    {/* 职业 */}
+                    <Input
+                      value={filterOccupation}
+                      onChange={(e) => setFilterOccupation(e.target.value)}
+                      placeholder="职业"
+                      className="h-9 w-28 text-sm"
+                    />
+                    {/* 重置按钮 */}
+                    {(filterGender || filterIsDeceased || filterIsMatrilocal || filterIsAdoptedSon || filterOccupation) && (
+                      <button
+                        onClick={() => {
+                          setFilterGender('')
+                          setFilterIsDeceased('')
+                          setFilterIsMatrilocal('')
+                          setFilterIsAdoptedSon('')
+                          setFilterOccupation('')
+                        }}
+                        className="h-9 px-3 text-sm text-zinc-500 hover:text-zinc-700 border border-zinc-200 rounded-lg hover:bg-zinc-50"
+                      >
+                        重置
+                      </button>
+                    )}
+                  </div>
                 </div>
               </CardHeader>
               <CardContent className="flex-1 min-h-0 p-0">
