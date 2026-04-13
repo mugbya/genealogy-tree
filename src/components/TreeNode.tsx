@@ -665,8 +665,10 @@ export function GenealogyTree({ members, relations, familyName, familySurname, r
             width={textWidth}
             height="20"
             fill={child.labelParent.isDeceased ? '#e5e7eb' : '#fef3c7'}
+            fillOpacity="0.5"
             stroke={child.labelParent.isDeceased ? '#9ca3af' : '#f59e0b'}
             strokeWidth="1"
+            strokeOpacity="0.5"
             rx="4"
           />
         )
