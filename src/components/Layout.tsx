@@ -1,4 +1,4 @@
-import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate, Outlet } from 'react-router-dom'
 import {
   Home,
   TreeDeciduous,
@@ -24,7 +24,7 @@ const navItems = [
   // { path: '/users', label: '用户管理', icon: Shield, adminOnly: true },
 ]
 
-export function Layout({ children }: { children: React.ReactNode }) {
+export function Layout() {
   const location = useLocation()
   const navigate = useNavigate()
   const [mobileOpen, setMobileOpen] = useState(false)
@@ -117,10 +117,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
               {/* Settings */}
               <Link
-                to="/settings"
+                to="/config"
                 className={cn(
                   "w-11 h-11 rounded-lg flex items-center justify-center transition-colors",
-                  location.pathname === '/settings'
+                  location.pathname === '/config'
                     ? "bg-zinc-100 text-zinc-900"
                     : "text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100"
                 )}
@@ -176,7 +176,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
       {/* Main */}
       <main className="w-full px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
-        {children}
+        <Outlet />
       </main>
     </div>
   )
