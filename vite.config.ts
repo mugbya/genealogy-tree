@@ -30,9 +30,20 @@ export default defineConfig(async () => ({
           port: 1421,
         }
       : undefined,
+    allowedHosts: [
+      'localhost',
+      'dev.genealogy-tree.com',
+    ],
     watch: {
       // 3. tell Vite to ignore watching `src-tauri`
       ignored: ["**/src-tauri/**"],
+    },
+    proxy: {
+      // 开发模式下将 /api 请求代理到后端服务器
+      '/api': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+      },
     },
   },
 }));

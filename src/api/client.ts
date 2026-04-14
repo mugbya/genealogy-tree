@@ -1,4 +1,5 @@
-const API_BASE = 'http://localhost:8080'
+// 使用相对路径，自动适配当前域名（支持内网穿透和公网访问）
+const API_BASE = ''
 
 interface ApiResponse<T> {
   data?: T
