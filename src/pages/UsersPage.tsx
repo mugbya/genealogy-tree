@@ -145,7 +145,7 @@ export function UsersPage() {
                 <TableRow>
                   <TableHead>用户名</TableHead>
                   <TableHead>角色</TableHead>
-                  <TableHead>关联成员</TableHead>
+                  <TableHead>关联家族成员</TableHead>
                   <TableHead>创建时间</TableHead>
                   <TableHead className="text-right">操作</TableHead>
                 </TableRow>
@@ -258,7 +258,7 @@ export function UsersPage() {
               />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium">关联成员</label>
+              <label className="text-sm font-medium">关联家族成员</label>
               <Select
                 value={formData.member_id === null ? '' : String(formData.member_id)}
                 onChange={(e) =>
@@ -316,7 +316,7 @@ export function UsersPage() {
               />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium">关联成员</label>
+              <label className="text-sm font-medium">关联家族成员</label>
               <Select
                 value={formData.member_id === null ? '' : String(formData.member_id)}
                 onChange={(e) =>

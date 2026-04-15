@@ -10,6 +10,7 @@ use crate::api::router::AppState;
 use crate::auth::{create_token, hash_password, verify_password, verify_token};
 use crate::models::{
     CreateUserRequest, LoginRequest, LoginResponse, ROLE_ADMIN, ROLE_USER, User, UserResponse,
+    UserResponseWithMemberName,
 };
 
 fn extract_auth(headers: &HeaderMap) -> Result<(i64, String), (StatusCode, Json<Value>)> {
@@ -143,25 +144,29 @@ pub async fn get_users(
     };
 
     let mut stmt = match conn.prepare(
-        "SELECT id, username, role, member_id, created_at FROM users ORDER BY id"
+        "SELECT u.id, u.username, u.role, u.member_id, u.created_at, fm.name as member_name
+         FROM users u
+         LEFT JOIN family_members fm ON u.member_id = fm.id
+         ORDER BY u.id"
     ) {
         Ok(stmt) => stmt,
         Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))),
     };
 
     let users = stmt.query_map([], |row| {
-        Ok(UserResponse {
+        Ok(UserResponseWithMemberName {
             id: row.get(0)?,
             username: row.get(1)?,
             role: row.get(2)?,
             member_id: row.get(3)?,
             created_at: row.get(4)?,
+            member_name: row.get(5)?,
         })
     });
 
     match users {
         Ok(rows) => {
-            let result: Vec<UserResponse> = rows.filter_map(|r| r.ok()).collect();
+            let result: Vec<UserResponseWithMemberName> = rows.filter_map(|r| r.ok()).collect();
             (StatusCode::OK, Json(json!({ "data": result })))
         }
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))),

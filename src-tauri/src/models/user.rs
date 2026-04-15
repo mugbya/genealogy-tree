@@ -20,6 +20,16 @@ pub struct UserResponse {
     pub created_at: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UserResponseWithMemberName {
+    pub id: i64,
+    pub username: String,
+    pub role: String,
+    pub member_id: Option<i64>,
+    pub created_at: String,
+    pub member_name: Option<String>,
+}
+
 impl From<User> for UserResponse {
     fn from(user: User) -> Self {
         UserResponse {

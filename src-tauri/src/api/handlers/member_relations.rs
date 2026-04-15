@@ -1,13 +1,145 @@
 use axum::{
     extract::{Path, State},
-    http::StatusCode,
+    http::{HeaderMap, StatusCode},
     Json,
 };
 use rusqlite::params;
 use serde_json::{json, Value};
 
 use crate::api::router::AppState;
-use crate::models::{CreateMemberRelationRequest, MemberRelation};
+use crate::auth::verify_token;
+use crate::models::{CreateMemberRelationRequest, MemberRelation, ROLE_ADMIN};
+
+/// 从请求头中提取用户认证信息
+fn extract_user_info(headers: &HeaderMap) -> Result<(i64, String, Option<i64>), StatusCode> {
+    let token = match headers
+        .get("Authorization")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|s| s.strip_prefix("Bearer "))
+    {
+        Some(s) => s.to_string(),
+        None => return Err(StatusCode::UNAUTHORIZED),
+    };
+
+    let claims = match verify_token(&token) {
+        Ok(c) => c,
+        Err(_) => return Err(StatusCode::UNAUTHORIZED),
+    };
+
+    Ok((claims.sub, claims.role, None))
+}
+
+/// 检查用户是否有权限编辑指定成员
+fn can_edit_member(
+    conn: &rusqlite::Connection,
+    user_role: &str,
+    user_member_id: Option<i64>,
+    target_member_id: i64,
+) -> bool {
+    // Admin can edit all
+    if user_role == ROLE_ADMIN {
+        return true;
+    }
+
+    // 没有关联成员ID的用户不能编辑任何成员
+    let Some(my_member_id) = user_member_id else {
+        return false;
+    };
+
+    // 不能编辑自己
+    if my_member_id == target_member_id {
+        return true;
+    }
+
+    // 检查是否在3代以内
+    let ancestors = get_ancestors(conn, my_member_id, 3);
+    let descendants = get_descendants(conn, my_member_id, 3);
+
+    ancestors.contains(&target_member_id) || descendants.contains(&target_member_id)
+}
+
+/// 获取祖先成员IDs
+fn get_ancestors(conn: &rusqlite::Connection, member_id: i64, generations: i32) -> Vec<i64> {
+    let mut result = Vec::new();
+    let mut current_ids = vec![member_id];
+    let mut visited = std::collections::HashSet::new();
+    visited.insert(member_id);
+
+    for _ in 0..generations {
+        let mut next_ids = Vec::new();
+        for &mid in &current_ids {
+            let father_id: Option<i64> = conn
+                .query_row(
+                    "SELECT to_member_id FROM member_relations WHERE from_member_id = ? AND relation_type = 'father'",
+                    params![mid],
+                    |row| row.get(0),
+                )
+                .ok();
+
+            if let Some(fid) = father_id {
+                if !visited.contains(&fid) {
+                    visited.insert(fid);
+                    next_ids.push(fid);
+                    result.push(fid);
+                }
+            }
+
+            let mother_id: Option<i64> = conn
+                .query_row(
+                    "SELECT to_member_id FROM member_relations WHERE from_member_id = ? AND relation_type = 'mother'",
+                    params![mid],
+                    |row| row.get(0),
+                )
+                .ok();
+
+            if let Some(mid) = mother_id {
+                if !visited.contains(&mid) {
+                    visited.insert(mid);
+                    next_ids.push(mid);
+                    result.push(mid);
+                }
+            }
+        }
+        current_ids = next_ids;
+    }
+
+    result
+}
+
+/// 获取后代成员IDs
+fn get_descendants(conn: &rusqlite::Connection, member_id: i64, generations: i32) -> Vec<i64> {
+    let mut result = Vec::new();
+    let mut current_ids = vec![member_id];
+    let mut visited = std::collections::HashSet::new();
+    visited.insert(member_id);
+
+    for _ in 0..generations {
+        let mut next_ids = Vec::new();
+        for &mid in &current_ids {
+            let children: Vec<i64> = conn
+                .prepare("SELECT from_member_id FROM member_relations WHERE to_member_id = ? AND (relation_type = 'father' OR relation_type = 'mother')")
+                .ok()
+                .map(|mut stmt| {
+                    stmt.query_map(params![mid], |row| row.get(0))
+                        .ok()
+                        .map(|rows| rows.filter_map(|r| r.ok()).collect())
+                        .unwrap_or_default()
+                })
+                .unwrap_or_default();
+
+            for child_id in children {
+                if !visited.contains(&child_id) {
+                    visited.insert(child_id);
+                    next_ids.push(child_id);
+                    result.push(child_id);
+                }
+            }
+        }
+        current_ids = next_ids;
+    }
+
+    result
+}
 
 pub async fn get_member_relations(
     State(state): State<AppState>,
@@ -109,12 +241,35 @@ pub async fn get_member_relations_by_member(
 
 pub async fn create_member_relation(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Json(req): Json<CreateMemberRelationRequest>,
 ) -> (StatusCode, Json<Value>) {
     let conn = match state.db.lock() {
         Ok(conn) => conn,
         Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))),
     };
+
+    // 权限检查
+    let (user_id, user_role, _) = match extract_user_info(&headers) {
+        Ok(info) => info,
+        Err(status) => return (status, Json(json!({ "error": "Unauthorized" }))),
+    };
+
+    let user_member_id: Option<i64> = conn
+        .query_row(
+            "SELECT member_id FROM users WHERE id = ?",
+            params![user_id],
+            |row| row.get(0),
+        )
+        .ok();
+
+    // 检查是否有权限编辑两个成员（至少有一个）
+    let can_edit_from = can_edit_member(&conn, &user_role, user_member_id, req.from_member_id);
+    let can_edit_to = can_edit_member(&conn, &user_role, user_member_id, req.to_member_id);
+
+    if !can_edit_from && !can_edit_to {
+        return (StatusCode::FORBIDDEN, Json(json!({ "error": "无权创建此关系" })));
+    }
 
     let result = conn.execute(
         "INSERT INTO member_relations (from_member_id, to_member_id, relation_type, tag_id)
@@ -134,11 +289,46 @@ pub async fn create_member_relation(
 pub async fn delete_member_relation(
     State(state): State<AppState>,
     Path(id): Path<i64>,
+    headers: HeaderMap,
 ) -> (StatusCode, Json<Value>) {
     let conn = match state.db.lock() {
         Ok(conn) => conn,
         Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))),
     };
+
+    // 权限检查
+    let (user_id, user_role, _) = match extract_user_info(&headers) {
+        Ok(info) => info,
+        Err(status) => return (status, Json(json!({ "error": "Unauthorized" }))),
+    };
+
+    // 先获取关系信息，检查权限
+    let relation = conn.query_row(
+        "SELECT from_member_id, to_member_id FROM member_relations WHERE id = ?",
+        params![id],
+        |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?)),
+    );
+
+    let (from_member_id, to_member_id) = match relation {
+        Ok(r) => r,
+        Err(_) => return (StatusCode::NOT_FOUND, Json(json!({ "error": "Relation not found" }))),
+    };
+
+    let user_member_id: Option<i64> = conn
+        .query_row(
+            "SELECT member_id FROM users WHERE id = ?",
+            params![user_id],
+            |row| row.get(0),
+        )
+        .ok();
+
+    // 检查是否有权限删除（能编辑任一成员即可）
+    let can_edit_from = can_edit_member(&conn, &user_role, user_member_id, from_member_id);
+    let can_edit_to = can_edit_member(&conn, &user_role, user_member_id, to_member_id);
+
+    if !can_edit_from && !can_edit_to {
+        return (StatusCode::FORBIDDEN, Json(json!({ "error": "无权删除此关系" })));
+    }
 
     let result = conn.execute("DELETE FROM member_relations WHERE id = ?", params![id]);
 

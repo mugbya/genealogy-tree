@@ -1,6 +1,6 @@
 use axum::{
     extract::{Path, State},
-    http::StatusCode,
+    http::{HeaderMap, StatusCode},
     Json,
 };
 use base64::{engine::general_purpose::STANDARD, Engine};
@@ -11,7 +11,172 @@ use serde_json::{json, Value};
 use std::collections::HashMap;
 
 use crate::api::router::AppState;
-use crate::models::{CreateMemberRequest, Member, UpdateMemberRequest};
+use crate::auth::verify_token;
+use crate::models::{CreateMemberRequest, Member, UpdateMemberRequest, ROLE_ADMIN};
+
+/// 从请求头中提取用户认证信息，返回 (user_id, role, member_id)
+fn extract_user_info(headers: &HeaderMap) -> Result<(i64, String, Option<i64>), StatusCode> {
+    let token = match headers
+        .get("Authorization")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|s| s.strip_prefix("Bearer "))
+    {
+        Some(s) => s.to_string(),
+        None => return Err(StatusCode::UNAUTHORIZED),
+    };
+
+    let claims = match verify_token(&token) {
+        Ok(c) => c,
+        Err(_) => return Err(StatusCode::UNAUTHORIZED),
+    };
+
+    Ok((claims.sub, claims.role, None))
+}
+
+/// 检查当前用户是否有权限编辑/删除指定成员
+/// 普通用户只能编辑/删除自己及其直属上3代和下3代的成员
+fn can_edit_member(
+    conn: &rusqlite::Connection,
+    _current_user_id: i64,
+    current_user_role: &str,
+    current_user_member_id: Option<i64>,
+    target_member_id: i64,
+) -> bool {
+    // Admin can edit all
+    if current_user_role == ROLE_ADMIN {
+        return true;
+    }
+
+    // 没有关联成员ID的用户不能编辑任何成员
+    let Some(my_member_id) = current_user_member_id else {
+        return false;
+    };
+
+    // 不能编辑自己（这个应该在前端就限制）
+    if my_member_id == target_member_id {
+        return true;
+    }
+
+    // 检查是否在3代以内（包括祖先和后代）
+    let ancestors = get_ancestors(conn, my_member_id, 3);
+    let descendants = get_descendants(conn, my_member_id, 3);
+
+    ancestors.contains(&target_member_id) || descendants.contains(&target_member_id)
+}
+
+/// 获取祖先成员IDs（向上追溯n代）
+fn get_ancestors(conn: &rusqlite::Connection, member_id: i64, generations: i32) -> Vec<i64> {
+    let mut result = Vec::new();
+    let mut current_ids = vec![member_id];
+    let mut visited = std::collections::HashSet::new();
+    visited.insert(member_id);
+
+    for _ in 0..generations {
+        let mut next_ids = Vec::new();
+        for &mid in &current_ids {
+            // 查找当前成员的父亲
+            let father_id: Option<i64> = conn
+                .query_row(
+                    "SELECT to_member_id FROM member_relations
+                     WHERE from_member_id = ? AND relation_type = 'father'",
+                    params![mid],
+                    |row| row.get(0),
+                )
+                .ok();
+
+            if let Some(fid) = father_id {
+                if !visited.contains(&fid) {
+                    visited.insert(fid);
+                    next_ids.push(fid);
+                    result.push(fid);
+                }
+            }
+
+            // 查找当前成员的母亲
+            let mother_id: Option<i64> = conn
+                .query_row(
+                    "SELECT to_member_id FROM member_relations
+                     WHERE from_member_id = ? AND relation_type = 'mother'",
+                    params![mid],
+                    |row| row.get(0),
+                )
+                .ok();
+
+            if let Some(mid) = mother_id {
+                if !visited.contains(&mid) {
+                    visited.insert(mid);
+                    next_ids.push(mid);
+                    result.push(mid);
+                }
+            }
+        }
+        current_ids = next_ids;
+    }
+
+    result
+}
+
+/// 获取后代成员IDs（向下追溯n代）
+fn get_descendants(conn: &rusqlite::Connection, member_id: i64, generations: i32) -> Vec<i64> {
+    let mut result = Vec::new();
+    let mut current_ids = vec![member_id];
+    let mut visited = std::collections::HashSet::new();
+    visited.insert(member_id);
+
+    for _ in 0..generations {
+        let mut next_ids = Vec::new();
+        for &mid in &current_ids {
+            // 查找以当前成员为父亲的子成员
+            let sons: Vec<i64> = conn
+                .prepare(
+                    "SELECT from_member_id FROM member_relations
+                     WHERE to_member_id = ? AND relation_type = 'father'",
+                )
+                .ok()
+                .map(|mut stmt| {
+                    stmt.query_map(params![mid], |row| row.get(0))
+                        .ok()
+                        .map(|rows| rows.filter_map(|r| r.ok()).collect())
+                        .unwrap_or_default()
+                })
+                .unwrap_or_default();
+
+            for son_id in sons {
+                if !visited.contains(&son_id) {
+                    visited.insert(son_id);
+                    next_ids.push(son_id);
+                    result.push(son_id);
+                }
+            }
+
+            // 查找以当前成员为母亲的子成员
+            let daughters: Vec<i64> = conn
+                .prepare(
+                    "SELECT from_member_id FROM member_relations
+                     WHERE to_member_id = ? AND relation_type = 'mother'",
+                )
+                .ok()
+                .map(|mut stmt| {
+                    stmt.query_map(params![mid], |row| row.get(0))
+                        .ok()
+                        .map(|rows| rows.filter_map(|r| r.ok()).collect())
+                        .unwrap_or_default()
+                })
+                .unwrap_or_default();
+
+            for daughter_id in daughters {
+                if !visited.contains(&daughter_id) {
+                    visited.insert(daughter_id);
+                    next_ids.push(daughter_id);
+                    result.push(daughter_id);
+                }
+            }
+        }
+        current_ids = next_ids;
+    }
+
+    result
+}
 
 #[derive(Debug, Deserialize)]
 pub struct ImportMemberRow {
@@ -418,12 +583,33 @@ pub async fn create_member(
 pub async fn update_member(
     State(state): State<AppState>,
     Path(id): Path<i64>,
+    headers: HeaderMap,
     Json(req): Json<UpdateMemberRequest>,
 ) -> (StatusCode, Json<Value>) {
     let conn = match state.db.lock() {
         Ok(conn) => conn,
         Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))),
     };
+
+    // 权限检查
+    let (user_id, user_role, _) = match extract_user_info(&headers) {
+        Ok(info) => info,
+        Err(status) => return (status, Json(json!({ "error": "Unauthorized" }))),
+    };
+
+    // 获取用户关联的成员ID
+    let user_member_id: Option<i64> = conn
+        .query_row(
+            "SELECT member_id FROM users WHERE id = ?",
+            params![user_id],
+            |row| row.get(0),
+        )
+        .ok();
+
+    // 检查权限
+    if !can_edit_member(&conn, user_id, &user_role, user_member_id, id) {
+        return (StatusCode::FORBIDDEN, Json(json!({ "error": "无权编辑此成员信息" })));
+    }
 
     let mut updates: Vec<&str> = Vec::new();
     let mut values: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
@@ -503,11 +689,32 @@ pub async fn update_member(
 pub async fn delete_member(
     State(state): State<AppState>,
     Path(id): Path<i64>,
+    headers: HeaderMap,
 ) -> (StatusCode, Json<Value>) {
     let conn = match state.db.lock() {
         Ok(conn) => conn,
         Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))),
     };
+
+    // 权限检查
+    let (user_id, user_role, _) = match extract_user_info(&headers) {
+        Ok(info) => info,
+        Err(status) => return (status, Json(json!({ "error": "Unauthorized" }))),
+    };
+
+    // 获取用户关联的成员ID
+    let user_member_id: Option<i64> = conn
+        .query_row(
+            "SELECT member_id FROM users WHERE id = ?",
+            params![user_id],
+            |row| row.get(0),
+        )
+        .ok();
+
+    // 检查权限
+    if !can_edit_member(&conn, user_id, &user_role, user_member_id, id) {
+        return (StatusCode::FORBIDDEN, Json(json!({ "error": "无权删除此成员" })));
+    }
 
     let result = conn.execute("DELETE FROM family_members WHERE id = ?", params![id]);
 
