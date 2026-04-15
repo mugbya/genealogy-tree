@@ -165,6 +165,8 @@ export interface PublicConfig {
   family_name: string
   family_surname: string
   family_origin: string
+  family_maxim: string
+  family_generation_words: string
 }
 
 export interface Member {

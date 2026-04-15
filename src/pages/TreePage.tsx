@@ -116,6 +116,8 @@ export function TreePage() {
   const [familyName, setFamilyName] = useState('')
   const [familySurname, setFamilySurname] = useState('')
   const [familyOrigin, setFamilyOrigin] = useState('')
+  const [familyMaxim, setFamilyMaxim] = useState('')
+  const [familyGenerationWords, setFamilyGenerationWords] = useState('')
   const [familyConfigSaving, setFamilyConfigSaving] = useState(false)
 
   // 加载族谱配置
@@ -137,6 +139,8 @@ export function TreePage() {
         setFamilyName(result.data.family_name || '')
         setFamilySurname(result.data.family_surname || '')
         setFamilyOrigin(result.data.family_origin || '')
+        setFamilyMaxim(result.data.family_maxim || '')
+        setFamilyGenerationWords(result.data.family_generation_words || '')
       }
     } catch (error) {
       console.error('Failed to load family config:', error)
@@ -150,6 +154,8 @@ export function TreePage() {
         { key: 'family_name', value: familyName },
         { key: 'family_surname', value: familySurname },
         { key: 'family_origin', value: familyOrigin },
+        { key: 'family_maxim', value: familyMaxim },
+        { key: 'family_generation_words', value: familyGenerationWords },
       ])
       alert('保存成功！')
     } catch (error) {
@@ -640,104 +646,132 @@ export function TreePage() {
 
         {/* 族谱信息 */}
         <TabsContent value="info" className="flex-1 min-h-0 mt-4">
-          <div className="max-w-2xl space-y-6">
-            <Card className="border-0 shadow-sm">
-              <CardHeader>
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <span className="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center">
-                    <span className="text-indigo-600 font-bold">姓</span>
-                  </span>
-                  姓氏信息
-                </CardTitle>
-                <CardDescription>
-                  族谱树会根据姓氏判断本家与外姓，<strong>请务必正确设置姓氏</strong>
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">家族姓氏</label>
+          <div className="space-y-6">
+            {/* 第一行：姓氏 + 名称 */}
+            <div className="grid grid-cols-2 gap-6">
+              <Card className="border-0 shadow-sm">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <span className="w-7 h-7 rounded-lg bg-indigo-50 flex items-center justify-center">
+                      <span className="text-indigo-600 font-bold text-sm">姓</span>
+                    </span>
+                    家族姓氏
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
                   <Input
                     value={familySurname}
                     onChange={(e) => setFamilySurname(e.target.value)}
                     placeholder="如：贾、王、张"
-                    className="h-12 text-lg"
+                    className="h-10"
                   />
-                  <p className="text-xs text-muted-foreground">
-                    同姓成员将作为本家显示为节点，不同姓的配偶将显示在连接线上
+                  <p className="text-xs text-muted-foreground mt-2">
+                    族谱树会根据姓氏判断本家与外姓
                   </p>
-                </div>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
 
-            <Card className="border-0 shadow-sm">
-              <CardHeader>
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <span className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center">
-                    <span className="text-amber-600 font-bold">名</span>
-                  </span>
-                  家族名称
-                </CardTitle>
-                <CardDescription>
-                  设置族谱的名称，如"红楼梦贾府族谱"
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">族谱名称</label>
+              <Card className="border-0 shadow-sm">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <span className="w-7 h-7 rounded-lg bg-amber-50 flex items-center justify-center">
+                      <span className="text-amber-600 font-bold text-sm">名</span>
+                    </span>
+                    家族名称
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
                   <Input
                     value={familyName}
                     onChange={(e) => setFamilyName(e.target.value)}
                     placeholder="如：红楼梦贾府"
-                    className="h-12 text-lg"
+                    className="h-10"
                   />
-                </div>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+            </div>
 
+            {/* 第二行：祖训 + 辈字列表 */}
+            <div className="grid grid-cols-2 gap-6">
+              <Card className="border-0 shadow-sm">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <span className="w-7 h-7 rounded-lg bg-rose-50 flex items-center justify-center">
+                      <span className="text-rose-600 font-bold text-sm">训</span>
+                    </span>
+                    祖训
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <textarea
+                    value={familyMaxim}
+                    onChange={(e) => setFamilyMaxim(e.target.value)}
+                    placeholder="记录家族的规矩、训诫文字，如：尊祖敬宗、孝顺父母、和睦乡邻"
+                    className="w-full h-28 px-3 py-2 text-sm border border-zinc-200 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-zinc-400"
+                  />
+                </CardContent>
+              </Card>
+
+              <Card className="border-0 shadow-sm">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <span className="w-7 h-7 rounded-lg bg-violet-50 flex items-center justify-center">
+                      <span className="text-violet-600 font-bold text-sm">辈</span>
+                    </span>
+                    辈字列表
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <textarea
+                    value={familyGenerationWords}
+                    onChange={(e) => setFamilyGenerationWords(e.target.value)}
+                    placeholder="家族成员取名用的字辈序列，如：仁,义,礼,智,信"
+                    className="w-full h-28 px-3 py-2 text-sm border border-zinc-200 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-zinc-400"
+                  />
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* 第三行：家族来源 */}
             <Card className="border-0 shadow-sm">
-              <CardHeader>
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <span className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center">
-                    <span className="text-emerald-600 font-bold">源</span>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <span className="w-7 h-7 rounded-lg bg-emerald-50 flex items-center justify-center">
+                    <span className="text-emerald-600 font-bold text-sm">源</span>
                   </span>
                   家族来源
                 </CardTitle>
-                <CardDescription>
-                  记录家族的起源或迁移历史
-                </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">籍贯/来源</label>
-                  <Input
-                    value={familyOrigin}
-                    onChange={(e) => setFamilyOrigin(e.target.value)}
-                    placeholder="如：京城、江南金陵"
-                    className="h-12 text-lg"
-                  />
-                </div>
+              <CardContent>
+                <textarea
+                  value={familyOrigin}
+                  onChange={(e) => setFamilyOrigin(e.target.value)}
+                  placeholder="记录家族的起源或迁移历史，如：京城、江南金陵"
+                  className="w-full h-20 px-3 py-2 text-sm border border-zinc-200 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-zinc-400"
+                />
               </CardContent>
             </Card>
 
-            <div className="flex gap-3">
+            {/* 第四行：保存按钮 + 说明 */}
+            <div className="flex items-start gap-6">
               <Button
                 onClick={saveFamilyConfig}
                 disabled={familyConfigSaving}
-                className="gap-2 bg-indigo-600 hover:bg-indigo-700"
+                size="lg"
+                className="gap-2 bg-indigo-600 hover:bg-indigo-700 shrink-0"
               >
                 <Save className="w-4 h-4" />
                 {familyConfigSaving ? '保存中...' : '保存修改'}
               </Button>
-            </div>
 
-            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
-              <h3 className="font-medium text-amber-800 mb-2">设置说明</h3>
-              <ul className="text-sm text-amber-700 space-y-1">
-                <li>• <strong>家族姓氏</strong>：用于判断本家与外姓，是族谱树正确展示的关键</li>
-                <li>• <strong>同姓本家</strong>：如贾姓成员，将作为族谱树上的节点展示</li>
-                <li>• <strong>外姓配偶</strong>：如王氏（贾宝玉的妻子）、史氏（贾母），将显示在连接线上</li>
-                <li>• <strong>入赘情况</strong>：如果女子招外姓入赘，子女随母姓（贾姓)，则入赘者显示在线上</li>
-              </ul>
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 flex-1">
+                <h3 className="font-medium text-amber-800 mb-2">设置说明</h3>
+                <ul className="text-sm text-amber-700 space-y-1">
+                  <li>• <strong>家族姓氏</strong>：用于判断本家与外姓，是族谱树正确展示的关键</li>
+                  <li>• <strong>同姓本家</strong>：如贾姓成员，将作为族谱树上的节点展示</li>
+                  <li>• <strong>外姓配偶</strong>：如王氏，将显示在连接线上</li>
+                </ul>
+              </div>
             </div>
           </div>
         </TabsContent>

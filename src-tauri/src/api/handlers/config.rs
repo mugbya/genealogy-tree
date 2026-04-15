@@ -9,7 +9,7 @@ use serde_json::{json, Value};
 use crate::api::router::AppState;
 use crate::models::{
     Config, CONFIG_ALLOW_CREATE_FAMILY, CONFIG_ALLOW_PUBLIC_ACCESS, CONFIG_FAMILY_NAME,
-    CONFIG_FAMILY_SURNAME, CONFIG_FAMILY_ORIGIN,
+    CONFIG_FAMILY_SURNAME, CONFIG_FAMILY_ORIGIN, CONFIG_FAMILY_MAXIM, CONFIG_FAMILY_GENERATION_WORDS,
 };
 
 pub async fn get_all_configs(
@@ -196,6 +196,8 @@ pub async fn get_public_config(
         "family_name": get_value(CONFIG_FAMILY_NAME),
         "family_surname": get_value(CONFIG_FAMILY_SURNAME),
         "family_origin": get_value(CONFIG_FAMILY_ORIGIN),
+        "family_maxim": get_value(CONFIG_FAMILY_MAXIM),
+        "family_generation_words": get_value(CONFIG_FAMILY_GENERATION_WORDS),
     });
 
     (StatusCode::OK, Json(json!({ "data": config })))
