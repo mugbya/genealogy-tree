@@ -89,3 +89,11 @@ export function useDeleteMemberRelation() {
     },
   })
 }
+
+export function useEditableMemberIds() {
+  return useQuery({
+    queryKey: ['editableMemberIds'],
+    queryFn: () => membersApi.getEditableIds(),
+    staleTime: 30000, // 30秒内不重新获取
+  })
+}

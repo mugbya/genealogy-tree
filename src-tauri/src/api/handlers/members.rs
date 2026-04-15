@@ -42,18 +42,26 @@ fn can_edit_member(
     current_user_member_id: Option<i64>,
     target_member_id: i64,
 ) -> bool {
-    // Admin can edit all
+    eprintln!("[PERMISSION] can_edit_member called:");
+    eprintln!("[PERMISSION]   current_user_role: {}", current_user_role);
+    eprintln!("[PERMISSION]   current_user_member_id: {:?}", current_user_member_id);
+    eprintln!("[PERMISSION]   target_member_id: {}", target_member_id);
+
+    // Admin可以编辑所有成员
     if current_user_role == ROLE_ADMIN {
+        eprintln!("[PERMISSION] Result: ALLOW (admin)");
         return true;
     }
 
     // 没有关联成员ID的用户不能编辑任何成员
     let Some(my_member_id) = current_user_member_id else {
+        eprintln!("[PERMISSION] Result: DENY (no member_id)");
         return false;
     };
 
     // 不能编辑自己（这个应该在前端就限制）
     if my_member_id == target_member_id {
+        eprintln!("[PERMISSION] Result: ALLOW (self)");
         return true;
     }
 
@@ -61,7 +69,15 @@ fn can_edit_member(
     let ancestors = get_ancestors(conn, my_member_id, 3);
     let descendants = get_descendants(conn, my_member_id, 3);
 
-    ancestors.contains(&target_member_id) || descendants.contains(&target_member_id)
+    eprintln!("[PERMISSION]   my_member_id: {}", my_member_id);
+    eprintln!("[PERMISSION]   ancestors (3 gens up): {:?}", ancestors);
+    eprintln!("[PERMISSION]   descendants (3 gens down): {:?}", descendants);
+    eprintln!("[PERMISSION]   target in ancestors: {}", ancestors.contains(&target_member_id));
+    eprintln!("[PERMISSION]   target in descendants: {}", descendants.contains(&target_member_id));
+
+    let result = ancestors.contains(&target_member_id) || descendants.contains(&target_member_id);
+    eprintln!("[PERMISSION] Result: {}", if result { "ALLOW" } else { "DENY" });
+    result
 }
 
 /// 获取祖先成员IDs（向上追溯n代）
@@ -117,6 +133,8 @@ fn get_ancestors(conn: &rusqlite::Connection, member_id: i64, generations: i32) 
 }
 
 /// 获取后代成员IDs（向下追溯n代）
+/// 注意：member_relations 表中 from_member_id=孩子, to_member_id=父母
+/// 要找后代，就是找以当前成员为父母的人，即 to_member_id = 当前成员
 fn get_descendants(conn: &rusqlite::Connection, member_id: i64, generations: i32) -> Vec<i64> {
     let mut result = Vec::new();
     let mut current_ids = vec![member_id];
@@ -126,7 +144,8 @@ fn get_descendants(conn: &rusqlite::Connection, member_id: i64, generations: i32
     for _ in 0..generations {
         let mut next_ids = Vec::new();
         for &mid in &current_ids {
-            // 查找以当前成员为父亲的子成员
+            // 查找以当前成员为父亲的子成员 (from_member_id = 孩子, to_member_id = 父亲)
+            // 要找孩子，就是找 to_member_id = mid AND relation_type = 'father' 的记录
             let sons: Vec<i64> = conn
                 .prepare(
                     "SELECT from_member_id FROM member_relations
@@ -597,6 +616,8 @@ pub async fn update_member(
         Err(status) => return (status, Json(json!({ "error": "Unauthorized" }))),
     };
 
+    eprintln!("[UPDATE_MEMBER] user_id: {}, user_role: {}", user_id, user_role);
+
     // 获取用户关联的成员ID
     let user_member_id: Option<i64> = conn
         .query_row(
@@ -605,6 +626,8 @@ pub async fn update_member(
             |row| row.get(0),
         )
         .ok();
+
+    eprintln!("[UPDATE_MEMBER] target_id: {}, user_member_id: {:?}", id, user_member_id);
 
     // 检查权限
     if !can_edit_member(&conn, user_id, &user_role, user_member_id, id) {
@@ -702,6 +725,8 @@ pub async fn delete_member(
         Err(status) => return (status, Json(json!({ "error": "Unauthorized" }))),
     };
 
+    eprintln!("[UPDATE_MEMBER] user_id: {}, user_role: {}", user_id, user_role);
+
     // 获取用户关联的成员ID
     let user_member_id: Option<i64> = conn
         .query_row(
@@ -710,6 +735,8 @@ pub async fn delete_member(
             |row| row.get(0),
         )
         .ok();
+
+    eprintln!("[UPDATE_MEMBER] target_id: {}, user_member_id: {:?}", id, user_member_id);
 
     // 检查权限
     if !can_edit_member(&conn, user_id, &user_role, user_member_id, id) {
@@ -723,4 +750,65 @@ pub async fn delete_member(
         Ok(_) => (StatusCode::NOT_FOUND, Json(json!({ "error": "Member not found" }))),
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))),
     }
+}
+
+/// 获取当前用户可编辑的成员ID列表
+/// 用于前端界面权限控制
+pub async fn get_editable_member_ids(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> (StatusCode, Json<Value>) {
+    let conn = match state.db.lock() {
+        Ok(conn) => conn,
+        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))),
+    };
+
+    // 提取用户信息
+    let (user_id, user_role, _) = match extract_user_info(&headers) {
+        Ok(info) => info,
+        Err(status) => return (status, Json(json!({ "error": "Unauthorized" }))),
+    };
+
+    eprintln!("[EDITABLE_IDS] user_id: {}, role: {}", user_id, user_role);
+
+    // Admin可以编辑所有成员
+    if user_role == ROLE_ADMIN {
+        let mut stmt = match conn.prepare("SELECT id FROM family_members") {
+            Ok(s) => s,
+            Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))),
+        };
+        let ids: Vec<i64> = stmt.query_map([], |row| row.get(0)).ok()
+            .map(|rows| rows.filter_map(|r| r.ok()).collect())
+            .unwrap_or_default();
+        return (StatusCode::OK, Json(json!({ "data": ids })));
+    }
+
+    // 获取用户关联的成员ID
+    let user_member_id: Option<i64> = conn
+        .query_row(
+            "SELECT member_id FROM users WHERE id = ?",
+            params![user_id],
+            |row| row.get(0),
+        )
+        .ok();
+
+    eprintln!("[EDITABLE_IDS] user_member_id: {:?}", user_member_id);
+
+    // 没有关联成员ID的用户不能编辑任何成员
+    let Some(my_member_id) = user_member_id else {
+        return (StatusCode::OK, Json(json!({ "data": Vec::<i64>::new() })));
+    };
+
+    // 可编辑的成员：自己 + 祖先(3代) + 后代(3代)
+    let mut editable_ids = vec![my_member_id];
+
+    let ancestors = get_ancestors(&conn, my_member_id, 3);
+    let descendants = get_descendants(&conn, my_member_id, 3);
+
+    editable_ids.extend(ancestors);
+    editable_ids.extend(descendants);
+
+    eprintln!("[EDITABLE_IDS] editable_ids: {:?}", editable_ids);
+
+    (StatusCode::OK, Json(json!({ "data": editable_ids })))
 }

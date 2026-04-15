@@ -61,6 +61,7 @@ pub fn create_router(
         .route("/api/members/:id", put(handlers::update_member))
         .route("/api/members/:id", delete(handlers::delete_member))
         .route("/api/members/import", post(handlers::import_members))
+        .route("/api/members/editable-ids", get(handlers::get_editable_member_ids))
         // Member relations
         .route("/api/member-relations", get(handlers::get_member_relations))
         .route("/api/member-relations", post(handlers::create_member_relation))

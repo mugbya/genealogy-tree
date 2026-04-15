@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react'
-import { useMembers, useCreateMember, useUpdateMember, useDeleteMember, useMemberRelations, useCreateMemberRelation, useDeleteMemberRelation } from '@/hooks/useMembers'
+import { useMembers, useCreateMember, useUpdateMember, useDeleteMember, useMemberRelations, useCreateMemberRelation, useDeleteMemberRelation, useEditableMemberIds } from '@/hooks/useMembers'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -65,6 +65,8 @@ export function TreePage() {
   // 成员相关
   const { data: membersData, isLoading, refetch } = useMembers()
   const { data: relationsData } = useMemberRelations()
+  const { data: editableIdsData } = useEditableMemberIds()
+  const editableMemberIds = editableIdsData?.data || []
   const createMember = useCreateMember()
   const updateMember = useUpdateMember()
   const deleteMember = useDeleteMember()
@@ -954,30 +956,32 @@ export function TreePage() {
 
                             </p>
                           </div>
-                          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="w-7 h-7"
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                handleOpenEdit(member)
-                              }}
-                            >
-                              <Edit2 className="w-3.5 h-3.5" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="w-7 h-7 text-red-500 hover:text-red-600 hover:bg-red-50"
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                handleDelete(member.id)
-                              }}
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </Button>
-                          </div>
+                          {editableMemberIds.includes(member.id) && (
+                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="w-7 h-7"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  handleOpenEdit(member)
+                                }}
+                              >
+                                <Edit2 className="w-3.5 h-3.5" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="w-7 h-7 text-red-500 hover:text-red-600 hover:bg-red-50"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  handleDelete(member.id)
+                                }}
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </Button>
+                            </div>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -1095,13 +1099,15 @@ export function TreePage() {
                         <TreeDeciduous className="w-4 h-4" />
                         查看族谱树
                       </Button>
-                      <Button
-                        className="flex-1 gap-2 bg-gray-900 hover:bg-gray-800"
-                        onClick={() => handleOpenEdit(selectedMember)}
-                      >
-                        <Edit2 className="w-4 h-4" />
-                        编辑信息
-                      </Button>
+                      {editableMemberIds.includes(selectedMember.id) && (
+                        <Button
+                          className="flex-1 gap-2 bg-gray-900 hover:bg-gray-800"
+                          onClick={() => handleOpenEdit(selectedMember)}
+                        >
+                          <Edit2 className="w-4 h-4" />
+                          编辑信息
+                        </Button>
+                      )}
                     </div>
                   </div>
                 ) : (
