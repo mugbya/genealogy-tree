@@ -212,16 +212,22 @@ pub struct UpdateUserRequestWithAuth {
     pub password: Option<String>,
     pub role: Option<String>,
     pub member_id: Option<i64>,
-    pub user_id: i64,
-    pub user_role: String,
 }
 
 pub async fn update_user(
     State(state): State<AppState>,
     Path(id): Path<i64>,
+    headers: HeaderMap,
     Json(req): Json<UpdateUserRequestWithAuth>,
 ) -> (StatusCode, Json<Value>) {
-    if req.user_role != ROLE_ADMIN && req.user_id != id {
+    // 从 token 中获取当前用户信息
+    let (current_user_id, current_user_role) = match extract_auth(&headers) {
+        Ok(v) => v,
+        Err(e) => return e,
+    };
+
+    // 非管理员只能修改自己的信息
+    if current_user_role != ROLE_ADMIN && current_user_id != id {
         return (StatusCode::FORBIDDEN, Json(json!({ "error": "Cannot update other users" })));
     }
 
@@ -243,7 +249,7 @@ pub async fn update_user(
     }
 
     if let Some(ref new_role) = req.role {
-        if req.user_role != ROLE_ADMIN {
+        if current_user_role != ROLE_ADMIN {
             return (StatusCode::FORBIDDEN, Json(json!({ "error": "Only admin can change roles" })));
         }
         updates.push("role = ?");
