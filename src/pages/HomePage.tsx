@@ -169,7 +169,7 @@ export function HomePage() {
           <Card className="border-0 shadow-sm card card-hover cursor-pointer">
             <CardContent className="p-6">
               <div className="flex items-center gap-4">
-                <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-cente-r shadow-lg shadow-amber-500/25">
+                <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center shadow-lg shadow-amber-500/25">
                   <Shield className="w-7 h-7 text-white" />
                 </div>
                 <div>
