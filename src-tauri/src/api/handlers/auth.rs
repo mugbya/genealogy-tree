@@ -10,10 +10,10 @@ use crate::api::router::AppState;
 use crate::auth::{create_token, hash_password, verify_password, verify_token};
 use crate::models::{
     CreateUserRequest, LoginRequest, LoginResponse, ROLE_ADMIN, ROLE_USER, User, UserResponse,
-    UserResponseWithMemberName,
+    UserResponseWithMemberName, JwtClaims,
 };
 
-fn extract_auth(headers: &HeaderMap) -> Result<(i64, String), (StatusCode, Json<Value>)> {
+fn extract_auth(headers: &HeaderMap) -> Result<(i64, String, JwtClaims), (StatusCode, Json<Value>)> {
     let token = headers
         .get("Authorization")
         .and_then(|v| v.to_str().ok())
@@ -24,7 +24,23 @@ fn extract_auth(headers: &HeaderMap) -> Result<(i64, String), (StatusCode, Json<
     let claims = verify_token(&token)
         .map_err(|_| (StatusCode::UNAUTHORIZED, Json(json!({ "error": "Invalid token" }))))?;
 
-    Ok((claims.sub, claims.role))
+    Ok((claims.sub, claims.role.clone(), claims))
+}
+
+// 获取客户端 IP
+fn get_client_ip(headers: &HeaderMap) -> String {
+    headers
+        .get("X-Forwarded-For")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|s| s.split(',').next())
+        .map(|s| s.trim().to_string())
+        .or_else(|| {
+            headers
+                .get("X-Real-IP")
+                .and_then(|v| v.to_str().ok())
+                .map(|s| s.to_string())
+        })
+        .unwrap_or_else(|| "unknown".to_string())
 }
 
 pub async fn register(
@@ -79,12 +95,20 @@ pub async fn register(
 
 pub async fn login(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Json(req): Json<LoginRequest>,
 ) -> (StatusCode, Json<Value>) {
     let conn = match state.db.lock() {
         Ok(conn) => conn,
         Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))),
     };
+
+    let ip_address = get_client_ip(&headers);
+    let user_agent = headers
+        .get("User-Agent")
+        .and_then(|v| v.to_str().ok())
+        .map(|s| s.to_string())
+        .unwrap_or_default();
 
     let result = conn.query_row(
         "SELECT id, username, password_hash, role, member_id, created_at, updated_at FROM users WHERE username = ?",
@@ -108,6 +132,11 @@ pub async fn login(
                 Ok(true) => {
                     match create_token(user.id, &user.username, &user.role) {
                         Ok(token) => {
+                            // 记录成功登录
+                            let _ = conn.execute(
+                                "INSERT INTO login_history (user_id, ip_address, user_agent, login_status) VALUES (?, ?, ?, ?)",
+                                params![user.id, ip_address, user_agent, "success"],
+                            );
                             let response = LoginResponse {
                                 token,
                                 user: user.into(),
@@ -117,11 +146,30 @@ pub async fn login(
                         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e }))),
                     }
                 }
-                Ok(false) => (StatusCode::UNAUTHORIZED, Json(json!({ "error": "Invalid credentials" }))),
+                Ok(false) => {
+                    // 记录失败登录
+                    let _ = conn.execute(
+                        "INSERT INTO login_history (user_id, ip_address, user_agent, login_status, fail_reason) VALUES (?, ?, ?, ?, ?)",
+                        params![user.id, ip_address, user_agent, "failed", "invalid_password"],
+                    );
+                    (StatusCode::UNAUTHORIZED, Json(json!({ "error": "Invalid credentials" })))
+                }
                 Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e }))),
             }
         }
-        Err(_) => (StatusCode::UNAUTHORIZED, Json(json!({ "error": "Invalid credentials" }))),
+        Err(_) => {
+            // 用户不存在也记录（尝试查找用户id用于记录）
+            let user_id: Result<i64, _> = conn.query_row(
+                "SELECT id FROM users WHERE username = ?",
+                params![req.username],
+                |row| row.get(0),
+            );
+            let _ = conn.execute(
+                "INSERT INTO login_history (user_id, ip_address, user_agent, login_status, fail_reason) VALUES (?, ?, ?, ?, ?)",
+                params![user_id.unwrap_or(0), ip_address, user_agent, "failed", "user_not_found"],
+            );
+            (StatusCode::UNAUTHORIZED, Json(json!({ "error": "Invalid credentials" })))
+        }
     }
 }
 
@@ -129,7 +177,7 @@ pub async fn get_users(
     State(state): State<AppState>,
     headers: HeaderMap,
 ) -> (StatusCode, Json<Value>) {
-    let (_, role) = match extract_auth(&headers) {
+    let (_, role, _) = match extract_auth(&headers) {
         Ok(v) => v,
         Err(e) => return e,
     };
@@ -177,7 +225,7 @@ pub async fn get_current_user(
     State(state): State<AppState>,
     headers: HeaderMap,
 ) -> (StatusCode, Json<Value>) {
-    let (user_id, _) = match extract_auth(&headers) {
+    let (user_id, _, _) = match extract_auth(&headers) {
         Ok(v) => v,
         Err(e) => return e,
     };
@@ -221,7 +269,7 @@ pub async fn update_user(
     Json(req): Json<UpdateUserRequestWithAuth>,
 ) -> (StatusCode, Json<Value>) {
     // 从 token 中获取当前用户信息
-    let (current_user_id, current_user_role) = match extract_auth(&headers) {
+    let (current_user_id, current_user_role, _) = match extract_auth(&headers) {
         Ok(v) => v,
         Err(e) => return e,
     };
@@ -284,7 +332,7 @@ pub async fn delete_user(
     Path(id): Path<i64>,
     headers: HeaderMap,
 ) -> (StatusCode, Json<Value>) {
-    let (_, role) = match extract_auth(&headers) {
+    let (_, role, _) = match extract_auth(&headers) {
         Ok(v) => v,
         Err(e) => return e,
     };
@@ -303,6 +351,174 @@ pub async fn delete_user(
     match result {
         Ok(rows) if rows > 0 => (StatusCode::OK, Json(json!({ "success": true }))),
         Ok(_) => (StatusCode::NOT_FOUND, Json(json!({ "error": "User not found" }))),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))),
+    }
+}
+
+// 修改密码请求体
+#[derive(serde::Deserialize)]
+pub struct ChangePasswordRequest {
+    pub old_password: String,
+    pub new_password: String,
+}
+
+// 修改密码
+pub async fn change_password(
+    State(state): State<AppState>,
+    Path(id): Path<i64>,
+    headers: HeaderMap,
+    Json(req): Json<ChangePasswordRequest>,
+) -> (StatusCode, Json<Value>) {
+    let (current_user_id, current_user_role, _) = match extract_auth(&headers) {
+        Ok(v) => v,
+        Err(e) => return e,
+    };
+
+    // 非管理员只能修改自己的密码
+    if current_user_role != ROLE_ADMIN && current_user_id != id {
+        return (StatusCode::FORBIDDEN, Json(json!({ "error": "Cannot change other users password" })));
+    }
+
+    let conn = match state.db.lock() {
+        Ok(conn) => conn,
+        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))),
+    };
+
+    // 获取用户的当前密码哈希
+    let user = match conn.query_row(
+        "SELECT id, password_hash FROM users WHERE id = ?",
+        params![id],
+        |row| Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?)),
+    ) {
+        Ok(u) => u,
+        Err(_) => return (StatusCode::NOT_FOUND, Json(json!({ "error": "User not found" }))),
+    };
+
+    // 验证旧密码
+    match verify_password(&req.old_password, &user.1) {
+        Ok(true) => {}
+        Ok(false) => return (StatusCode::FORBIDDEN, Json(json!({ "error": "Old password is incorrect" }))),
+        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e }))),
+    }
+
+    // 哈希新密码
+    let new_hash = match hash_password(&req.new_password) {
+        Ok(h) => h,
+        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e }))),
+    };
+
+    // 更新密码
+    let result = conn.execute(
+        "UPDATE users SET password_hash = ?, updated_at = datetime('now') WHERE id = ?",
+        params![new_hash, id],
+    );
+
+    match result {
+        Ok(_) => (StatusCode::OK, Json(json!({ "success": true }))),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))),
+    }
+}
+
+// 登录历史记录结构
+#[derive(serde::Serialize)]
+pub struct LoginHistoryItem {
+    pub id: i64,
+    pub user_id: i64,
+    pub username: String,
+    pub ip_address: Option<String>,
+    pub user_agent: Option<String>,
+    pub login_status: String,
+    pub fail_reason: Option<String>,
+    pub created_at: String,
+}
+
+// 获取登录历史
+pub async fn get_login_history(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> (StatusCode, Json<Value>) {
+    let (current_user_id, role, _) = match extract_auth(&headers) {
+        Ok(v) => v,
+        Err(e) => return e,
+    };
+
+    let conn = match state.db.lock() {
+        Ok(conn) => conn,
+        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))),
+    };
+
+    // 管理员可以查看所有登录历史，普通用户只能查看自己的
+    let sql = "SELECT lh.id, lh.user_id, u.username, lh.ip_address, lh.user_agent, lh.login_status, lh.fail_reason, lh.created_at
+         FROM login_history lh
+         LEFT JOIN users u ON lh.user_id = u.id
+         WHERE (? = 'admin' OR lh.user_id = ?)
+         ORDER BY lh.created_at DESC
+         LIMIT 100";
+
+    let mut stmt = match conn.prepare(sql) {
+        Ok(stmt) => stmt,
+        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))),
+    };
+
+    let rows = stmt.query_map(params![role, current_user_id], |row| {
+        Ok(LoginHistoryItem {
+            id: row.get(0)?,
+            user_id: row.get(1)?,
+            username: row.get(2)?,
+            ip_address: row.get(3)?,
+            user_agent: row.get(4)?,
+            login_status: row.get(5)?,
+            fail_reason: row.get(6)?,
+            created_at: row.get(7)?,
+        })
+    });
+
+    match rows {
+        Ok(rows) => {
+            let result: Vec<LoginHistoryItem> = rows.filter_map(|r| r.ok()).collect();
+            (StatusCode::OK, Json(json!({ "data": result })))
+        }
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))),
+    }
+}
+
+// 撤销所有 token（管理员）
+pub async fn revoke_all_tokens(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> (StatusCode, Json<Value>) {
+    let (_, role, _) = match extract_auth(&headers) {
+        Ok(v) => v,
+        Err(e) => return e,
+    };
+
+    if role != ROLE_ADMIN {
+        return (StatusCode::FORBIDDEN, Json(json!({ "error": "Admin access required" })));
+    }
+
+    let conn = match state.db.lock() {
+        Ok(conn) => conn,
+        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))),
+    };
+
+    // 获取当前时间
+    let now = chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+
+    // 计算 token 过期时间（7天后）
+    let expires_at = chrono::Local::now()
+        .checked_add_signed(chrono::Duration::hours(24 * 7))
+        .expect("valid timestamp")
+        .format("%Y-%m-%d %H:%M:%S")
+        .to_string();
+
+    // 插入一个特殊的撤销记录（表示"撤销所有"）
+    let result = conn.execute(
+        "INSERT INTO revoked_tokens (token_jti, revoked_at, expires_at) VALUES ('__revoke_all__', ?, ?)",
+        params![now, expires_at],
+    );
+
+    match result {
+        Ok(_) => (StatusCode::OK, Json(json!({ "success": true, "message": "All tokens have been revoked. All users need to re-login." }))),
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))),
     }
 }

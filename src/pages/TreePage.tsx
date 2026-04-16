@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react'
 import { useMembers, useCreateMember, useUpdateMember, useDeleteMember, useMemberRelations, useCreateMemberRelation, useDeleteMemberRelation, useEditableMemberIds } from '@/hooks/useMembers'
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'

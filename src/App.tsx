@@ -6,6 +6,7 @@ import { TreePage } from '@/pages/TreePage'
 import { UsersPage } from '@/pages/UsersPage'
 import { LoginPage } from '@/pages/LoginPage'
 import { SettingsPage } from '@/pages/SettingsPage'
+import { SecurityPage } from '@/pages/SecurityPage'
 import { AdminRoute } from '@/components/AdminRoute'
 import { useAuthStore } from '@/stores'
 
@@ -37,6 +38,7 @@ function App() {
             <Route path="/" element={<HomePage />} />
             <Route path="/tree" element={<TreePage />} />
             <Route path="/config" element={<SettingsPage />} />
+            <Route path="/security" element={<SecurityPage />} />
             <Route
               path="/users"
               element={

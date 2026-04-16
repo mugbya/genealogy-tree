@@ -75,6 +75,10 @@ pub struct JwtClaims {
     pub username: String,
     pub role: String,
     pub exp: usize,
+    #[serde(default)]
+    pub iat: usize,
+    #[serde(default)]
+    pub jti: String,
 }
 
 pub const ROLE_ADMIN: &str = "admin";

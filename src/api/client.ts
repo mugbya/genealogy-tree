@@ -320,3 +320,27 @@ export const wechatApi = {
   confirmLogin: (scene: string, openid?: string, nickname?: string) =>
     api.post<WechatLoginConfirmResponse>('/api/auth/wechat/confirm', { scene, openid, nickname }),
 }
+
+// 安全 API
+export interface LoginHistoryItem {
+  id: number
+  user_id: number
+  username: string
+  ip_address?: string
+  user_agent?: string
+  login_status: string
+  fail_reason?: string
+  created_at: string
+}
+
+export interface ChangePasswordInput {
+  old_password: string
+  new_password: string
+}
+
+export const securityApi = {
+  getLoginHistory: () => api.get<LoginHistoryItem[]>('/api/auth/login-history'),
+  changePassword: (userId: number, data: ChangePasswordInput) =>
+    api.put('/api/users/' + userId + '/password', data),
+  revokeAllTokens: () => api.post<{ success: boolean; message?: string }>('/api/auth/revoke-all'),
+}

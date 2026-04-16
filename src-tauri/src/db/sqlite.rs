@@ -148,5 +148,34 @@ pub fn init_database(db_path: &Path) -> Result<Connection> {
         [],
     )?;
 
+    // 登录历史表
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS login_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            ip_address TEXT,
+            user_agent TEXT,
+            login_status TEXT NOT NULL,
+            fail_reason TEXT,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        )",
+        [],
+    )?;
+
+    // 被撤销的 tokens 表
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS revoked_tokens (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            token_jti TEXT NOT NULL UNIQUE,
+            revoked_at TEXT NOT NULL DEFAULT (datetime('now')),
+            expires_at TEXT NOT NULL
+        )",
+        [],
+    )?;
+
+    // 清理过期的 revoked tokens（启动时清理）
+    let _ = conn.execute("DELETE FROM revoked_tokens WHERE expires_at < datetime('now')", []);
+
     Ok(conn)
 }
