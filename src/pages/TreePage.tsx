@@ -319,16 +319,28 @@ export function TreePage() {
 
     // 计算配偶
     members.forEach(member => {
-      const spouseRels = spouseRelations.filter(
-        r => r.from_member_id === member.id || r.to_member_id === member.id
-      )
       const spouses: string[] = []
+      const spouseIds = new Set<number>()
 
-      spouseRels.forEach(rel => {
-        const spouseId = rel.from_member_id === member.id ? rel.to_member_id : rel.from_member_id
-        const spouse = memberMap.get(spouseId)
-        if (spouse && !spouses.includes(spouse.name)) {
-          spouses.push(spouse.name)
+      // 配偶关系只在一个方向存储（from_member_id < to_member_id）
+      spouseRelations.forEach(rel => {
+        let spouseId: number
+        let spouseName: string | undefined
+
+        if (rel.from_member_id === member.id) {
+          spouseId = rel.to_member_id
+          spouseName = memberMap.get(spouseId)?.name
+        } else if (rel.to_member_id === member.id) {
+          spouseId = rel.from_member_id
+          spouseName = memberMap.get(spouseId)?.name
+        } else {
+          return
+        }
+
+        if (spouseIds.has(spouseId)) return
+        if (spouseName) {
+          spouseIds.add(spouseId)
+          spouses.push(spouseName)
         }
       })
 

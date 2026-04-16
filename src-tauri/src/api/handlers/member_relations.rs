@@ -149,16 +149,30 @@ pub async fn get_member_relations(
         Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))),
     };
 
-    let mut stmt = match conn.prepare(
-        "SELECT mr.id, mr.from_member_id, mr.to_member_id, mr.relation_type, mr.tag_id, mr.created_at,
-         fm.name as from_name, fm.gender as from_gender, tm.name as to_name, tm.gender as to_gender,
-         rt.name as tag_name, rt.color as tag_color
-         FROM member_relations mr
-         LEFT JOIN family_members fm ON mr.from_member_id = fm.id
-         LEFT JOIN family_members tm ON mr.to_member_id = tm.id
-         LEFT JOIN relation_tags rt ON mr.tag_id = rt.id
-         ORDER BY mr.from_member_id"
-    ) {
+    // Query with deduplication:
+    // - For non-spouse: keep all unique relations
+    // - For spouse: only keep where from_member_id < to_member_id (one per pair)
+    let query = r#"
+        SELECT mr.id, mr.from_member_id, mr.to_member_id, mr.relation_type, mr.tag_id, mr.created_at,
+               fm.name as from_name, fm.gender as from_gender, tm.name as to_name, tm.gender as to_gender,
+               rt.name as tag_name, rt.color as tag_color
+        FROM member_relations mr
+        LEFT JOIN family_members fm ON mr.from_member_id = fm.id
+        LEFT JOIN family_members tm ON mr.to_member_id = tm.id
+        LEFT JOIN relation_tags rt ON mr.tag_id = rt.id
+        WHERE mr.id IN (
+            SELECT MIN(id) FROM member_relations
+            WHERE relation_type != 'spouse'
+            GROUP BY from_member_id, to_member_id, relation_type
+            UNION
+            SELECT MIN(id) FROM member_relations
+            WHERE relation_type = 'spouse' AND from_member_id < to_member_id
+            GROUP BY from_member_id, to_member_id
+        )
+        ORDER BY mr.from_member_id
+    "#;
+
+    let mut stmt = match conn.prepare(query) {
         Ok(stmt) => stmt,
         Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))),
     };
