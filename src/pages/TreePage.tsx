@@ -122,7 +122,7 @@ export function TreePage() {
 
   // 成员列表分页状态
   const [currentPage, setCurrentPage] = useState(1)
-  const pageSize = 20
+  const [pageSize, setPageSize] = useState(50)
 
   // 加载族谱配置
   useEffect(() => {
@@ -803,7 +803,7 @@ export function TreePage() {
                   <CardTitle className="text-lg font-semibold flex items-center gap-2">
                     <Users className="w-5 h-5" />
                     成员列表
-                    <Badge variant="outline">{filteredMembers.length} / {totalPages}页</Badge>
+                    <Badge variant="outline">共 {filteredMembers.length} 条</Badge>
                   </CardTitle>
                   <div className="flex gap-2 mt-2">
                     <Button
@@ -1039,43 +1039,67 @@ export function TreePage() {
                   )}
                 </div>
                 {/* 分页控件 */}
-                {totalPages > 1 && (
-                  <div className="flex items-center justify-center gap-2 py-3 border-t border-zinc-100 shrink-0">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setCurrentPage(1)}
-                      disabled={currentPage === 1}
-                    >
-                      首页
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                      disabled={currentPage === 1}
-                    >
-                      上一页
-                    </Button>
-                    <span className="text-sm text-muted-foreground px-2">
-                      第 {currentPage} / {totalPages} 页
+                {filteredMembers.length > 0 && (
+                  <div className="flex items-center justify-between gap-2 py-3 border-t border-zinc-100 shrink-0 px-4">
+                    {/* 每页条数选择 */}
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-muted-foreground">每页</span>
+                      <select
+                        value={pageSize}
+                        onChange={(e) => {
+                          setPageSize(Number(e.target.value))
+                          setCurrentPage(1)
+                        }}
+                        className="h-8 px-2 text-sm border border-zinc-200 rounded-lg bg-white text-zinc-700 focus:outline-none focus:ring-2 focus:ring-zinc-400"
+                      >
+                        <option value={10}>10</option>
+                        <option value={20}>20</option>
+                        <option value={50}>50</option>
+                        <option value={100}>100</option>
+                      </select>
+                      <span className="text-sm text-muted-foreground">条</span>
+                    </div>
+
+                    {/* 页码信息 */}
+                    <span className="text-sm text-muted-foreground">
+                      共 {filteredMembers.length} 条，第 {currentPage}/{totalPages} 页
                     </span>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                      disabled={currentPage === totalPages}
-                    >
-                      下一页
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setCurrentPage(totalPages)}
-                      disabled={currentPage === totalPages}
-                    >
-                      末页
-                    </Button>
+
+                    {/* 翻页按钮 */}
+                    <div className="flex items-center gap-1">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCurrentPage(1)}
+                        disabled={currentPage === 1}
+                      >
+                        首页
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                        disabled={currentPage === 1}
+                      >
+                        上一页
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                        disabled={currentPage === totalPages}
+                      >
+                        下一页
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCurrentPage(totalPages)}
+                        disabled={currentPage === totalPages}
+                      >
+                        末页
+                      </Button>
+                    </div>
                   </div>
                 )}
               </CardContent>
