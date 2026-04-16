@@ -752,8 +752,17 @@ export function TreePage() {
               </CardContent>
             </Card>
 
-            {/* 第四行：保存按钮 + 说明 */}
+            {/* 第四行：说明 + 保存按钮 */}
             <div className="flex items-start gap-6">
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 w-1/2">
+                <h3 className="font-medium text-amber-800 mb-2">设置说明</h3>
+                <ul className="text-sm text-amber-700 space-y-1">
+                  <li>• <strong>家族姓氏</strong>：用于判断本家与外姓，是族谱树正确展示的关键</li>
+                  <li>• <strong>同姓本家</strong>：如贾姓成员，将作为族谱树上的节点展示</li>
+                  <li>• <strong>外姓配偶</strong>：如王氏，将显示在连接线上</li>
+                </ul>
+              </div>
+
               <Button
                 onClick={saveFamilyConfig}
                 disabled={familyConfigSaving}
@@ -763,15 +772,6 @@ export function TreePage() {
                 <Save className="w-4 h-4" />
                 {familyConfigSaving ? '保存中...' : '保存修改'}
               </Button>
-
-              <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 flex-1">
-                <h3 className="font-medium text-amber-800 mb-2">设置说明</h3>
-                <ul className="text-sm text-amber-700 space-y-1">
-                  <li>• <strong>家族姓氏</strong>：用于判断本家与外姓，是族谱树正确展示的关键</li>
-                  <li>• <strong>同姓本家</strong>：如贾姓成员，将作为族谱树上的节点展示</li>
-                  <li>• <strong>外姓配偶</strong>：如王氏，将显示在连接线上</li>
-                </ul>
-              </div>
             </div>
           </div>
         </TabsContent>
