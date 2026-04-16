@@ -175,6 +175,7 @@ export interface Member {
   surname?: string
   gender: string
   generation?: string
+  weight?: number
   birth_date?: string
   death_date?: string
   is_deceased?: boolean
@@ -193,7 +194,8 @@ export interface CreateMemberInput {
   name: string
   surname?: string
   gender: string
-  generation?: number
+  generation?: string
+  weight?: number
   birth_date?: string
   death_date?: string
   is_deceased?: boolean
@@ -210,7 +212,8 @@ export interface UpdateMemberInput {
   name?: string
   surname?: string
   gender?: string
-  generation?: number
+  generation?: string
+  weight?: number
   birth_date?: string
   death_date?: string
   is_deceased?: boolean

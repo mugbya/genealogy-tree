@@ -458,6 +458,7 @@ export function TreePage() {
       surname: member.surname || '',
       gender: member.gender,
       generation: member.generation || undefined,
+      weight: member.weight,
       birth_date: member.birth_date,
       death_date: member.death_date,
       is_deceased: member.is_deceased,
@@ -1707,6 +1708,7 @@ function MemberFormDialog({
     surname: '',
     gender: 'male',
     generation: undefined,
+    weight: undefined,
     birth_date: undefined,
     death_date: undefined,
     is_deceased: undefined,
@@ -1730,6 +1732,7 @@ function MemberFormDialog({
         surname: initialData.surname || '',
         gender: initialData.gender || 'male',
         generation: initialData.generation || undefined,
+        weight: initialData.weight,
         birth_date: initialData.birth_date,
         death_date: initialData.death_date,
         is_deceased: initialData.is_deceased,
@@ -1775,6 +1778,7 @@ function MemberFormDialog({
       surname: '',
       gender: 'male',
       generation: undefined,
+      weight: undefined,
       birth_date: undefined,
       death_date: undefined,
       is_deceased: undefined,
@@ -1866,6 +1870,25 @@ function MemberFormDialog({
             </div>
           </div>
 
+          {/* 权重 */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium flex items-center gap-1">
+                权重
+              </label>
+              <Input
+                type="number"
+                value={form.weight != null ? String(form.weight) : ''}
+                onChange={(e) => handleChange('weight', e.target.value ? Number(e.target.value) : undefined)}
+                placeholder="用于列表排序，值越大越靠前"
+                className="h-11"
+              />
+              <p className="text-xs text-muted-foreground">
+                用于列表排序，值越大排序越靠前
+              </p>
+            </div>
+          </div>
+
           {/* Birth Date & Death Date */}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
@@ -1903,7 +1926,7 @@ function MemberFormDialog({
             </div>
           </div>
 
-          {/* Is Deceased Toggle */}
+          {/* 是否离世 Toggle */}
           <div className="flex items-center gap-3 p-3 bg-zinc-50 rounded-lg">
             <Switch
               checked={form.is_deceased || false}

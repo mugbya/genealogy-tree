@@ -11,6 +11,7 @@ pub fn init_database(db_path: &Path) -> Result<Connection> {
             surname TEXT,
             gender TEXT NOT NULL DEFAULT 'male',
             generation TEXT,
+            weight INTEGER NOT NULL DEFAULT 0,
             birth_date TEXT,
             death_date TEXT,
             is_deceased INTEGER NOT NULL DEFAULT 0,
@@ -24,7 +25,7 @@ pub fn init_database(db_path: &Path) -> Result<Connection> {
         [],
     )?;
 
-    // Migration: Check table schema to see if generation column needs to be added
+    // Migration: Check table schema to see if columns need to be added
     let has_generation = conn
         .prepare("PRAGMA table_info(family_members)")
         .ok()
@@ -84,6 +85,17 @@ pub fn init_database(db_path: &Path) -> Result<Connection> {
 
     if !has_is_adopted_son {
         conn.execute("ALTER TABLE family_members ADD COLUMN is_adopted_son INTEGER NOT NULL DEFAULT 0", [])?;
+    }
+
+    // Migration: add weight column if it doesn't exist (for existing databases)
+    let has_weight: bool = conn.query_row(
+        "SELECT COUNT(*) FROM pragma_table_info('family_members') WHERE name = 'weight'",
+        [],
+        |row| Ok(row.get::<_, i32>(0)? > 0),
+    ).unwrap_or(false);
+
+    if !has_weight {
+        conn.execute("ALTER TABLE family_members ADD COLUMN weight INTEGER NOT NULL DEFAULT 0", [])?;
     }
 
     conn.execute(
