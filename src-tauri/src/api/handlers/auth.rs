@@ -29,18 +29,24 @@ fn extract_auth(headers: &HeaderMap) -> Result<(i64, String, JwtClaims), (Status
 
 // 获取客户端 IP
 fn get_client_ip(headers: &HeaderMap) -> String {
-    headers
-        .get("X-Forwarded-For")
-        .and_then(|v| v.to_str().ok())
-        .and_then(|s| s.split(',').next())
-        .map(|s| s.trim().to_string())
-        .or_else(|| {
-            headers
-                .get("X-Real-IP")
-                .and_then(|v| v.to_str().ok())
-                .map(|s| s.to_string())
-        })
-        .unwrap_or_else(|| "unknown".to_string())
+    // 优先从 X-Forwarded-For 获取（可能是代理或负载均衡）
+    if let Some(v) = headers.get("X-Forwarded-For") {
+        if let Ok(s) = v.to_str() {
+            if !s.is_empty() {
+                return s.split(',').next().unwrap_or(s).trim().to_string();
+            }
+        }
+    }
+    // 其次从 X-Real-IP 获取
+    if let Some(v) = headers.get("X-Real-IP") {
+        if let Ok(s) = v.to_str() {
+            if !s.is_empty() {
+                return s.to_string();
+            }
+        }
+    }
+    // 都没有则返回 "本机"（桌面应用直连的情况）
+    "本机".to_string()
 }
 
 pub async fn register(

@@ -122,7 +122,9 @@ export function SecurityPage() {
   }
 
   const formatDate = (dateStr: string) => {
-    const date = new Date(dateStr)
+    // 处理 SQLite 返回的 datetime 格式 (如 "2026-04-16 14:43:43")
+    // 转换为本地时间显示
+    const date = new Date(dateStr.replace(' ', 'T') + 'Z')
     return date.toLocaleString('zh-CN', {
       year: 'numeric',
       month: '2-digit',
@@ -130,6 +132,7 @@ export function SecurityPage() {
       hour: '2-digit',
       minute: '2-digit',
       second: '2-digit',
+      hour12: false,
     })
   }
 
@@ -273,7 +276,9 @@ export function SecurityPage() {
                         </Badge>
                       </div>
                       <p className="text-sm text-zinc-500 mt-1">
-                        {item.ip_address || '未知IP'} · {item.user_agent?.substring(0, 30) || '未知设备'}
+                        {item.ip_address} · {item.user_agent ? (
+                          item.user_agent.length > 50 ? item.user_agent.substring(0, 50) + '...' : item.user_agent
+                        ) : '未知设备'}
                       </p>
                       {item.fail_reason && (
                         <p className="text-xs text-red-500 mt-1">失败原因: {item.fail_reason}</p>
