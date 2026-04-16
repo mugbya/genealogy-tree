@@ -82,6 +82,8 @@ export function TreePage() {
   const [filterIsMatrilocal, setFilterIsMatrilocal] = useState<string>('')
   const [filterIsAdoptedSon, setFilterIsAdoptedSon] = useState<string>('')
   const [filterOccupation, setFilterOccupation] = useState<string>('')
+  const [filterSurname, setFilterSurname] = useState<string>('')
+  const [filterGeneration, setFilterGeneration] = useState<string>('')
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [isEditOpen, setIsEditOpen] = useState(false)
   const [isCreateTagOpen, setIsCreateTagOpen] = useState(false)
@@ -261,9 +263,19 @@ export function TreePage() {
         }
       }
 
+      // 姓氏过滤
+      if (filterSurname && m.surname !== filterSurname) {
+        return false
+      }
+
+      // 辈字过滤
+      if (filterGeneration && m.generation !== filterGeneration) {
+        return false
+      }
+
       return true
     })
-  }, [members, searchKeyword, filterGender, filterIsDeceased, filterIsMatrilocal, filterIsAdoptedSon, filterOccupation])
+  }, [members, searchKeyword, filterGender, filterIsDeceased, filterIsMatrilocal, filterIsAdoptedSon, filterOccupation, filterSurname, filterGeneration])
 
   // 分页成员
   const paginatedMembers = useMemo(() => {
@@ -273,10 +285,22 @@ export function TreePage() {
 
   const totalPages = Math.ceil(filteredMembers.length / pageSize)
 
+  // 获取唯一的姓氏列表
+  const uniqueSurnames = useMemo(() => {
+    const surnames = members.map(m => m.surname).filter(Boolean) as string[]
+    return [...new Set(surnames)].sort()
+  }, [members])
+
+  // 获取唯一的辈字列表
+  const uniqueGenerations = useMemo(() => {
+    const generations = members.map(m => m.generation).filter(Boolean) as string[]
+    return [...new Set(generations)].sort()
+  }, [members])
+
   // 重置页码当筛选条件变化时
   useEffect(() => {
     setCurrentPage(1)
-  }, [searchKeyword, filterGender, filterIsDeceased, filterIsMatrilocal, filterIsAdoptedSon, filterOccupation])
+  }, [searchKeyword, filterGender, filterIsDeceased, filterIsMatrilocal, filterIsAdoptedSon, filterOccupation, filterSurname, filterGeneration])
 
   // 计算有子女的成员（用于族谱树起始成员选择）
   const membersWithChildren = useMemo(() => {
@@ -923,8 +947,30 @@ export function TreePage() {
                       placeholder="职业"
                       className="h-9 w-28 text-sm"
                     />
+                    {/* 姓氏 */}
+                    <select
+                      value={filterSurname}
+                      onChange={(e) => setFilterSurname(e.target.value)}
+                      className="h-9 px-3 text-sm border border-zinc-200 rounded-lg bg-white text-zinc-700 focus:outline-none focus:ring-2 focus:ring-zinc-400"
+                    >
+                      <option value="">姓氏</option>
+                      {uniqueSurnames.map(s => (
+                        <option key={s} value={s}>{s}</option>
+                      ))}
+                    </select>
+                    {/* 辈字 */}
+                    <select
+                      value={filterGeneration}
+                      onChange={(e) => setFilterGeneration(e.target.value)}
+                      className="h-9 px-3 text-sm border border-zinc-200 rounded-lg bg-white text-zinc-700 focus:outline-none focus:ring-2 focus:ring-zinc-400"
+                    >
+                      <option value="">辈字</option>
+                      {uniqueGenerations.map(g => (
+                        <option key={g} value={g}>{g}</option>
+                      ))}
+                    </select>
                     {/* 重置按钮 */}
-                    {(filterGender || filterIsDeceased || filterIsMatrilocal || filterIsAdoptedSon || filterOccupation) && (
+                    {(filterGender || filterIsDeceased || filterIsMatrilocal || filterIsAdoptedSon || filterOccupation || filterSurname || filterGeneration) && (
                       <button
                         onClick={() => {
                           setFilterGender('')
@@ -932,6 +978,8 @@ export function TreePage() {
                           setFilterIsMatrilocal('')
                           setFilterIsAdoptedSon('')
                           setFilterOccupation('')
+                          setFilterSurname('')
+                          setFilterGeneration('')
                         }}
                         className="h-9 px-3 text-sm text-zinc-500 hover:text-zinc-700 border border-zinc-200 rounded-lg hover:bg-zinc-50"
                       >
