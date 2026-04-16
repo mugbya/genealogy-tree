@@ -10,7 +10,7 @@ pub fn init_database(db_path: &Path) -> Result<Connection> {
             name TEXT NOT NULL,
             surname TEXT,
             gender TEXT NOT NULL DEFAULT 'male',
-            generation INTEGER,
+            generation TEXT,
             birth_date TEXT,
             death_date TEXT,
             is_deceased INTEGER NOT NULL DEFAULT 0,
@@ -23,6 +23,24 @@ pub fn init_database(db_path: &Path) -> Result<Connection> {
         )",
         [],
     )?;
+
+    // Migration: Check table schema to see if generation column needs to be added
+    let has_generation = conn
+        .prepare("PRAGMA table_info(family_members)")
+        .ok()
+        .map(|mut stmt| {
+            stmt.query_map([], |row| row.get::<_, String>(1))
+                .ok()
+                .map(|rows| rows.filter_map(|r| r.ok()).collect::<Vec<String>>())
+        })
+        .flatten()
+        .map(|cols| cols.contains(&"generation".to_string()))
+        .unwrap_or(false);
+
+    // If generation column doesn't exist, add it
+    if !has_generation {
+        let _ = conn.execute("ALTER TABLE family_members ADD COLUMN generation TEXT", []);
+    }
 
     // Migration: add is_deceased column if it doesn't exist (for existing databases)
     let has_is_deceased: bool = conn.query_row(

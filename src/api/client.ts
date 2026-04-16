@@ -174,7 +174,7 @@ export interface Member {
   name: string
   surname?: string
   gender: string
-  generation?: number
+  generation?: string
   birth_date?: string
   death_date?: string
   is_deceased?: boolean
@@ -193,6 +193,7 @@ export interface CreateMemberInput {
   name: string
   surname?: string
   gender: string
+  generation?: number
   birth_date?: string
   death_date?: string
   is_deceased?: boolean

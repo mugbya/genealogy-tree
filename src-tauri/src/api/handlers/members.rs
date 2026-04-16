@@ -651,7 +651,7 @@ pub async fn update_member(
     }
     if let Some(ref generation) = req.generation {
         updates.push("generation = ?");
-        values.push(Box::new(*generation));
+        values.push(Box::new(generation.clone()));
     }
     if let Some(ref birth_date) = req.birth_date {
         updates.push("birth_date = ?");

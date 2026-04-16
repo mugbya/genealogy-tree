@@ -455,8 +455,9 @@ export function TreePage() {
     setSelectedMember(member)
     setEditForm({
       name: member.name,
-      surname: member.surname,
+      surname: member.surname || '',
       gender: member.gender,
+      generation: member.generation || undefined,
       birth_date: member.birth_date,
       death_date: member.death_date,
       is_deceased: member.is_deceased,
@@ -1313,7 +1314,7 @@ export function TreePage() {
                         })
                         .map(m => (
                           <option key={m.id} value={m.id}>
-                            {m.name} {m.generation ? `(第${m.generation}代)` : ''} {m.is_deceased ? '†' : ''}
+                            {m.name} {(m.generation && m.generation !== 'null') ? `(${m.generation})` : ''} {m.is_deceased ? '†' : ''}
                           </option>
                         ))}
                     </select>
@@ -1705,6 +1706,7 @@ function MemberFormDialog({
     name: '',
     surname: '',
     gender: 'male',
+    generation: undefined,
     birth_date: undefined,
     death_date: undefined,
     is_deceased: undefined,
@@ -1716,6 +1718,10 @@ function MemberFormDialog({
     is_adopted_son: undefined,
   })
 
+  // 跟踪用户是否手动修改过姓氏和辈份
+  const [surnameManuallySet, setSurnameManuallySet] = React.useState(false)
+  const [generationManuallySet, setGenerationManuallySet] = React.useState(false)
+
   // 当 initialData 变化时更新 form
   React.useEffect(() => {
     if (initialData) {
@@ -1723,6 +1729,7 @@ function MemberFormDialog({
         name: initialData.name || '',
         surname: initialData.surname || '',
         gender: initialData.gender || 'male',
+        generation: initialData.generation || undefined,
         birth_date: initialData.birth_date,
         death_date: initialData.death_date,
         is_deceased: initialData.is_deceased,
@@ -1733,8 +1740,31 @@ function MemberFormDialog({
         is_matrilocal: initialData.is_matrilocal,
         is_adopted_son: initialData.is_adopted_son,
       })
+      setSurnameManuallySet(!!initialData.surname)
+      setGenerationManuallySet(!!initialData.generation)
     }
   }, [initialData])
+
+  // 自动填充姓氏（名字的第一个字）
+  React.useEffect(() => {
+    if (!surnameManuallySet && form.name && form.name.length >= 1) {
+      const firstChar = form.name.charAt(0)
+      if (form.surname !== firstChar) {
+        setForm(prev => ({ ...prev, surname: firstChar }))
+      }
+    }
+  }, [form.name, surnameManuallySet])
+
+  // 自动填充辈份（男性名字的中间那个字）
+  React.useEffect(() => {
+    if (!generationManuallySet && form.gender === 'male' && form.name && form.name.length >= 2) {
+      const middleIndex = Math.floor(form.name.length / 2)
+      const middleChar = form.name.charAt(middleIndex)
+      if (form.generation !== middleChar) {
+        setForm(prev => ({ ...prev, generation: middleChar as any }))
+      }
+    }
+  }, [form.name, form.gender, generationManuallySet])
 
   const handleSubmit = () => {
     if (!form.name.trim()) return
@@ -1742,7 +1772,9 @@ function MemberFormDialog({
     // 重置表单
     setForm({
       name: '',
+      surname: '',
       gender: 'male',
+      generation: undefined,
       birth_date: undefined,
       death_date: undefined,
       is_deceased: undefined,
@@ -1753,9 +1785,14 @@ function MemberFormDialog({
       is_matrilocal: undefined,
       is_adopted_son: undefined,
     })
+    setSurnameManuallySet(false)
+    setGenerationManuallySet(false)
   }
 
   const handleChange = (field: keyof CreateMemberInput, value: string | number | boolean | undefined) => {
+    // 标记用户手动修改
+    if (field === 'surname') setSurnameManuallySet(true)
+    if (field === 'generation') setGenerationManuallySet(true)
     setForm(prev => ({ ...prev, [field]: value }))
   }
 
@@ -1778,18 +1815,7 @@ function MemberFormDialog({
         </DialogHeader>
         <div className="flex-1 overflow-y-auto py-4 space-y-6">
           {/* Name & Gender */}
-          <div className="grid grid-cols-3 gap-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium flex items-center gap-1">
-                <span className="text-red-500">*</span>姓氏
-              </label>
-              <Input
-                value={form.surname || ''}
-                onChange={(e) => handleChange('surname', e.target.value || undefined)}
-                placeholder="如：贾"
-                className="h-11"
-              />
-            </div>
+          <div className="grid grid-cols-4 gap-4">
             <div className="space-y-2">
               <label className="text-sm font-medium flex items-center gap-1">
                 <span className="text-red-500">*</span>名字
@@ -1802,7 +1828,32 @@ function MemberFormDialog({
               />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium">性别</label>
+              <label className="text-sm font-medium flex items-center gap-1">
+                <span className="text-red-500">*</span>姓氏
+              </label>
+              <Input
+                value={form.surname || ''}
+                onChange={(e) => handleChange('surname', e.target.value || undefined)}
+                placeholder="自动取名字首字"
+                className="h-11"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium flex items-center gap-1">
+                辈字
+              </label>
+              <Input
+                value={form.generation != null ? String(form.generation) : ''}
+                onChange={(e) => handleChange('generation', e.target.value || undefined)}
+                placeholder={form.gender === 'male' ? '自动取名字中间字' : '仅男性适用'}
+                disabled={form.gender !== 'male'}
+                className="h-11"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium flex items-center gap-1">
+                <span className="text-red-500">*</span>性别
+              </label>
               <Select
                 value={form.gender}
                 onChange={(e) => handleChange('gender', e.target.value)}
