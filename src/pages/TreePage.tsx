@@ -120,6 +120,10 @@ export function TreePage() {
   const [familyGenerationWords, setFamilyGenerationWords] = useState('')
   const [familyConfigSaving, setFamilyConfigSaving] = useState(false)
 
+  // 成员列表分页状态
+  const [currentPage, setCurrentPage] = useState(1)
+  const pageSize = 20
+
   // 加载族谱配置
   useEffect(() => {
     loadFamilyConfig()
@@ -260,6 +264,19 @@ export function TreePage() {
       return true
     })
   }, [members, searchKeyword, filterGender, filterIsDeceased, filterIsMatrilocal, filterIsAdoptedSon, filterOccupation])
+
+  // 分页成员
+  const paginatedMembers = useMemo(() => {
+    const start = (currentPage - 1) * pageSize
+    return filteredMembers.slice(start, start + pageSize)
+  }, [filteredMembers, currentPage, pageSize])
+
+  const totalPages = Math.ceil(filteredMembers.length / pageSize)
+
+  // 重置页码当筛选条件变化时
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchKeyword, filterGender, filterIsDeceased, filterIsMatrilocal, filterIsAdoptedSon, filterOccupation])
 
   // 计算有子女的成员（用于族谱树起始成员选择）
   const membersWithChildren = useMemo(() => {
@@ -786,7 +803,7 @@ export function TreePage() {
                   <CardTitle className="text-lg font-semibold flex items-center gap-2">
                     <Users className="w-5 h-5" />
                     成员列表
-                    <Badge variant="outline">{filteredMembers.length}</Badge>
+                    <Badge variant="outline">{filteredMembers.length} / {totalPages}页</Badge>
                   </CardTitle>
                   <div className="flex gap-2 mt-2">
                     <Button
@@ -942,7 +959,7 @@ export function TreePage() {
                     </div>
                   ) : (
                     <div className="divide-y divide-zinc-100">
-                      {filteredMembers.map((member) => (
+                      {paginatedMembers.map((member) => (
                         <div
                           key={member.id}
                           className={cn(
@@ -1021,6 +1038,46 @@ export function TreePage() {
                     </div>
                   )}
                 </div>
+                {/* 分页控件 */}
+                {totalPages > 1 && (
+                  <div className="flex items-center justify-center gap-2 py-3 border-t border-zinc-100 shrink-0">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage(1)}
+                      disabled={currentPage === 1}
+                    >
+                      首页
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                      disabled={currentPage === 1}
+                    >
+                      上一页
+                    </Button>
+                    <span className="text-sm text-muted-foreground px-2">
+                      第 {currentPage} / {totalPages} 页
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                      disabled={currentPage === totalPages}
+                    >
+                      下一页
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage(totalPages)}
+                      disabled={currentPage === totalPages}
+                    >
+                      末页
+                    </Button>
+                  </div>
+                )}
               </CardContent>
             </Card>
 
