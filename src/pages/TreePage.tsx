@@ -81,7 +81,6 @@ export function TreePage() {
   const [filterIsDeceased, setFilterIsDeceased] = useState<string>('')
   const [filterIsMatrilocal, setFilterIsMatrilocal] = useState<string>('')
   const [filterIsAdoptedSon, setFilterIsAdoptedSon] = useState<string>('')
-  const [filterOccupation, setFilterOccupation] = useState<string>('')
   const [filterSurname, setFilterSurname] = useState<string>('')
   const [filterGeneration, setFilterGeneration] = useState<string>('')
   const [isCreateOpen, setIsCreateOpen] = useState(false)
@@ -256,13 +255,6 @@ export function TreePage() {
       if (filterIsAdoptedSon === 'yes' && !m.is_adopted_son) return false
       if (filterIsAdoptedSon === 'no' && m.is_adopted_son) return false
 
-      // 职业过滤
-      if (filterOccupation.trim()) {
-        if (!m.occupation || !m.occupation.toLowerCase().includes(filterOccupation.toLowerCase())) {
-          return false
-        }
-      }
-
       // 姓氏过滤
       if (filterSurname && m.surname !== filterSurname) {
         return false
@@ -275,7 +267,7 @@ export function TreePage() {
 
       return true
     })
-  }, [members, searchKeyword, filterGender, filterIsDeceased, filterIsMatrilocal, filterIsAdoptedSon, filterOccupation, filterSurname, filterGeneration])
+  }, [members, searchKeyword, filterGender, filterIsDeceased, filterIsMatrilocal, filterIsAdoptedSon, filterSurname, filterGeneration])
 
   // 分页成员
   const paginatedMembers = useMemo(() => {
@@ -300,7 +292,7 @@ export function TreePage() {
   // 重置页码当筛选条件变化时
   useEffect(() => {
     setCurrentPage(1)
-  }, [searchKeyword, filterGender, filterIsDeceased, filterIsMatrilocal, filterIsAdoptedSon, filterOccupation, filterSurname, filterGeneration])
+  }, [searchKeyword, filterGender, filterIsDeceased, filterIsMatrilocal, filterIsAdoptedSon, filterSurname, filterGeneration])
 
   // 计算有子女的成员（用于族谱树起始成员选择）
   const membersWithChildren = useMemo(() => {
@@ -900,6 +892,28 @@ export function TreePage() {
                   </div>
                   {/* 筛选条件 */}
                   <div className="flex flex-wrap gap-2">
+                    {/* 姓氏 */}
+                    <select
+                      value={filterSurname}
+                      onChange={(e) => setFilterSurname(e.target.value)}
+                      className="h-9 px-3 text-sm border border-zinc-200 rounded-lg bg-white text-zinc-700 focus:outline-none focus:ring-2 focus:ring-zinc-400"
+                    >
+                      <option value="">姓氏</option>
+                      {uniqueSurnames.map(s => (
+                        <option key={s} value={s}>{s}</option>
+                      ))}
+                    </select>
+                    {/* 辈字 */}
+                    <select
+                      value={filterGeneration}
+                      onChange={(e) => setFilterGeneration(e.target.value)}
+                      className="h-9 px-3 text-sm border border-zinc-200 rounded-lg bg-white text-zinc-700 focus:outline-none focus:ring-2 focus:ring-zinc-400"
+                    >
+                      <option value="">辈字</option>
+                      {uniqueGenerations.map(g => (
+                        <option key={g} value={g}>{g}</option>
+                      ))}
+                    </select>
                     {/* 性别 */}
                     <select
                       value={filterGender}
@@ -940,44 +954,14 @@ export function TreePage() {
                       <option value="yes">是</option>
                       <option value="no">否</option>
                     </select>
-                    {/* 职业 */}
-                    <Input
-                      value={filterOccupation}
-                      onChange={(e) => setFilterOccupation(e.target.value)}
-                      placeholder="职业"
-                      className="h-9 w-28 text-sm"
-                    />
-                    {/* 姓氏 */}
-                    <select
-                      value={filterSurname}
-                      onChange={(e) => setFilterSurname(e.target.value)}
-                      className="h-9 px-3 text-sm border border-zinc-200 rounded-lg bg-white text-zinc-700 focus:outline-none focus:ring-2 focus:ring-zinc-400"
-                    >
-                      <option value="">姓氏</option>
-                      {uniqueSurnames.map(s => (
-                        <option key={s} value={s}>{s}</option>
-                      ))}
-                    </select>
-                    {/* 辈字 */}
-                    <select
-                      value={filterGeneration}
-                      onChange={(e) => setFilterGeneration(e.target.value)}
-                      className="h-9 px-3 text-sm border border-zinc-200 rounded-lg bg-white text-zinc-700 focus:outline-none focus:ring-2 focus:ring-zinc-400"
-                    >
-                      <option value="">辈字</option>
-                      {uniqueGenerations.map(g => (
-                        <option key={g} value={g}>{g}</option>
-                      ))}
-                    </select>
                     {/* 重置按钮 */}
-                    {(filterGender || filterIsDeceased || filterIsMatrilocal || filterIsAdoptedSon || filterOccupation || filterSurname || filterGeneration) && (
+                    {(filterGender || filterIsDeceased || filterIsMatrilocal || filterIsAdoptedSon || filterSurname || filterGeneration) && (
                       <button
                         onClick={() => {
                           setFilterGender('')
                           setFilterIsDeceased('')
                           setFilterIsMatrilocal('')
                           setFilterIsAdoptedSon('')
-                          setFilterOccupation('')
                           setFilterSurname('')
                           setFilterGeneration('')
                         }}
