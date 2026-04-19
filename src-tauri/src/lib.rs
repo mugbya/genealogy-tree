@@ -8,6 +8,7 @@ use std::path::PathBuf;
 use tauri::Manager;
 use serde::Serialize;
 use sysinfo::{System, Disks};
+use tauri_plugin_updater::UpdaterExt;
 
 pub use models::*;
 pub use api::*;
@@ -140,6 +141,7 @@ fn get_network_interfaces() -> Vec<NetworkInterface> {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .invoke_handler(tauri::generate_handler![get_system_info, get_network_interfaces])
         .setup(|app| {
             // 获取应用数据目录，使用绝对路径初始化数据库

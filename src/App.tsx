@@ -8,6 +8,8 @@ import { LoginPage } from '@/pages/LoginPage'
 import { SettingsPage } from '@/pages/SettingsPage'
 import { SecurityPage } from '@/pages/SecurityPage'
 import { AdminRoute } from '@/components/AdminRoute'
+import { UpdateDialog } from '@/components/UpdateDialog'
+import { useUpdateChecker } from '@/hooks/useUpdateChecker'
 import { useAuthStore } from '@/stores'
 
 const queryClient = new QueryClient()
@@ -23,6 +25,8 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 }
 
 function App() {
+  const { updateInfo, downloading, downloadProgress, startUpdate, dismissUpdate } = useUpdateChecker()
+
   return (
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
@@ -50,6 +54,15 @@ function App() {
           </Route>
         </Routes>
       </BrowserRouter>
+      <UpdateDialog
+        open={!!updateInfo}
+        onOpenChange={(open) => !open && dismissUpdate()}
+        updateInfo={updateInfo}
+        onUpdate={startUpdate}
+        onLater={dismissUpdate}
+        downloading={downloading}
+        downloadProgress={downloadProgress}
+      />
     </QueryClientProvider>
   )
 }
