@@ -88,6 +88,8 @@ export function TreePage() {
   const [filterGeneration, setFilterGeneration] = useState<string>('')
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [isEditOpen, setIsEditOpen] = useState(false)
+  const [isDetailOpen, setIsDetailOpen] = useState(false)
+  const [detailMember, setDetailMember] = useState<Member | null>(null)
   const [isCreateTagOpen, setIsCreateTagOpen] = useState(false)
   const [newTagName, setNewTagName] = useState('')
   const [newTagType, setNewTagType] = useState('special')
@@ -226,7 +228,7 @@ export function TreePage() {
 
   const members = membersData?.data || []
 
-  // 计算成员的亲缘关系（父亲、母亲、配偶）- 需要在过滤成员之前定义
+  // 计算成员的亲缘关系（父亲、母亲、配偶、标签）- 需要在过滤成员之前定义
   const memberRelations = useMemo(() => {
     const relations = relationsData?.data || []
     const memberMap = new Map(members.map(m => [m.id, m]))
@@ -234,59 +236,64 @@ export function TreePage() {
     // parentChildRelations: from_member_id = child, to_member_id = parent
     const parentRelations = relations.filter(r => r.relation_type === 'father' || r.relation_type === 'mother')
     const spouseRelations = relations.filter(r => r.relation_type === 'spouse')
+    // 标签关系
+    const tagRelations = relations.filter(r => r.tag_id)
 
-    const result = new Map<number, { father?: string; mother?: string; spouses: string[] }>()
+    const result = new Map<number, { father?: string; mother?: string; spouses: string[]; tags: { name: string; color: string }[] }>()
+
+    // 初始化所有成员
+    members.forEach(member => {
+      result.set(member.id, { father: undefined, mother: undefined, spouses: [], tags: [] })
+    })
 
     // 计算父亲和母亲
-    members.forEach(member => {
-      const parentRels = parentRelations.filter(r => r.from_member_id === member.id)
-      let father: string | undefined
-      let mother: string | undefined
+    parentRelations.forEach(rel => {
+      const child = memberMap.get(rel.from_member_id)
+      if (!child) return
+      const entry = result.get(child.id)
+      if (!entry) return
 
-      parentRels.forEach(rel => {
+      if (rel.relation_type === 'father') {
         const parent = memberMap.get(rel.to_member_id)
-        if (parent) {
-          if (rel.relation_type === 'father') {
-            father = parent.name
-          } else if (rel.relation_type === 'mother') {
-            mother = parent.name
-          }
-        }
-      })
-
-      result.set(member.id, { father, mother, spouses: [] })
+        if (parent) entry.father = parent.name
+      } else if (rel.relation_type === 'mother') {
+        const parent = memberMap.get(rel.to_member_id)
+        if (parent) entry.mother = parent.name
+      }
     })
 
     // 计算配偶
-    members.forEach(member => {
-      const spouses: string[] = []
-      const spouseIds = new Set<number>()
+    spouseRelations.forEach(rel => {
+      if (rel.from_member_id === rel.to_member_id) return
 
-      // 配偶关系只在一个方向存储（from_member_id < to_member_id）
-      spouseRelations.forEach(rel => {
-        let spouseId: number
-        let spouseName: string | undefined
+      let member: Member | undefined
+      let spouseId: number
 
-        if (rel.from_member_id === member.id) {
-          spouseId = rel.to_member_id
-          spouseName = memberMap.get(spouseId)?.name
-        } else if (rel.to_member_id === member.id) {
-          spouseId = rel.from_member_id
-          spouseName = memberMap.get(spouseId)?.name
-        } else {
-          return
-        }
+      if (rel.from_member_id < rel.to_member_id) {
+        member = memberMap.get(rel.from_member_id)
+        spouseId = rel.to_member_id
+      } else {
+        member = memberMap.get(rel.to_member_id)
+        spouseId = rel.from_member_id
+      }
 
-        if (spouseIds.has(spouseId)) return
-        if (spouseName) {
-          spouseIds.add(spouseId)
-          spouses.push(spouseName)
-        }
-      })
+      if (!member) return
+      const entry = result.get(member.id)
+      if (!entry) return
 
-      const existing = result.get(member.id) || { father: undefined, mother: undefined, spouses: [] }
-      existing.spouses = spouses
-      result.set(member.id, existing)
+      const spouse = memberMap.get(spouseId)
+      if (spouse && spouse.name && !entry.spouses.includes(spouse.name)) {
+        entry.spouses.push(spouse.name)
+      }
+    })
+
+    // 计算标签
+    tagRelations.forEach(rel => {
+      const entry = result.get(rel.from_member_id)
+      if (!entry) return
+      if (rel.tag_name && rel.tag_color && !entry.tags.find(t => t.name === rel.tag_name)) {
+        entry.tags.push({ name: rel.tag_name, color: rel.tag_color })
+      }
     })
 
     return result
@@ -843,7 +850,7 @@ export function TreePage() {
         <TabsContent value="list" className="flex-1 min-h-0 mt-4 h-full">
           <div className="h-full flex gap-4">
             {/* 左侧：成员列表 */}
-            <Card className="w-[580px] shrink-0 border-0 shadow-sm flex flex-col h-full">
+            <Card className="flex-1 border-0 shadow-sm flex flex-col h-full">
               <CardHeader className="pb-3 shrink-0">
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-lg font-semibold flex items-center gap-2">
@@ -1058,10 +1065,12 @@ export function TreePage() {
                         <div
                           key={member.id}
                           className={cn(
-                            'flex items-center gap-3 p-3 hover:bg-zinc-50 cursor-pointer transition-colors group',
-                            selectedMember?.id === member.id && 'bg-indigo-50'
+                            'flex items-center gap-3 p-3 hover:bg-zinc-50 cursor-pointer transition-colors group'
                           )}
-                          onClick={() => setSelectedMember(member)}
+                          onClick={() => {
+                            setDetailMember(member)
+                            setIsDetailOpen(true)
+                          }}
                         >
                           <Avatar
                             size="md"
@@ -1195,137 +1204,6 @@ export function TreePage() {
                         末页
                       </Button>
                     </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* 右侧：成员详情 */}
-            <Card className="flex-1 border-0 shadow-sm">
-              <CardHeader className="pb-4">
-                <CardTitle className="text-lg font-semibold">成员详情</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {selectedMember ? (
-                  <div className="space-y-6">
-                    {/* Avatar and Name */}
-                    <div className="flex items-center gap-4">
-                      <Avatar
-                        size="xl"
-                        fallback={selectedMember.name.charAt(0)}
-                        gender={selectedMember.gender as "male" | "female"}
-                      />
-                      <div>
-                        <h3 className="text-2xl font-bold text-gray-900">{selectedMember.name}</h3>
-                        <div className="flex items-center gap-2 mt-1">
-                          <Badge variant={selectedMember.gender === 'male' ? 'default' : 'danger'}>
-                            {selectedMember.gender === 'male' ? '男' : '女'}
-                          </Badge>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Info Grid */}
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="flex items-center gap-3 p-3 rounded-xl bg-zinc-50">
-                        <div className="w-10 h-10 rounded-lg bg-indigo-100 flex items-center justify-center">
-                          <Calendar className="w-5 h-5 text-indigo-600" />
-                        </div>
-                        <div>
-                          <p className="text-xs text-muted-foreground">出生日期</p>
-                          <p className="font-medium text-gray-900">{selectedMember.birth_date || '未知'}</p>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-3 p-3 rounded-xl bg-zinc-50">
-                        <div className="w-10 h-10 rounded-lg bg-indigo-100 flex items-center justify-center">
-                          <Home className="w-5 h-5 text-indigo-600" />
-                        </div>
-                        <div>
-                          <p className="text-xs text-muted-foreground">籍贯</p>
-                          <p className="font-medium text-gray-900 truncate">{selectedMember.birth_place || '未知'}</p>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-3 p-3 rounded-xl bg-zinc-50">
-                        <div className="w-10 h-10 rounded-lg bg-indigo-100 flex items-center justify-center">
-                          <Briefcase className="w-5 h-5 text-indigo-600" />
-                        </div>
-                        <div>
-                          <p className="text-xs text-muted-foreground">职业</p>
-                          <p className="font-medium text-gray-900 truncate">{selectedMember.occupation || '未知'}</p>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-3 p-3 rounded-xl bg-zinc-50">
-                        <div className="w-10 h-10 rounded-lg bg-indigo-100 flex items-center justify-center">
-                          <Clock className="w-5 h-5 text-indigo-600" />
-                        </div>
-                        <div>
-                          <p className="text-xs text-muted-foreground">状态</p>
-                          <p className="font-medium text-gray-900">
-                            {selectedMember.is_deceased ? (
-                              <span className="text-zinc-500">已离世</span>
-                            ) : (
-                              <span className="text-green-600">在世</span>
-                            )}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Biography */}
-                    {selectedMember.biography && (
-                      <div className="p-4 rounded-xl bg-zinc-50">
-                        <div className="flex items-center gap-2 mb-2">
-                          <BookOpen className="w-4 h-4 text-muted-foreground" />
-                          <p className="text-sm font-medium text-muted-foreground">生平简介</p>
-                        </div>
-                        <p className="text-gray-700 leading-relaxed">{selectedMember.biography}</p>
-                      </div>
-                    )}
-
-                    {/* Remarkable Deeds */}
-                    {selectedMember.remarkable_deeds && (
-                      <div className="p-4 rounded-xl bg-amber-50 border border-amber-200">
-                        <div className="flex items-center gap-2 mb-2">
-                          <Award className="w-4 h-4 text-amber-600" />
-                          <p className="text-sm font-medium text-amber-800">突出事迹</p>
-                        </div>
-                        <p className="text-amber-900 leading-relaxed">{selectedMember.remarkable_deeds}</p>
-                      </div>
-                    )}
-
-                    {/* Actions */}
-                    <div className="flex gap-2 pt-4 border-t border-zinc-200">
-                      <Button
-                        variant="outline"
-                        className="flex-1 gap-2"
-                        onClick={() => {
-                          setTreeRootMemberId(selectedMember.id)
-                          setActiveTab('tree')
-                        }}
-                      >
-                        <TreeDeciduous className="w-4 h-4" />
-                        查看族谱树
-                      </Button>
-                      {editableMemberIds.includes(selectedMember.id) && (
-                        <Button
-                          className="flex-1 gap-2 bg-gray-900 hover:bg-gray-800"
-                          onClick={() => handleOpenEdit(selectedMember)}
-                        >
-                          <Edit2 className="w-4 h-4" />
-                          编辑信息
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                ) : (
-                  <div className="flex flex-col items-center justify-center h-64 text-center">
-                    <div className="w-16 h-16 rounded-full bg-zinc-100 flex items-center justify-center mb-4">
-                      <User className="w-8 h-8 text-zinc-400" />
-                    </div>
-                    <p className="text-sm text-zinc-500">点击左侧成员查看详情</p>
                   </div>
                 )}
               </CardContent>
@@ -1687,6 +1565,235 @@ export function TreePage() {
               删除
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Member Detail Dialog */}
+      <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>
+        <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-semibold flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center">
+                <User className="w-4 h-4 text-indigo-600" />
+              </div>
+              成员详情
+            </DialogTitle>
+          </DialogHeader>
+          {detailMember && (
+            <div className="flex-1 overflow-y-auto py-4 space-y-6">
+              {/* Avatar and Name */}
+              <div className="flex items-center gap-4">
+                <Avatar
+                  size="xl"
+                  fallback={detailMember.name.charAt(0)}
+                  gender={detailMember.gender as "male" | "female"}
+                />
+                <div>
+                  <h3 className="text-2xl font-bold text-gray-900">{detailMember.name}</h3>
+                  <div className="flex items-center gap-2 mt-1">
+                    <Badge variant={detailMember.gender === 'male' ? 'default' : 'danger'}>
+                      {detailMember.gender === 'male' ? '男' : '女'}
+                    </Badge>
+                    {detailMember.surname && <span className="text-sm text-zinc-500">姓 {detailMember.surname}</span>}
+                    {detailMember.generation && <span className="text-sm text-zinc-500">辈 {detailMember.generation}</span>}
+                    {detailMember.is_deceased && (
+                      <Badge variant="outline" className="text-xs text-zinc-500">
+                        已离世
+                      </Badge>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Basic Info Grid */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="flex items-center gap-3 p-3 rounded-xl bg-zinc-50">
+                  <div className="w-10 h-10 rounded-lg bg-indigo-100 flex items-center justify-center">
+                    <Calendar className="w-5 h-5 text-indigo-600" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">出生日期</p>
+                    <p className="font-medium text-gray-900">{detailMember.birth_date || '未知'}</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3 p-3 rounded-xl bg-zinc-50">
+                  <div className="w-10 h-10 rounded-lg bg-indigo-100 flex items-center justify-center">
+                    <Clock className="w-5 h-5 text-indigo-600" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">逝世日期</p>
+                    <p className="font-medium text-gray-900">{detailMember.death_date || '未知'}</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3 p-3 rounded-xl bg-zinc-50">
+                  <div className="w-10 h-10 rounded-lg bg-indigo-100 flex items-center justify-center">
+                    <Home className="w-5 h-5 text-indigo-600" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">籍贯</p>
+                    <p className="font-medium text-gray-900 truncate">{detailMember.birth_place || '未知'}</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3 p-3 rounded-xl bg-zinc-50">
+                  <div className="w-10 h-10 rounded-lg bg-indigo-100 flex items-center justify-center">
+                    <Briefcase className="w-5 h-5 text-indigo-600" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">职业</p>
+                    <p className="font-medium text-gray-900 truncate">{detailMember.occupation || '未知'}</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3 p-3 rounded-xl bg-zinc-50">
+                  <div className="w-10 h-10 rounded-lg bg-amber-100 flex items-center justify-center">
+                    <Award className="w-5 h-5 text-amber-600" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">权重</p>
+                    <p className="font-medium text-gray-900">{detailMember.weight ?? '未设置'}</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3 p-3 rounded-xl bg-zinc-50">
+                  <div className="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center">
+                    <Clock className="w-5 h-5 text-green-600" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">状态</p>
+                    <p className="font-medium text-gray-900">
+                      {detailMember.is_deceased ? (
+                        <span className="text-zinc-500">已离世</span>
+                      ) : (
+                        <span className="text-green-600">在世</span>
+                      )}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Special Flags */}
+              {(detailMember.is_matrilocal || detailMember.is_adopted_son) && (
+                <div className="flex flex-wrap gap-2">
+                  {detailMember.is_matrilocal && (
+                    <Badge variant="outline" className="gap-1 bg-orange-50 text-orange-700 border-orange-200">
+                      入赘
+                    </Badge>
+                  )}
+                  {detailMember.is_adopted_son && (
+                    <Badge variant="outline" className="gap-1 bg-purple-50 text-purple-700 border-purple-200">
+                      招夫养子
+                    </Badge>
+                  )}
+                </div>
+              )}
+
+              {/* Relations */}
+              {(() => {
+                const rels = memberRelations.get(detailMember.id)
+                if (!rels?.father && !rels?.mother && (!rels?.spouses || rels.spouses.length === 0)) return null
+                return (
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium text-muted-foreground">亲缘关系</p>
+                    <div className="flex flex-wrap gap-2">
+                      {rels?.father && (
+                        <Badge variant="outline" className="gap-1">
+                          <span className="text-zinc-400">父</span> {rels.father}
+                        </Badge>
+                      )}
+                      {rels?.mother && (
+                        <Badge variant="outline" className="gap-1">
+                          <span className="text-zinc-400">母</span> {rels.mother}
+                        </Badge>
+                      )}
+                      {rels?.spouses.map((spouse, idx) => (
+                        <Badge key={idx} variant="outline" className="gap-1">
+                          <span className="text-zinc-400">配偶</span> {spouse}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                )
+              })()}
+
+              {/* Tags */}
+              {(() => {
+                const rels = memberRelations.get(detailMember.id)
+                if (!rels?.tags || rels.tags.length === 0) return null
+                return (
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium text-muted-foreground">关系标签</p>
+                    <div className="flex flex-wrap gap-2">
+                      {rels?.tags.map((tag, idx) => (
+                        <span
+                          key={idx}
+                          className="px-3 py-1.5 rounded-full text-sm font-medium"
+                          style={{
+                            backgroundColor: tag.color + '20',
+                            color: tag.color,
+                          }}
+                        >
+                          {tag.name}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )
+              })()}
+
+              {/* Biography */}
+              {detailMember.biography && (
+                <div className="p-4 rounded-xl bg-zinc-50">
+                  <div className="flex items-center gap-2 mb-2">
+                    <BookOpen className="w-4 h-4 text-muted-foreground" />
+                    <p className="text-sm font-medium text-muted-foreground">生平简介</p>
+                  </div>
+                  <p className="text-gray-700 leading-relaxed">{detailMember.biography}</p>
+                </div>
+              )}
+
+              {/* Remarkable Deeds */}
+              {detailMember.remarkable_deeds && (
+                <div className="p-4 rounded-xl bg-amber-50 border border-amber-200">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Award className="w-4 h-4 text-amber-600" />
+                    <p className="text-sm font-medium text-amber-800">突出事迹</p>
+                  </div>
+                  <p className="text-amber-900 leading-relaxed">{detailMember.remarkable_deeds}</p>
+                </div>
+              )}
+
+              {/* Actions */}
+              <div className="flex gap-2 pt-4 border-t border-zinc-200">
+                <Button
+                  variant="outline"
+                  className="flex-1 gap-2"
+                  onClick={() => {
+                    setTreeRootMemberId(detailMember.id)
+                    setActiveTab('tree')
+                    setIsDetailOpen(false)
+                  }}
+                >
+                  <TreeDeciduous className="w-4 h-4" />
+                  查看族谱树
+                </Button>
+                {editableMemberIds.includes(detailMember.id) && (
+                  <Button
+                    className="flex-1 gap-2 bg-gray-900 hover:bg-gray-800"
+                    onClick={() => {
+                      setIsDetailOpen(false)
+                      handleOpenEdit(detailMember)
+                    }}
+                  >
+                    <Edit2 className="w-4 h-4" />
+                    编辑信息
+                  </Button>
+                )}
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 
