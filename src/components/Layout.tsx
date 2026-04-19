@@ -5,8 +5,6 @@ import {
   Settings,
   Menu,
   X,
-  Bell,
-  Search,
   ChevronRight,
   LogOut,
 } from 'lucide-react'
@@ -81,39 +79,40 @@ export function Layout() {
 
             {/* Right */}
             <div className="flex items-center gap-3">
-              <button className="w-11 h-11 rounded-lg flex items-center justify-center text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 transition-colors">
-                <Search className="w-5 h-5" />
-              </button>
-              <button className="w-11 h-11 rounded-lg flex items-center justify-center text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 transition-colors relative">
-                <Bell className="w-5 h-5" />
-                <span className="absolute top-2 right-2 w-2.5 h-2.5 bg-red-500 rounded-full" />
-              </button>
-
               <div className="w-px h-6 bg-zinc-200 mx-1 hidden sm:block" />
 
-              {/* User */}
-              <Dropdown
-                trigger={
-                  <button className="hidden sm:flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-zinc-100 transition-colors">
-                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white text-base font-medium">
-                      {user?.username?.charAt(0).toUpperCase() || 'A'}
-                    </div>
-                    <div className="text-left hidden xl:block">
-                      <p className="text-base font-medium text-zinc-900 leading-none">
-                        {user?.username || '未登录'}
-                      </p>
-                      <p className="text-sm text-zinc-500 mt-0.5">
-                        {user?.role === 'admin' ? '管理员' : '普通用户'}
-                      </p>
-                    </div>
-                  </button>
-                }
-                align="right"
-              >
-                <DropdownItem icon={<LogOut className="w-5 h-5" />} onClick={handleLogout}>
-                  退出登录
-                </DropdownItem>
-              </Dropdown>
+              {/* User - only show dropdown when logged in */}
+              {user ? (
+                <Dropdown
+                  trigger={
+                    <button className="hidden sm:flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-zinc-100 transition-colors">
+                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white text-base font-medium">
+                        {user?.username?.charAt(0).toUpperCase() || 'A'}
+                      </div>
+                      <div className="text-left hidden xl:block">
+                        <p className="text-base font-medium text-zinc-900 leading-none">
+                          {user?.username}
+                        </p>
+                        <p className="text-sm text-zinc-500 mt-0.5">
+                          {user?.role === 'admin' ? '管理员' : '普通用户'}
+                        </p>
+                      </div>
+                    </button>
+                  }
+                  align="right"
+                >
+                  <DropdownItem icon={<LogOut className="w-5 h-5" />} onClick={handleLogout}>
+                    退出登录
+                  </DropdownItem>
+                </Dropdown>
+              ) : (
+                <Link
+                  to="/login"
+                  className="hidden sm:flex items-center gap-2 px-4 py-2 rounded-lg bg-indigo-500 text-white text-base font-medium hover:bg-indigo-600 transition-colors"
+                >
+                  登录
+                </Link>
+              )}
 
               {/* Settings */}
               <Link
