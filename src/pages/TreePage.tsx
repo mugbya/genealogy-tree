@@ -79,6 +79,9 @@ export function TreePage() {
   // 搜索过滤器
   const [filterGender, setFilterGender] = useState<string>('')
   const [filterIsDeceased, setFilterIsDeceased] = useState<string>('')
+  const [filterHasFather, setFilterHasFather] = useState<string>('')
+  const [filterHasMother, setFilterHasMother] = useState<string>('')
+  const [filterHasSpouse, setFilterHasSpouse] = useState<string>('')
   const [filterIsMatrilocal, setFilterIsMatrilocal] = useState<string>('')
   const [filterIsAdoptedSon, setFilterIsAdoptedSon] = useState<string>('')
   const [filterSurname, setFilterSurname] = useState<string>('')
@@ -223,86 +226,7 @@ export function TreePage() {
 
   const members = membersData?.data || []
 
-  // 过滤成员
-  const filteredMembers = useMemo(() => {
-    return members.filter(m => {
-      // 关键词搜索
-      if (searchKeyword.trim()) {
-        const keyword = searchKeyword.toLowerCase()
-        if (
-          !m.name.toLowerCase().includes(keyword) &&
-          !(m.birth_place && m.birth_place.toLowerCase().includes(keyword)) &&
-          !(m.occupation && m.occupation.toLowerCase().includes(keyword))
-        ) {
-          return false
-        }
-      }
-
-      // 性别过滤
-      if (filterGender && m.gender !== filterGender) {
-        return false
-      }
-
-      // 在离世过滤
-      if (filterIsDeceased === 'deceased' && !m.is_deceased) return false
-      if (filterIsDeceased === 'alive' && m.is_deceased) return false
-
-      // 入赘过滤
-      if (filterIsMatrilocal === 'yes' && !m.is_matrilocal) return false
-      if (filterIsMatrilocal === 'no' && m.is_matrilocal) return false
-
-      // 招夫养子过滤
-      if (filterIsAdoptedSon === 'yes' && !m.is_adopted_son) return false
-      if (filterIsAdoptedSon === 'no' && m.is_adopted_son) return false
-
-      // 姓氏过滤
-      if (filterSurname && m.surname !== filterSurname) {
-        return false
-      }
-
-      // 辈字过滤
-      if (filterGeneration && m.generation !== filterGeneration) {
-        return false
-      }
-
-      return true
-    })
-  }, [members, searchKeyword, filterGender, filterIsDeceased, filterIsMatrilocal, filterIsAdoptedSon, filterSurname, filterGeneration])
-
-  // 分页成员
-  const paginatedMembers = useMemo(() => {
-    const start = (currentPage - 1) * pageSize
-    return filteredMembers.slice(start, start + pageSize)
-  }, [filteredMembers, currentPage, pageSize])
-
-  const totalPages = Math.ceil(filteredMembers.length / pageSize)
-
-  // 获取唯一的姓氏列表
-  const uniqueSurnames = useMemo(() => {
-    const surnames = members.map(m => m.surname).filter(Boolean) as string[]
-    return [...new Set(surnames)].sort()
-  }, [members])
-
-  // 获取唯一的辈字列表
-  const uniqueGenerations = useMemo(() => {
-    const generations = members.map(m => m.generation).filter(Boolean) as string[]
-    return [...new Set(generations)].sort()
-  }, [members])
-
-  // 重置页码当筛选条件变化时
-  useEffect(() => {
-    setCurrentPage(1)
-  }, [searchKeyword, filterGender, filterIsDeceased, filterIsMatrilocal, filterIsAdoptedSon, filterSurname, filterGeneration])
-
-  // 计算有子女的成员（用于族谱树起始成员选择）
-  const membersWithChildren = useMemo(() => {
-    const relations = relationsData?.data || []
-    const parentChildRelations = relations.filter(r => r.relation_type === 'father' || r.relation_type === 'mother')
-    const parentIds = new Set(parentChildRelations.map(r => r.to_member_id))
-    return members.filter(m => parentIds.has(m.id))
-  }, [members, relationsData])
-
-  // 计算成员的亲缘关系（父亲、母亲、配偶）
+  // 计算成员的亲缘关系（父亲、母亲、配偶）- 需要在过滤成员之前定义
   const memberRelations = useMemo(() => {
     const relations = relationsData?.data || []
     const memberMap = new Map(members.map(m => [m.id, m]))
@@ -366,6 +290,98 @@ export function TreePage() {
     })
 
     return result
+  }, [members, relationsData])
+
+  // 过滤成员
+  const filteredMembers = useMemo(() => {
+    return members.filter(m => {
+      // 关键词搜索
+      if (searchKeyword.trim()) {
+        const keyword = searchKeyword.toLowerCase()
+        if (
+          !m.name.toLowerCase().includes(keyword) &&
+          !(m.birth_place && m.birth_place.toLowerCase().includes(keyword)) &&
+          !(m.occupation && m.occupation.toLowerCase().includes(keyword))
+        ) {
+          return false
+        }
+      }
+
+      // 性别过滤
+      if (filterGender && m.gender !== filterGender) {
+        return false
+      }
+
+      // 在离世过滤
+      if (filterIsDeceased === 'deceased' && !m.is_deceased) return false
+      if (filterIsDeceased === 'alive' && m.is_deceased) return false
+
+      // 是否有父亲过滤
+      const rels = memberRelations.get(m.id)
+      if (filterHasFather === 'yes' && !rels?.father) return false
+      if (filterHasFather === 'no' && rels?.father) return false
+
+      // 是否有母亲过滤
+      if (filterHasMother === 'yes' && !rels?.mother) return false
+      if (filterHasMother === 'no' && rels?.mother) return false
+
+      // 是否有配偶过滤
+      if (filterHasSpouse === 'yes' && (!rels?.spouses || rels.spouses.length === 0)) return false
+      if (filterHasSpouse === 'no' && rels?.spouses && rels.spouses.length > 0) return false
+
+      // 入赘过滤
+      if (filterIsMatrilocal === 'yes' && !m.is_matrilocal) return false
+      if (filterIsMatrilocal === 'no' && m.is_matrilocal) return false
+
+      // 招夫养子过滤
+      if (filterIsAdoptedSon === 'yes' && !m.is_adopted_son) return false
+      if (filterIsAdoptedSon === 'no' && m.is_adopted_son) return false
+
+      // 姓氏过滤
+      if (filterSurname && m.surname !== filterSurname) {
+        return false
+      }
+
+      // 辈字过滤
+      if (filterGeneration && m.generation !== filterGeneration) {
+        return false
+      }
+
+      return true
+    })
+  }, [members, searchKeyword, filterGender, filterIsDeceased, filterHasFather, filterHasMother, filterHasSpouse, filterIsMatrilocal, filterIsAdoptedSon, filterSurname, filterGeneration, memberRelations])
+
+  // 分页成员
+  const paginatedMembers = useMemo(() => {
+    const start = (currentPage - 1) * pageSize
+    return filteredMembers.slice(start, start + pageSize)
+  }, [filteredMembers, currentPage, pageSize])
+
+  const totalPages = Math.ceil(filteredMembers.length / pageSize)
+
+  // 获取唯一的姓氏列表
+  const uniqueSurnames = useMemo(() => {
+    const surnames = members.map(m => m.surname).filter(Boolean) as string[]
+    return [...new Set(surnames)].sort()
+  }, [members])
+
+  // 获取唯一的辈字列表
+  const uniqueGenerations = useMemo(() => {
+    const generations = members.map(m => m.generation).filter(Boolean) as string[]
+    return [...new Set(generations)].sort()
+  }, [members])
+
+  // 重置页码当筛选条件变化时
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchKeyword, filterGender, filterIsDeceased, filterIsMatrilocal, filterIsAdoptedSon, filterSurname, filterGeneration])
+
+  // 计算有子女的成员（用于族谱树起始成员选择）
+  const membersWithChildren = useMemo(() => {
+    const relations = relationsData?.data || []
+    const parentChildRelations = relations.filter(r => r.relation_type === 'father' || r.relation_type === 'mother')
+    const parentIds = new Set(parentChildRelations.map(r => r.to_member_id))
+    return members.filter(m => parentIds.has(m.id))
   }, [members, relationsData])
 
   // 加载标签
@@ -934,6 +950,36 @@ export function TreePage() {
                       <option value="alive">在世</option>
                       <option value="deceased">离世</option>
                     </select>
+                    {/* 是否有父亲 */}
+                    <select
+                      value={filterHasFather}
+                      onChange={(e) => setFilterHasFather(e.target.value)}
+                      className="h-9 px-3 text-sm border border-zinc-200 rounded-lg bg-white text-zinc-700 focus:outline-none focus:ring-2 focus:ring-zinc-400"
+                    >
+                      <option value="">有父亲</option>
+                      <option value="yes">有</option>
+                      <option value="no">无</option>
+                    </select>
+                    {/* 是否有母亲 */}
+                    <select
+                      value={filterHasMother}
+                      onChange={(e) => setFilterHasMother(e.target.value)}
+                      className="h-9 px-3 text-sm border border-zinc-200 rounded-lg bg-white text-zinc-700 focus:outline-none focus:ring-2 focus:ring-zinc-400"
+                    >
+                      <option value="">有母亲</option>
+                      <option value="yes">有</option>
+                      <option value="no">无</option>
+                    </select>
+                    {/* 是否有配偶 */}
+                    <select
+                      value={filterHasSpouse}
+                      onChange={(e) => setFilterHasSpouse(e.target.value)}
+                      className="h-9 px-3 text-sm border border-zinc-200 rounded-lg bg-white text-zinc-700 focus:outline-none focus:ring-2 focus:ring-zinc-400"
+                    >
+                      <option value="">有配偶</option>
+                      <option value="yes">有</option>
+                      <option value="no">无</option>
+                    </select>
                     {/* 入赘 */}
                     <select
                       value={filterIsMatrilocal}
@@ -955,11 +1001,14 @@ export function TreePage() {
                       <option value="no">否</option>
                     </select>
                     {/* 重置按钮 */}
-                    {(filterGender || filterIsDeceased || filterIsMatrilocal || filterIsAdoptedSon || filterSurname || filterGeneration) && (
+                    {(filterGender || filterIsDeceased || filterHasFather || filterHasMother || filterHasSpouse || filterIsMatrilocal || filterIsAdoptedSon || filterSurname || filterGeneration) && (
                       <button
                         onClick={() => {
                           setFilterGender('')
                           setFilterIsDeceased('')
+                          setFilterHasFather('')
+                          setFilterHasMother('')
+                          setFilterHasSpouse('')
                           setFilterIsMatrilocal('')
                           setFilterIsAdoptedSon('')
                           setFilterSurname('')
