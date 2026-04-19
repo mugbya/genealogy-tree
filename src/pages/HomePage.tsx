@@ -383,7 +383,7 @@ export function HomePage() {
                   {serviceStatus.type === "free" ? "免费版" : "白金版"}
                 </Badge>
 
-                {serviceStatus.type === "free" ? (
+                {/* {serviceStatus.type === "free" ? (
                   <p className="text-sm text-muted-foreground mt-4 max-w-[200px]">
                     升级白金版解锁更多功能
                   </p>
@@ -398,7 +398,7 @@ export function HomePage() {
                     <Crown className="w-4 h-4" />
                     升级版本
                   </Button>
-                )}
+                )} */}
               </div>
             </CardContent>
           </Card>

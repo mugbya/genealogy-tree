@@ -24,8 +24,8 @@ type TabType = 'general' | '穿透' | 'platinum'
 
 const tabs = [
   { id: 'general' as TabType, label: '通用设置', icon: Settings },
-  { id: '穿透' as TabType, label: '内网穿透', icon: Network },
-  { id: 'platinum' as TabType, label: '白金版', icon: Crown },
+  // { id: '穿透' as TabType, label: '内网穿透', icon: Network },
+  // { id: 'platinum' as TabType, label: '白金版', icon: Crown },
 ]
 
 export function SettingsPage() {
