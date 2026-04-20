@@ -85,10 +85,11 @@ export function useUpdateChecker() {
     setUpdateInfo(null)
   }, [updateInfo])
 
-  // 应用启动时自动检查更新
+  // 应用启动时自动检查更新（只执行一次）
   useEffect(() => {
     checkForUpdates()
-  }, [checkForUpdates])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   return {
     updateInfo,

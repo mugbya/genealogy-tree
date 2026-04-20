@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge'
 import { Avatar } from '@/components/ui/avatar'
 import { Switch } from '@/components/ui/switch'
 import { GenealogyTree } from '@/components/TreeNode'
+import { TraditionalGenealogy } from '@/components/TraditionalGenealogy'
 import { membersApi, relationTagsApi, configApi, type Member, type RelationTag, type CreateMemberInput } from '@/api/client'
 import {
   Dialog,
@@ -712,6 +713,10 @@ export function TreePage() {
             <TagIcon className="w-5 h-5" />
             标签管理
           </TabsTrigger>
+          <TabsTrigger value="traditional" className="gap-2 text-base py-3 px-4">
+            <BookOpen className="w-5 h-5" />
+            族谱导航
+          </TabsTrigger>
         </TabsList>
 
         {/* 族谱信息 */}
@@ -1305,6 +1310,19 @@ export function TreePage() {
               )}
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* 族谱导航 */}
+        <TabsContent value="traditional" className="flex-1 min-h-0 mt-4">
+          <TraditionalGenealogy
+            familyName={familyName}
+            familySurname={familySurname}
+            familyOrigin={familyOrigin}
+            familyMaxim={familyMaxim}
+            familyGenerationWords={familyGenerationWords}
+            members={members}
+            relations={relationsData?.data || []}
+          />
         </TabsContent>
 
         {/* 标签管理 */}
