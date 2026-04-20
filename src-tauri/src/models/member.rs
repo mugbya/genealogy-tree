@@ -15,6 +15,7 @@ pub struct Member {
     pub occupation: Option<String>,
     pub photo_path: Option<String>,
     pub biography: Option<String>,
+    pub remarkable_deeds: Option<String>,
     pub is_matrilocal: bool,   // 是否入赘
     pub is_adopted_son: bool,  // 是否招夫养子
     pub created_at: String,
@@ -35,6 +36,7 @@ pub struct CreateMemberRequest {
     pub occupation: Option<String>,
     pub photo_path: Option<String>,
     pub biography: Option<String>,
+    pub remarkable_deeds: Option<String>,
     pub is_matrilocal: Option<bool>,
     pub is_adopted_son: Option<bool>,
 }
@@ -53,6 +55,7 @@ pub struct UpdateMemberRequest {
     pub occupation: Option<String>,
     pub photo_path: Option<String>,
     pub biography: Option<String>,
+    pub remarkable_deeds: Option<String>,
     pub is_matrilocal: Option<bool>,
     pub is_adopted_son: Option<bool>,
 }

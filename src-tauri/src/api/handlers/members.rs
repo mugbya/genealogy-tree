@@ -482,7 +482,7 @@ pub async fn get_members(
 
     let mut stmt = match conn.prepare(
         "SELECT id, name, surname, gender, generation, weight, birth_date, death_date, is_deceased,
-         birth_place, occupation, photo_path, biography, is_matrilocal, is_adopted_son, created_at, updated_at
+         birth_place, occupation, photo_path, biography, remarkable_deeds, is_matrilocal, is_adopted_son, created_at, updated_at
          FROM family_members ORDER BY weight DESC, generation, name"
     ) {
         Ok(stmt) => stmt,
@@ -504,10 +504,11 @@ pub async fn get_members(
             occupation: row.get(10)?,
             photo_path: row.get(11)?,
             biography: row.get(12)?,
-            is_matrilocal: row.get::<_, i32>(13)? != 0,
-            is_adopted_son: row.get::<_, i32>(14)? != 0,
-            created_at: row.get(15)?,
-            updated_at: row.get(16)?,
+            remarkable_deeds: row.get(13)?,
+            is_matrilocal: row.get::<_, i32>(14)? != 0,
+            is_adopted_son: row.get::<_, i32>(15)? != 0,
+            created_at: row.get(16)?,
+            updated_at: row.get(17)?,
         })
     });
 
@@ -531,7 +532,7 @@ pub async fn get_member(
 
     let result = conn.query_row(
         "SELECT id, name, surname, gender, generation, weight, birth_date, death_date, is_deceased,
-         birth_place, occupation, photo_path, biography, is_matrilocal, is_adopted_son, created_at, updated_at
+         birth_place, occupation, photo_path, biography, remarkable_deeds, is_matrilocal, is_adopted_son, created_at, updated_at
          FROM family_members WHERE id = ?",
         params![id],
         |row| {
@@ -549,10 +550,11 @@ pub async fn get_member(
                 occupation: row.get(10)?,
                 photo_path: row.get(11)?,
                 biography: row.get(12)?,
-                is_matrilocal: row.get::<_, i32>(13)? != 0,
-                is_adopted_son: row.get::<_, i32>(14)? != 0,
-                created_at: row.get(15)?,
-                updated_at: row.get(16)?,
+                remarkable_deeds: row.get(13)?,
+                is_matrilocal: row.get::<_, i32>(14)? != 0,
+                is_adopted_son: row.get::<_, i32>(15)? != 0,
+                created_at: row.get(16)?,
+                updated_at: row.get(17)?,
             })
         },
     );
@@ -574,7 +576,7 @@ pub async fn create_member(
 
     let result = conn.execute(
         "INSERT INTO family_members (name, surname, gender, generation, weight, birth_date, death_date, is_deceased,
-         birth_place, occupation, photo_path, biography, is_matrilocal, is_adopted_son) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)",
+         birth_place, occupation, photo_path, biography, remarkable_deeds, is_matrilocal, is_adopted_son) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)",
         params![
             req.name,
             req.surname,
@@ -588,6 +590,7 @@ pub async fn create_member(
             req.occupation,
             req.photo_path,
             req.biography,
+            req.remarkable_deeds,
             req.is_matrilocal.unwrap_or(false),
             req.is_adopted_son.unwrap_or(false),
         ],
@@ -687,6 +690,10 @@ pub async fn update_member(
     if let Some(ref biography) = req.biography {
         updates.push("biography = ?");
         values.push(Box::new(biography.clone()));
+    }
+    if let Some(ref remarkable_deeds) = req.remarkable_deeds {
+        updates.push("remarkable_deeds = ?");
+        values.push(Box::new(remarkable_deeds.clone()));
     }
     if let Some(ref is_matrilocal) = req.is_matrilocal {
         updates.push("is_matrilocal = ?");

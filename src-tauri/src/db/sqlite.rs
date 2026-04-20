@@ -98,6 +98,28 @@ pub fn init_database(db_path: &Path) -> Result<Connection> {
         conn.execute("ALTER TABLE family_members ADD COLUMN weight INTEGER NOT NULL DEFAULT 0", [])?;
     }
 
+    // Migration: add remarkable_deeds column if it doesn't exist (for existing databases)
+    let has_remarkable_deeds: bool = conn.query_row(
+        "SELECT COUNT(*) FROM pragma_table_info('family_members') WHERE name = 'remarkable_deeds'",
+        [],
+        |row| Ok(row.get::<_, i32>(0)? > 0),
+    ).unwrap_or(false);
+
+    if !has_remarkable_deeds {
+        conn.execute("ALTER TABLE family_members ADD COLUMN remarkable_deeds TEXT", [])?;
+    }
+
+    // Migration: add death_date column if it doesn't exist (for existing databases)
+    let has_death_date: bool = conn.query_row(
+        "SELECT COUNT(*) FROM pragma_table_info('family_members') WHERE name = 'death_date'",
+        [],
+        |row| Ok(row.get::<_, i32>(0)? > 0),
+    ).unwrap_or(false);
+
+    if !has_death_date {
+        conn.execute("ALTER TABLE family_members ADD COLUMN death_date TEXT", [])?;
+    }
+
     conn.execute(
         "CREATE TABLE IF NOT EXISTS relation_tags (
             id INTEGER PRIMARY KEY AUTOINCREMENT,

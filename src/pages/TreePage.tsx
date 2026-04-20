@@ -1891,6 +1891,29 @@ function MemberFormDialog({
   onRemoveSpouse,
   onCreateTag,
 }: MemberFormDialogProps) {
+  // 使用 useMemo 从 initialData 派生表单值
+  const formFromInitialData = useMemo(() => {
+    if (!initialData) {
+      return null
+    }
+    return {
+      name: initialData.name || '',
+      surname: initialData.surname || '',
+      gender: initialData.gender || 'male',
+      generation: initialData.generation || undefined,
+      weight: initialData.weight,
+      birth_date: initialData.birth_date,
+      death_date: initialData.death_date,
+      is_deceased: initialData.is_deceased,
+      birth_place: initialData.birth_place || '',
+      occupation: initialData.occupation || '',
+      biography: initialData.biography || '',
+      remarkable_deeds: initialData.remarkable_deeds || '',
+      is_matrilocal: initialData.is_matrilocal,
+      is_adopted_son: initialData.is_adopted_son,
+    }
+  }, [initialData])
+
   const [form, setForm] = useState<CreateMemberInput>({
     name: '',
     surname: '',
@@ -1914,27 +1937,12 @@ function MemberFormDialog({
 
   // 当 initialData 变化时更新 form
   React.useEffect(() => {
-    if (initialData) {
-      setForm({
-        name: initialData.name || '',
-        surname: initialData.surname || '',
-        gender: initialData.gender || 'male',
-        generation: initialData.generation || undefined,
-        weight: initialData.weight,
-        birth_date: initialData.birth_date,
-        death_date: initialData.death_date,
-        is_deceased: initialData.is_deceased,
-        birth_place: initialData.birth_place || '',
-        occupation: initialData.occupation || '',
-        biography: initialData.biography || '',
-        remarkable_deeds: initialData.remarkable_deeds || '',
-        is_matrilocal: initialData.is_matrilocal,
-        is_adopted_son: initialData.is_adopted_son,
-      })
-      setSurnameManuallySet(!!initialData.surname)
-      setGenerationManuallySet(!!initialData.generation)
+    if (formFromInitialData) {
+      setForm(formFromInitialData)
+      setSurnameManuallySet(!!initialData?.surname)
+      setGenerationManuallySet(!!initialData?.generation)
     }
-  }, [initialData])
+  }, [formFromInitialData, initialData?.surname, initialData?.generation])
 
   // 自动填充姓氏（名字的第一个字）
   React.useEffect(() => {
