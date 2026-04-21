@@ -1670,7 +1670,7 @@ export function TreePage() {
                     <Award className="w-5 h-5 text-amber-600" />
                   </div>
                   <div>
-                    <p className="text-xs text-muted-foreground">权重</p>
+                    <p className="text-xs text-muted-foreground">排序</p>
                     <p className="font-medium text-gray-900">{detailMember.weight ?? '未设置'}</p>
                   </div>
                 </div>
@@ -2084,11 +2084,11 @@ function MemberFormDialog({
             </div>
           </div>
 
-          {/* 权重 */}
+          {/* 排序字段 */}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <label className="text-sm font-medium flex items-center gap-1">
-                权重
+                排序
               </label>
               <Input
                 type="number"
