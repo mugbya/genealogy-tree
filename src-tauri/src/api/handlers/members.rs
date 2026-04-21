@@ -203,6 +203,10 @@ pub struct ImportMemberRow {
     pub 姓氏: Option<String>,
     pub 性别: String,
     #[serde(default)]
+    pub 字辈: Option<String>,
+    #[serde(default)]
+    pub 排序: Option<i32>,
+    #[serde(default)]
     pub 出生日期: Option<String>,
     #[serde(default)]
     pub 逝世日期: Option<String>,
@@ -222,6 +226,10 @@ pub struct ImportMemberRow {
     pub 是否入赘: Option<String>,
     #[serde(default)]
     pub 是否招夫养子: Option<String>,
+    #[serde(default)]
+    pub 生平简介: Option<String>,
+    #[serde(default)]
+    pub 突出事迹: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -303,10 +311,11 @@ pub async fn import_members(
 
         if let Some(id) = existing_id {
             // Update existing
+            let weight_val = row.排序.unwrap_or(0);
             let result = conn.execute(
-                "UPDATE family_members SET surname = ?, gender = ?, birth_date = ?, death_date = ?, is_deceased = ?,
-                 birth_place = ?, occupation = ?, is_matrilocal = ?, is_adopted_son = ? WHERE id = ?",
-                params![row.姓氏, gender, row.出生日期, row.逝世日期, is_deceased, row.籍贯, row.职业, is_matrilocal, is_adopted_son, id],
+                "UPDATE family_members SET surname = ?, gender = ?, generation = ?, weight = ?, birth_date = ?, death_date = ?, is_deceased = ?,
+                 birth_place = ?, occupation = ?, biography = ?, remarkable_deeds = ?, is_matrilocal = ?, is_adopted_son = ? WHERE id = ?",
+                params![row.姓氏, gender, row.字辈, weight_val, row.出生日期, row.逝世日期, is_deceased, row.籍贯, row.职业, row.生平简介, row.突出事迹, is_matrilocal, is_adopted_son, id],
             );
             match result {
                 Ok(_) => updated += 1,
@@ -315,9 +324,9 @@ pub async fn import_members(
         } else {
             // Insert new
             let result = conn.execute(
-                "INSERT INTO family_members (name, surname, gender, birth_date, death_date, is_deceased,
-                 birth_place, occupation, is_matrilocal, is_adopted_son) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                params![name, row.姓氏, gender, row.出生日期, row.逝世日期, is_deceased, row.籍贯, row.职业, is_matrilocal, is_adopted_son],
+                "INSERT INTO family_members (name, surname, gender, generation, weight, birth_date, death_date, is_deceased,
+                 birth_place, occupation, biography, remarkable_deeds, is_matrilocal, is_adopted_son) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                params![name, row.姓氏, gender, row.字辈, row.排序, row.出生日期, row.逝世日期, is_deceased, row.籍贯, row.职业, row.生平简介, row.突出事迹, is_matrilocal, is_adopted_son],
             );
             match result {
                 Ok(_) => {
@@ -381,17 +390,19 @@ pub async fn import_members(
             }
         }
 
-        // Spouse relation (comma-separated)
+        // Spouse relation (comma or Chinese comma separated)
         if let Some(ref spouse_str) = row.配偶 {
-            for spouse_name in spouse_str.split(',') {
-                let spouse_name = spouse_name.trim();
-                if !spouse_name.is_empty() {
-                    if let Some(&spouse_id) = name_to_id.get(spouse_name) {
-                        let _ = conn.execute(
-                            "INSERT OR IGNORE INTO member_relations (from_member_id, to_member_id, relation_type) VALUES (?, ?, ?)",
-                            params![member_id, spouse_id, "spouse"],
-                        );
-                    }
+            // Split by both ',' and '、'
+            let spouses: Vec<&str> = spouse_str.split(|c| c == ',' || c == '、')
+                .map(|s| s.trim())
+                .filter(|s| !s.is_empty())
+                .collect();
+            for spouse_name in spouses {
+                if let Some(&spouse_id) = name_to_id.get(spouse_name) {
+                    let _ = conn.execute(
+                        "INSERT OR IGNORE INTO member_relations (from_member_id, to_member_id, relation_type) VALUES (?, ?, ?)",
+                        params![member_id, spouse_id, "spouse"],
+                    );
                 }
             }
         }
@@ -454,6 +465,8 @@ fn parse_excel(bytes: &[u8]) -> Result<Vec<ImportMemberRow>, String> {
             姓名: map.get("姓名").cloned().unwrap_or_default(),
             姓氏: map.get("姓氏").and_then(|s| if s.is_empty() { None } else { Some(s.clone()) }),
             性别: map.get("性别").cloned().unwrap_or_default(),
+            字辈: map.get("字辈").and_then(|s| if s.is_empty() { None } else { Some(s.clone()) }),
+            排序: map.get("排序").and_then(|s| s.parse::<i32>().ok()),
             出生日期: map.get("出生日期").and_then(|s| if s.is_empty() { None } else { Some(s.clone()) }),
             逝世日期: map.get("逝世日期").and_then(|s| if s.is_empty() { None } else { Some(s.clone()) }),
             是否离世: map.get("是否离世").and_then(|s| if s.is_empty() { None } else { Some(s.clone()) }),
@@ -464,6 +477,8 @@ fn parse_excel(bytes: &[u8]) -> Result<Vec<ImportMemberRow>, String> {
             配偶: map.get("配偶").and_then(|s| if s.is_empty() { None } else { Some(s.clone()) }),
             是否入赘: map.get("是否入赘").and_then(|s| if s.is_empty() { None } else { Some(s.clone()) }),
             是否招夫养子: map.get("是否招夫养子").and_then(|s| if s.is_empty() { None } else { Some(s.clone()) }),
+            生平简介: map.get("生平简介").and_then(|s| if s.is_empty() { None } else { Some(s.clone()) }),
+            突出事迹: map.get("突出事迹").and_then(|s| if s.is_empty() { None } else { Some(s.clone()) }),
         };
 
         rows.push(member);
