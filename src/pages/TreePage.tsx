@@ -718,10 +718,10 @@ export function TreePage() {
             <BookOpen className="w-5 h-5" />
             族谱导航
           </TabsTrigger>
-          <TabsTrigger value="book" className="gap-2 text-base py-3 px-4">
+          {/* <TabsTrigger value="book" className="gap-2 text-base py-3 px-4">
             <BookOpen className="w-5 h-5" />
             传统祖谱
-          </TabsTrigger>
+          </TabsTrigger> */}
         </TabsList>
 
         {/* 族谱信息 */}

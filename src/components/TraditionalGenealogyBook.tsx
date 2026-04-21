@@ -13,14 +13,14 @@ interface TraditionalGenealogyBookProps {
   relations: MemberRelation[]
 }
 
-interface MemberEntry {
-  member: Member
-  generation: number  // 第几代
-  rels: any
+interface FamilyUnit {
+  father?: { id: number; name: string; generation?: string; gender?: string; birth_date?: string; death_date?: string; biography?: string; remarkable_deeds?: string }
+  mother?: { id: number; name: string; tag?: string }
+  children: { id: number; name: string; generation?: string; gender?: string; birth_date?: string; death_date?: string; is_deceased?: boolean }[]
+  generation: number
 }
 
-// 每页显示的条目数
-const ENTRIES_PER_PAGE = 8
+const ENTRIES_PER_PAGE = 6
 
 export function TraditionalGenealogyBook({
   familyName,
@@ -33,20 +33,17 @@ export function TraditionalGenealogyBook({
 }: TraditionalGenealogyBookProps) {
   const [currentPage, setCurrentPage] = useState(1)
 
-  // 获取配置的字辈
   const generationWords = useMemo(() => {
     if (!familyGenerationWords) return []
     return familyGenerationWords.split(',').map(w => w.trim()).filter(Boolean)
   }, [familyGenerationWords])
 
-  // 判断是否是本家族成员（同姓）
   const isOwnFamily = (member: Member) => {
     if (!familySurname) return true
     if (!member.surname) return true
     return member.surname === familySurname
   }
 
-  // 构建成员关系映射
   const memberRelations = useMemo(() => {
     const memberMap = new Map(members.map(m => [m.id, m]))
     const result = new Map<number, {
@@ -120,68 +117,132 @@ export function TraditionalGenealogyBook({
     return result
   }, [members, relations])
 
-  // 构建牒记式条目列表（按世系排序）
-  const diejiEntries = useMemo(() => {
+  // 按家庭分组
+  const familyUnits = useMemo(() => {
     const ownMembers = members.filter(m => isOwnFamily(m))
     const relMap = memberRelations
+    const ownMemberIds = new Set(ownMembers.map(m => m.id))
+    const memberMap = new Map(members.map(m => [m.id, m]))
 
-    // 找到所有根成员（没有父亲或母亲的）
-    const rootCandidates = ownMembers.filter(member => {
-      const rels = relMap.get(member.id)
-      return !rels?.father && !rels?.mother
-    })
+    // 找到所有独立家庭（男性为户主）
+    const maleMembers = ownMembers.filter(m => m.gender === 'male')
+    const processed = new Set<number>()
+    const units: FamilyUnit[] = []
 
-    // 按weight降序排序
-    rootCandidates.sort((a, b) => ((b.weight ?? 0) - (a.weight ?? 0)))
-
-    const entries: MemberEntry[] = []
-
-    // 递归收集成员及其所有后代，generation从1开始
-    const collectDescendants = (memberId: number, generation: number) => {
-      const member = members.find(m => m.id === memberId)
-      if (!member) return
-
+    // 递归获取子女
+    const getChildren = (memberId: number): { id: number; name: string }[] => {
       const rels = relMap.get(memberId)
-      entries.push({ member, generation, rels })
-
-      // 处理子嗣（只处理本家族的）
-      const ownMemberIds = new Set(ownMembers.map(m => m.id))
-      const children = rels?.children?.filter(c => ownMemberIds.has(c.id)) || []
-      children.sort((a, b) => {
-        const ma = members.find(m => m.id === a.id)
-        const mb = members.find(m => m.id === b.id)
+      if (!rels) return []
+      const ownChildren = rels.children.filter(c => ownMemberIds.has(c.id))
+      return ownChildren.sort((a, b) => {
+        const ma = memberMap.get(a.id)
+        const mb = memberMap.get(b.id)
         return ((mb?.weight ?? 0) - (ma?.weight ?? 0))
       })
+    }
 
-      for (const child of children) {
-        collectDescendants(child.id, generation + 1)
+    // 判断代数：从祖先到现在有多少代
+    const getGeneration = (memberId: number): number => {
+      const member = memberMap.get(memberId)
+      // 如果成员有generation字段，直接使用
+      if (member?.generation) {
+        const genNum = parseInt(member.generation, 10)
+        if (!isNaN(genNum) && genNum > 0) return genNum
       }
+
+      // 否则通过祖先链计算
+      const getAncestors = (mid: number, depth: number): number => {
+        const r = relMap.get(mid)
+        if (!r?.father) return depth
+        return getAncestors(r.father.id, depth + 1)
+      }
+
+      return getAncestors(memberId, 1)
     }
 
-    // 从每个根成员开始收集，第一代为1
-    for (const root of rootCandidates) {
-      collectDescendants(root.id, 1)
-    }
+    // 按代数分组男性成员
+    const byGeneration = new Map<number, typeof maleMembers>()
+    maleMembers.forEach(m => {
+      const gen = getGeneration(m.id)
+      if (!byGeneration.has(gen)) byGeneration.set(gen, [])
+      byGeneration.get(gen)!.push(m)
+    })
 
-    return entries
+    // 按代数排序，从最早开始
+    const sortedGens = Array.from(byGeneration.keys()).sort((a, b) => a - b)
+
+    sortedGens.forEach(gen => {
+      const genMembers = byGeneration.get(gen) || []
+      // 按weight排序
+      genMembers.sort((a, b) => ((b.weight ?? 0) - (a.weight ?? 0)))
+
+      genMembers.forEach(male => {
+        if (processed.has(male.id)) return
+
+        const rels = relMap.get(male.id)
+        if (!rels) return
+
+        const children = getChildren(male.id)
+        const firstSpouse = rels.spouses[0]
+
+        const unit: FamilyUnit = {
+          father: {
+            id: male.id,
+            name: male.name,
+            generation: male.generation ?? undefined,
+            gender: male.gender,
+            birth_date: male.birth_date ?? undefined,
+            death_date: male.death_date ?? undefined,
+            biography: male.biography ?? undefined,
+            remarkable_deeds: male.remarkable_deeds ?? undefined
+          },
+          children: children.map(c => {
+            const cm = memberMap.get(c.id)!
+            return {
+              id: c.id,
+              name: c.name,
+              generation: cm.generation ?? undefined,
+              gender: cm.gender,
+              birth_date: cm.birth_date ?? undefined,
+              death_date: cm.death_date ?? undefined,
+              is_deceased: cm.is_deceased
+            }
+          }),
+          generation: gen
+        }
+
+        if (firstSpouse) {
+          const spouseMember = memberMap.get(firstSpouse.id)
+          if (spouseMember) {
+            unit.mother = {
+              id: spouseMember.id,
+              name: spouseMember.name,
+              tag: firstSpouse.tag ?? undefined
+            }
+          }
+        }
+
+        // 标记所有子女已处理
+        children.forEach(c => processed.add(c.id))
+        processed.add(male.id)
+
+        units.push(unit)
+      })
+    })
+
+    return units
   }, [members, relations, isOwnFamily, memberRelations])
 
-  // 分页计算
-  const totalPages = Math.ceil(diejiEntries.length / ENTRIES_PER_PAGE) || 1
-  const paginatedEntries = useMemo(() => {
+  const totalPages = Math.ceil(familyUnits.length / ENTRIES_PER_PAGE) || 1
+  const paginatedUnits = useMemo(() => {
     const start = (currentPage - 1) * ENTRIES_PER_PAGE
-    return diejiEntries.slice(start, start + ENTRIES_PER_PAGE)
-  }, [diejiEntries, currentPage])
+    return familyUnits.slice(start, start + ENTRIES_PER_PAGE)
+  }, [familyUnits, currentPage])
 
-  // 获取辈字标签
-  const getGenerationLabel = (member: Member) => {
-    if (member.generation && generationWords.includes(member.generation)) {
-      return member.generation
-    }
-    if (member.generation) {
-      return member.generation
-    }
-    return ''
+  const getGenerationLabel = (gen?: string) => {
+    if (!gen) return ''
+    if (generationWords.includes(gen)) return gen
+    return gen
   }
 
   const prevPage = () => {
@@ -197,24 +258,21 @@ export function TraditionalGenealogyBook({
   }
 
   const toChineseNum = (num: number): string => {
-    const chineseNums = ['零', '壹', '贰', '叁', '肆', '伍', '陆', '柒', '捌', '玖', '拾']
-    if (num === 0) return '零'
-    if (num <= 10) return chineseNums[num]
+    if (num <= 10) return ['零', '壹', '贰', '叁', '肆', '伍', '陆', '柒', '捌', '玖', '拾'][num]
     if (num < 100) {
       const tens = Math.floor(num / 10)
       const ones = num % 10
-      return chineseNums[tens] + '拾' + (ones > 0 ? chineseNums[ones] : '')
+      return (tens > 1 ? ['零', '壹', '贰', '叁', '肆', '伍', '陆', '柒', '捌', '玖'][tens] + '拾' : '拾') + (ones > 0 ? ['零', '壹', '贰', '叁', '肆', '伍', '陆', '柒', '捌', '玖'][ones] : '')
     }
     return num.toString()
   }
 
   return (
     <div className="h-full flex flex-col bg-zinc-100">
-      {/* 工具栏 */}
       <div className="shrink-0 flex items-center justify-between p-4 border-b bg-white">
         <div>
           <h2 className="text-lg font-semibold text-zinc-900">传统祖谱</h2>
-          <p className="text-sm text-zinc-500">牒记式族谱，文字表述世代关系</p>
+          <p className="text-sm text-zinc-500">牒记式族谱，按家庭分列</p>
         </div>
         <div className="flex gap-2 items-center">
           <div className="flex items-center gap-2 mr-4">
@@ -232,155 +290,114 @@ export function TraditionalGenealogyBook({
         </div>
       </div>
 
-      {/* 祖谱内容 */}
       <div className="flex-1 overflow-auto p-4">
         <div
           className="dieji-book bg-amber-50 w-[210mm] min-h-[297mm] mx-auto shadow-xl border border-amber-300 relative overflow-hidden"
           style={{ padding: '12mm 18mm' }}
         >
-          {/* 装饰边框 */}
           <div className="absolute inset-1 border-2 border-amber-400 pointer-events-none" />
           <div className="absolute inset-[6mm] border border-amber-300 pointer-events-none" />
 
           {/* 标题 */}
           <div className="text-center mb-4 pt-2">
             <h1 className="text-3xl font-bold text-zinc-800 tracking-widest">
-              {familyName || '某某家族'}
-              <span className="text-xl ml-2">牒</span>
+              {familyName || '某某家族'}<span className="text-xl ml-2">牒</span>
             </h1>
             <div className="h-px bg-amber-400 mt-1 mx-auto w-40" />
             <p className="text-xs text-zinc-600 mt-1 tracking-wider">{familyOrigin || '源远流长'}</p>
           </div>
 
-          {/* 牒记式内容 - 每位成员一个条目块 */}
-          <div className="space-y-3">
-            {paginatedEntries.map((entry) => {
-              const { member, generation, rels } = entry
-              const genLabel = getGenerationLabel(member)
-              const spouses = rels?.spouses || []
-              const children = rels?.children || []
+          {/* 家庭单元列表 */}
+          <div className="space-y-4">
+            {paginatedUnits.map((unit, idx) => {
+              const genLabel = getGenerationLabel(unit.father?.generation)
 
               return (
                 <div
-                  key={member.id}
-                  className="dieji-entry border border-amber-200 p-3 bg-white/50 hover:bg-amber-100/30"
+                  key={unit.father?.id || idx}
+                  className="family-unit border border-amber-200 bg-white/60 p-3"
                 >
-                  {/* 序号和名字行 */}
-                  <div className="flex items-baseline mb-1">
-                    <span className="text-amber-600 text-xs mr-2">第{toChineseNum(generation)}代</span>
+                  {/* 第几代 */}
+                  <div className="text-amber-600 text-xs mb-2 font-bold">
+                    第{toChineseNum(unit.generation)}代
+                  </div>
+
+                  {/* 父母行 */}
+                  <div className="flex items-baseline gap-2 mb-2">
                     {genLabel && (
-                      <span className="inline-block px-1 py-0.5 bg-amber-100 text-amber-800 text-xs border border-amber-300 mr-2">
+                      <span className="inline-block px-1 py-0.5 bg-amber-100 text-amber-800 text-xs border border-amber-300">
                         {genLabel}
                       </span>
                     )}
-                    <span className="font-bold text-zinc-800 text-lg">{member.name}</span>
-                    <span className="text-zinc-500 text-xs ml-2">
-                      {member.gender === 'male' ? '男' : '女'}
+                    <span className="font-bold text-zinc-800 text-base">{unit.father?.name}</span>
+                    <span className="text-zinc-500 text-xs">
+                      {unit.father?.gender === 'male' ? '男' : '女'}
                     </span>
-                    {member.is_deceased && (
-                      <span className="text-zinc-400 text-xs ml-2">（殁）</span>
+                    {unit.father?.death_date && (
+                      <span className="text-zinc-400 text-xs">（殁）</span>
+                    )}
+                    {unit.mother && (
+                      <>
+                        <span className="text-zinc-400">配</span>
+                        {unit.mother.tag && (
+                          <span className="text-amber-600 text-xs">{unit.mother.tag}</span>
+                        )}
+                        <span className="text-zinc-700">{unit.mother.name}</span>
+                      </>
                     )}
                   </div>
 
-                  {/* 详细信息 */}
-                  <div className="text-xs text-zinc-600 pl-8 space-y-0.5">
-                    {/* 生卒日期 */}
-                    <div>
-                      <span className="text-zinc-400">生：</span>
-                      {member.birth_date || '不详'}
-                      {member.death_date && (
-                        <>
-                          <span className="text-zinc-400 ml-4">卒：</span>
-                          {member.death_date}
-                        </>
-                      )}
+                  {/* 父母详细信息 */}
+                  <div className="text-xs text-zinc-600 pl-8 mb-2 space-y-0.5">
+                    {unit.father?.birth_date && (
+                      <div>生：{unit.father.birth_date} {unit.father.death_date ? `～ ${unit.father.death_date}` : ''}</div>
+                    )}
+                    {unit.father?.biography && (
+                      <div className="text-zinc-500 italic">{unit.father.biography}</div>
+                    )}
+                    {unit.father?.remarkable_deeds && (
+                      <div className="text-amber-700">功：{unit.father.remarkable_deeds}</div>
+                    )}
+                  </div>
+
+                  {/* 子女行 */}
+                  {unit.children.length > 0 && (
+                    <div className="pl-8 text-sm">
+                      <span className="text-zinc-500 text-xs">子：</span>
+                      {unit.children.map((child, i) => (
+                        <span key={child.id} className="text-zinc-700">
+                          {child.name}
+                          {child.gender === 'male' ? '' : ''}
+                          {child.is_deceased && <span className="text-zinc-400">*</span>}
+                          {i < unit.children.length - 1 ? '、' : ''}
+                        </span>
+                      ))}
                     </div>
-
-                    {/* 配偶 */}
-                    {spouses.length > 0 && (
-                      <div>
-                        <span className="text-zinc-400">配：</span>
-                        {spouses.map((s: { name: string; tag?: string }, i: number) => (
-                          <span key={i}>
-                            {s.tag && <span className="text-amber-600">{s.tag}</span>}
-                            {s.name}
-                            {i < spouses.length - 1 ? '、' : ''}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-
-                    {/* 子女 */}
-                    {children.length > 0 && (
-                      <div>
-                        <span className="text-zinc-400">子：</span>
-                        {children.map((c: { name: string }, i: number) => (
-                          <span key={i}>{c.name}{i < children.length - 1 ? '、' : ''}</span>
-                        ))}
-                      </div>
-                    )}
-
-                    {/* 籍贯 */}
-                    {member.birth_place && (
-                      <div>
-                        <span className="text-zinc-400">籍贯：</span>
-                        {member.birth_place}
-                      </div>
-                    )}
-
-                    {/* 职业 */}
-                    {member.occupation && (
-                      <div>
-                        <span className="text-zinc-400">职业：</span>
-                        {member.occupation}
-                      </div>
-                    )}
-
-                    {/* 生平简介 */}
-                    {member.biography && (
-                      <div className="text-zinc-500 italic">
-                        {member.biography}
-                      </div>
-                    )}
-
-                    {/* 突出事迹 */}
-                    {member.remarkable_deeds && (
-                      <div className="text-amber-700">
-                        <span className="text-zinc-400">功绩：</span>
-                        {member.remarkable_deeds}
-                      </div>
-                    )}
-                  </div>
+                  )}
                 </div>
               )
             })}
-          </div>
 
-          {/* 空白填充 */}
-          {paginatedEntries.length < ENTRIES_PER_PAGE &&
-            Array.from({ length: ENTRIES_PER_PAGE - paginatedEntries.length }).map((_, idx) => (
-              <div key={`empty-${idx}`} className="dieji-entry border border-dashed border-amber-100 p-3 h-24">
-                <div className="text-zinc-100 text-center pt-8">—</div>
-              </div>
-            ))
-          }
+            {/* 空白填充 */}
+            {paginatedUnits.length < ENTRIES_PER_PAGE &&
+              Array.from({ length: ENTRIES_PER_PAGE - paginatedUnits.length }).map((_, idx) => (
+                <div key={`empty-${idx}`} className="family-unit border border-dashed border-amber-100 p-3 h-32">
+                  <div className="text-zinc-100 text-center pt-12">—</div>
+                </div>
+              ))
+            }
+          </div>
 
           {/* 结尾 */}
           <div className="absolute bottom-10 left-0 right-0 text-center">
-            <p className="text-xs text-zinc-500 tracking-wider">
-              {familyMaxim || '传承家族文化  弘扬优良家风'}
-            </p>
-            <p className="text-[10px] text-zinc-400 mt-0.5">
-              共录 {diejiEntries.length} 名族人
-            </p>
+            <p className="text-xs text-zinc-500 tracking-wider">{familyMaxim || '传承家族文化  弘扬优良家风'}</p>
+            <p className="text-[10px] text-zinc-400 mt-0.5">共录 {familyUnits.length} 房</p>
           </div>
 
-          {/* 页码 */}
           <div className="absolute bottom-6 right-8 text-xs text-zinc-400">
             第{toChineseNum(currentPage)}页
           </div>
 
-          {/* 装饰角 */}
           <div className="absolute top-3 left-3 w-6 h-6 border-t border-l border-amber-400" />
           <div className="absolute top-3 right-3 w-6 h-6 border-t border-r border-amber-400" />
           <div className="absolute bottom-3 left-3 w-6 h-6 border-b border-l border-amber-400" />
@@ -388,12 +405,8 @@ export function TraditionalGenealogyBook({
         </div>
       </div>
 
-      {/* 打印样式 */}
       <style>{`
-        @page {
-          size: A4;
-          margin: 0;
-        }
+        @page { size: A4; margin: 0; }
         @media print {
           body { margin: 0; padding: 0; }
           .dieji-book {
@@ -404,9 +417,7 @@ export function TraditionalGenealogyBook({
             padding: 8mm 12mm !important;
             background: white !important;
           }
-          .dieji-entry {
-            page-break-inside: avoid;
-          }
+          .family-unit { page-break-inside: avoid; }
         }
       `}</style>
     </div>
