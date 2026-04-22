@@ -19,13 +19,16 @@ import {
 } from 'lucide-react'
 import { wechatApi } from '@/api/client'
 import { useAuthStore } from '@/stores'
+import { useUpdateChecker } from '@/hooks/useUpdateChecker'
+import { getVersion } from '@tauri-apps/api/app'
 
-type TabType = 'general' | '穿透' | 'platinum'
+type TabType = 'general' | '穿透' | 'platinum' | 'update'
 
 const tabs = [
   { id: 'general' as TabType, label: '通用设置', icon: Settings },
   // { id: '穿透' as TabType, label: '内网穿透', icon: Network },
   // { id: 'platinum' as TabType, label: '白金版', icon: Crown },
+  { id: 'update' as TabType, label: '版本更新', icon: RefreshCw },
 ]
 
 export function SettingsPage() {
@@ -68,6 +71,7 @@ export function SettingsPage() {
         {activeTab === 'general' && <GeneralSettings />}
         {activeTab === '穿透' && <IntranetPenetration />}
         {activeTab === 'platinum' && <PlatinumSettings />}
+        {activeTab === 'update' && <UpdateSettings />}
       </div>
     </div>
   )
@@ -391,6 +395,100 @@ function IntranetPenetration() {
             </div>
           </>
         )}
+      </CardContent>
+    </Card>
+  )
+}
+
+function UpdateSettings() {
+  const { updateInfo, downloading, downloadProgress, checkForUpdates, startUpdate, clearDismissedVersion } = useUpdateChecker()
+  const [currentVersion, setCurrentVersion] = useState('0.0.0')
+
+  useEffect(() => {
+    getVersion().then(version => setCurrentVersion(version)).catch(() => {})
+  }, [])
+
+  return (
+    <Card className="border-0 shadow-sm">
+      <CardHeader>
+        <CardTitle className="text-lg font-semibold flex items-center gap-2">
+          <RefreshCw className="w-5 h-5" />
+          版本更新
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-6 max-w-xl">
+        <div className="p-4 border rounded-lg">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center">
+                <Zap className="w-6 h-6 text-blue-600" />
+              </div>
+              <div>
+                <p className="font-medium text-zinc-900">当前版本</p>
+                <p className="text-sm text-zinc-500">v{currentVersion}</p>
+              </div>
+            </div>
+            <Button
+              variant="outline"
+              className="gap-2"
+              onClick={() => {
+                clearDismissedVersion()
+                checkForUpdates()
+              }}
+              disabled={downloading}
+            >
+              <RefreshCw className="w-4 h-4" />
+              检查更新
+            </Button>
+          </div>
+        </div>
+
+        {updateInfo && !downloading && (
+          <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg space-y-4">
+            <div>
+              <p className="font-medium text-blue-900">发现新版本：v{updateInfo.version}</p>
+              {updateInfo.notes && (
+                <p className="text-sm text-blue-700 mt-2">{updateInfo.notes}</p>
+              )}
+              {updateInfo.pub_date && (
+                <p className="text-xs text-blue-500 mt-1">发布日期：{updateInfo.pub_date}</p>
+              )}
+            </div>
+            <Button
+              className="w-full gap-2 bg-blue-600 hover:bg-blue-700"
+              onClick={startUpdate}
+            >
+              <Download className="w-4 h-4" />
+              立即更新
+            </Button>
+          </div>
+        )}
+
+        {downloading && (
+          <div className="p-4 bg-green-50 border border-green-200 rounded-lg space-y-3">
+            <div className="flex items-center gap-2">
+              <RefreshCw className="w-4 h-4 animate-spin text-green-600" />
+              <p className="font-medium text-green-900">正在下载更新...</p>
+            </div>
+            <div className="w-full bg-green-200 rounded-full h-2">
+              <div
+                className="bg-green-600 h-2 rounded-full transition-all duration-300"
+                style={{ width: `${downloadProgress}%` }}
+              />
+            </div>
+            <p className="text-sm text-green-700 text-center">{downloadProgress.toFixed(1)}%</p>
+          </div>
+        )}
+
+        <div className="p-4 border rounded-lg">
+          <p className="text-sm font-medium text-zinc-700 mb-2">自动更新说明</p>
+          <ul className="text-sm text-zinc-500 space-y-1">
+            <li>• 启动时会自动检查更新</li>
+            <li>• 点击"稍后更新"将跳过本次更新提示</li>
+            <li>• 可随时点击"检查更新"手动检查</li>
+            <li>• 下载完成后将自动安装并重启</li>
+          </ul>
+        </div>
       </CardContent>
     </Card>
   )

@@ -85,6 +85,11 @@ export function useUpdateChecker() {
     setUpdateInfo(null)
   }, [updateInfo])
 
+  // 清除已忽略的版本记录（用于重新提示更新）
+  const clearDismissedVersion = useCallback(() => {
+    localStorage.removeItem(DISMISSED_VERSION_KEY)
+  }, [])
+
   // 应用启动时自动检查更新（只执行一次）
   useEffect(() => {
     checkForUpdates()
@@ -99,5 +104,6 @@ export function useUpdateChecker() {
     checkForUpdates,
     startUpdate,
     dismissUpdate,
+    clearDismissedVersion,
   }
 }
