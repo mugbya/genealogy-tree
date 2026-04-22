@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "genealogy",
-  "version": "0.1.0",
+  "version": "0.0.1",
   "identifier": "com.mugbya.genealogy",
   "build": {
     "beforeDevCommand": "pnpm dev",
@@ -42,9 +42,9 @@
   "plugins": {
     "updater": {
       "endpoints": [
-        "https://your-update-server.com/{{target}}/{{arch}}/{{current_version}}"
+        "https://zupu-1256812051.cos.ap-chengdu.myqcloud.com/updates/latest.json"
       ],
-      "pubkey": "YOUR_PUBLIC_KEY_HERE"
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEI3NkI4MzJCMTk3NTI5QzUKUldURktYVVpLNE5ydDBRa2YrNFlVQkNMK0RFVzlBZ05UcTBFalZkMFI1TnhON2czdEdoM2dpMWQK"
     }
   }
 }
