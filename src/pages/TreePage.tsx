@@ -132,6 +132,7 @@ export function TreePage() {
   const [familyMaxim, setFamilyMaxim] = useState('')
   const [familyGenerationWords, setFamilyGenerationWords] = useState('')
   const [familyConfigSaving, setFamilyConfigSaving] = useState(false)
+  const [familyConfigSaveStatus, setFamilyConfigSaveStatus] = useState<'idle' | 'success' | 'error'>('idle')
 
   // 成员列表分页状态
   const [currentPage, setCurrentPage] = useState(1)
@@ -166,6 +167,7 @@ export function TreePage() {
 
   const saveFamilyConfig = async () => {
     setFamilyConfigSaving(true)
+    setFamilyConfigSaveStatus('idle')
     try {
       await configApi.setBatch([
         { key: 'family_name', value: familyName },
@@ -174,10 +176,12 @@ export function TreePage() {
         { key: 'family_maxim', value: familyMaxim },
         { key: 'family_generation_words', value: familyGenerationWords },
       ])
-      alert('保存成功！')
+      setFamilyConfigSaveStatus('success')
+      setTimeout(() => setFamilyConfigSaveStatus('idle'), 3000)
     } catch (error) {
       console.error('Failed to save family config:', error)
-      alert('保存失败')
+      setFamilyConfigSaveStatus('error')
+      setTimeout(() => setFamilyConfigSaveStatus('idle'), 3000)
     } finally {
       setFamilyConfigSaving(false)
     }
@@ -920,10 +924,15 @@ export function TreePage() {
                 onClick={saveFamilyConfig}
                 disabled={familyConfigSaving}
                 size="lg"
-                className="gap-2 bg-indigo-600 hover:bg-indigo-700 shrink-0"
+                className={cn(
+                  "gap-2 shrink-0",
+                  familyConfigSaveStatus === 'success' && "bg-green-600 hover:bg-green-700",
+                  familyConfigSaveStatus === 'error' && "bg-red-600 hover:bg-red-700",
+                  familyConfigSaveStatus === 'idle' && "bg-indigo-600 hover:bg-indigo-700"
+                )}
               >
                 <Save className="w-4 h-4" />
-                {familyConfigSaving ? '保存中...' : '保存修改'}
+                {familyConfigSaving ? '保存中...' : familyConfigSaveStatus === 'success' ? '保存成功' : familyConfigSaveStatus === 'error' ? '保存失败' : '保存修改'}
               </Button>
             </div>
           </div>
