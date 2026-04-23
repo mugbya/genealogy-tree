@@ -323,10 +323,11 @@ pub async fn import_members(
             }
         } else {
             // Insert new
+            let weight_val = row.排序.unwrap_or(0);
             let result = conn.execute(
                 "INSERT INTO family_members (name, surname, gender, generation, weight, birth_date, death_date, is_deceased,
                  birth_place, occupation, biography, remarkable_deeds, is_matrilocal, is_adopted_son) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                params![name, row.姓氏, gender, row.字辈, row.排序, row.出生日期, row.逝世日期, is_deceased, row.籍贯, row.职业, row.生平简介, row.突出事迹, is_matrilocal, is_adopted_son],
+                params![name, row.姓氏, gender, row.字辈, weight_val, row.出生日期, row.逝世日期, is_deceased, row.籍贯, row.职业, row.生平简介, row.突出事迹, is_matrilocal, is_adopted_son],
             );
             match result {
                 Ok(_) => {
@@ -466,7 +467,7 @@ fn parse_excel(bytes: &[u8]) -> Result<Vec<ImportMemberRow>, String> {
             姓氏: map.get("姓氏").and_then(|s| if s.is_empty() { None } else { Some(s.clone()) }),
             性别: map.get("性别").cloned().unwrap_or_default(),
             字辈: map.get("字辈").and_then(|s| if s.is_empty() { None } else { Some(s.clone()) }),
-            排序: map.get("排序").and_then(|s| s.parse::<i32>().ok()),
+            排序: map.get("排序").and_then(|s| s.parse::<f64>().ok().map(|v| v as i32)),
             出生日期: map.get("出生日期").and_then(|s| if s.is_empty() { None } else { Some(s.clone()) }),
             逝世日期: map.get("逝世日期").and_then(|s| if s.is_empty() { None } else { Some(s.clone()) }),
             是否离世: map.get("是否离世").and_then(|s| if s.is_empty() { None } else { Some(s.clone()) }),
