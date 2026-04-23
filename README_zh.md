@@ -3,7 +3,7 @@
 一款基于 **Tauri 2.0 + React 19 + TypeScript** 构建的跨平台桌面祖谱管理软件。
 
 ![平台](https://img.shields.io/badge/平台-macOS%20%7C%20Windows%20%7C%20Linux-blue)
-![许可证](https://img.shields.io/badge/许可证-MIT-green)
+![许可证](https://img.shields.io/badge/许可证-Apache--2.0-green)
 
 ## 功能特点
 
@@ -147,4 +147,4 @@ http://<您的IP>:8080          # 局域网访问
 
 ## 许可证
 
-MIT 许可证
+Apache License 2.0

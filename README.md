@@ -3,7 +3,7 @@
 A cross-platform desktop application for managing family genealogy and lineage records, built with **Tauri 2.0 + React 19 + TypeScript**.
 
 ![Platform](https://img.shields.io/badge/Platform-macOS%20%7C%20Windows%20%7C%20Linux-blue)
-![License](https://img.shields.io/badge/License-MIT-green)
+![License](https://img.shields.io/badge/License-Apache--2.0-green)
 
 ## Features
 
@@ -155,4 +155,4 @@ http://<your-ip>:8080         # LAN access
 
 ## License
 
-MIT License
+Apache License 2.0
