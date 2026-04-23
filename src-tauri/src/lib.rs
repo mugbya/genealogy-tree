@@ -145,12 +145,42 @@ fn get_download_path() -> String {
         .unwrap_or_else(|| "下载文件夹".to_string())
 }
 
+// 数据库路径信息
+#[derive(Serialize)]
+pub struct DatabasePathInfo {
+    pub path: String,
+    pub os_type: String,  // macos, linux, windows
+}
+
+// 获取数据库存储路径
+#[tauri::command]
+fn get_database_path(app: tauri::AppHandle) -> Result<DatabasePathInfo, String> {
+    let app_data_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    let db_path = app_data_dir.join(".genealogy.db");
+
+    // 判断操作系统类型
+    let os_type = if cfg!(target_os = "macos") {
+        "macos"
+    } else if cfg!(target_os = "linux") {
+        "linux"
+    } else if cfg!(target_os = "windows") {
+        "windows"
+    } else {
+        "unknown"
+    };
+
+    Ok(DatabasePathInfo {
+        path: db_path.to_string_lossy().to_string(),
+        os_type: os_type.to_string(),
+    })
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
-        .invoke_handler(tauri::generate_handler![get_system_info, get_network_interfaces, get_download_path])
+        .invoke_handler(tauri::generate_handler![get_system_info, get_network_interfaces, get_download_path, get_database_path])
         .setup(|app| {
             // 获取应用数据目录，使用绝对路径初始化数据库
             let app_data_dir = app.path().app_data_dir().expect("Failed to get app data dir");

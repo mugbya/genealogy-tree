@@ -16,11 +16,20 @@ import {
   Download,
   QrCode,
   Check,
+  HardDrive,
+  Copy,
 } from 'lucide-react'
 import { wechatApi } from '@/api/client'
 import { useAuthStore } from '@/stores'
 import { useUpdateChecker } from '@/hooks/useUpdateChecker'
 import { getVersion } from '@tauri-apps/api/app'
+import { invoke } from '@tauri-apps/api/core'
+
+// 数据库路径信息
+interface DatabasePathInfo {
+  path: string
+  os_type: string  // macos, linux, windows
+}
 
 type TabType = 'general' | '穿透' | 'platinum' | 'update'
 
@@ -82,6 +91,38 @@ function GeneralSettings() {
   const [httpPort, setHttpPort] = useState('8080')
   const [httpsPort, setHttpsPort] = useState('8443')
   const [isSaving, setIsSaving] = useState(false)
+  const [dbPathInfo, setDbPathInfo] = useState<DatabasePathInfo | null>(null)
+  const [copied, setCopied] = useState(false)
+
+  // 获取数据库路径
+  useEffect(() => {
+    const fetchDbPath = async () => {
+      try {
+        const info = await invoke<DatabasePathInfo>('get_database_path')
+        setDbPathInfo(info)
+      } catch (err) {
+        console.error('获取数据库路径失败:', err)
+      }
+    }
+    fetchDbPath()
+  }, [])
+
+  // 复制路径到剪贴板
+  const copyToClipboard = async (text: string) => {
+    await navigator.clipboard.writeText(text)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  // 获取操作系统显示名称
+  const getOsDisplayName = (osType: string) => {
+    switch (osType) {
+      case 'macos': return 'macOS'
+      case 'linux': return 'Linux'
+      case 'windows': return 'Windows'
+      default: return osType
+    }
+  }
 
   const handleSave = async () => {
     setIsSaving(true)
@@ -103,7 +144,7 @@ function GeneralSettings() {
           通用设置
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-8 max-w-xl">
+      <CardContent className="space-y-8 max-w-4xl">
         {/* 开机启动 */}
         <div className="space-y-4">
           <h3 className="text-sm font-medium text-zinc-700">系统设置</h3>
@@ -129,6 +170,46 @@ function GeneralSettings() {
                 }`}
               />
             </button>
+          </div>
+        </div>
+
+        {/* 数据库存储路径 */}
+        <div className="space-y-4">
+          <h3 className="text-sm font-medium text-zinc-700">数据存储</h3>
+          <div className="p-4 border rounded-lg">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center shrink-0">
+                <HardDrive className="w-5 h-5 text-blue-600" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-1">
+                  <p className="font-medium">本地数据库路径</p>
+                  {dbPathInfo && (
+                    <Badge variant="outline" className="text-xs">
+                      {getOsDisplayName(dbPathInfo.os_type)}
+                    </Badge>
+                  )}
+                </div>
+                {dbPathInfo ? (
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm text-zinc-500 break-all">{dbPathInfo.path}</p>
+                    <button
+                      onClick={() => copyToClipboard(dbPathInfo.path)}
+                      className="shrink-0 p-1.5 rounded-lg hover:bg-zinc-100 transition-colors"
+                      title="复制路径"
+                    >
+                      {copied ? (
+                        <Check className="w-4 h-4 text-green-600" />
+                      ) : (
+                        <Copy className="w-4 h-4 text-zinc-400" />
+                      )}
+                    </button>
+                  </div>
+                ) : (
+                  <p className="text-sm text-zinc-400">加载中...</p>
+                )}
+              </div>
+            </div>
           </div>
         </div>
 
