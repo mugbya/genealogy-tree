@@ -158,6 +158,11 @@ pub fn run() {
             let wechat_store = Arc::new(Mutex::new(api::WechatLoginStore::default()));
             let http_wechat_store = wechat_store.clone();
 
+            // 启动使用情况上报定时器
+            let report_db = db.clone();
+            eprintln!("[genealogy] Starting usage report timer...");
+            api::start_report_timer(report_db);
+
             // 获取 dist 目录路径（在 spawn 线程之前）
             let dist_path = if cfg!(debug_assertions) {
                 // Debug 模式：从项目根目录的 dist

@@ -1447,6 +1447,35 @@ dependencies = [
 ]
 
 [[package]]
+name = "genealogy"
+version = "0.1.1"
+dependencies = [
+ "argon2",
+ "axum",
+ "base64 0.21.7",
+ "calamine",
+ "chrono",
+ "if-addrs",
+ "jsonwebtoken",
+ "mime",
+ "rand 0.8.5",
+ "reqwest 0.12.28",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "sysinfo",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-opener",
+ "tauri-plugin-updater",
+ "tokio",
+ "tower 0.4.13",
+ "tower-http 0.5.2",
+ "urlencoding",
+ "uuid",
+]
+
+[[package]]
 name = "generic-array"
 version = "0.14.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6543,33 +6572,4 @@ dependencies = [
  "serde",
  "syn 2.0.117",
  "winnow 0.7.15",
-]
-
-[[package]]
-name = "祖谱软件"
-version = "0.1.1"
-dependencies = [
- "argon2",
- "axum",
- "base64 0.21.7",
- "calamine",
- "chrono",
- "if-addrs",
- "jsonwebtoken",
- "mime",
- "rand 0.8.5",
- "reqwest 0.12.28",
- "rusqlite",
- "serde",
- "serde_json",
- "sysinfo",
- "tauri",
- "tauri-build",
- "tauri-plugin-opener",
- "tauri-plugin-updater",
- "tokio",
- "tower 0.4.13",
- "tower-http 0.5.2",
- "urlencoding",
- "uuid",
 ]

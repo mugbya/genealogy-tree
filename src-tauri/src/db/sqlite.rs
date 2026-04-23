@@ -199,5 +199,16 @@ pub fn init_database(db_path: &Path) -> Result<Connection> {
     // 清理过期的 revoked tokens（启动时清理）
     let _ = conn.execute("DELETE FROM revoked_tokens WHERE expires_at < datetime('now')", []);
 
+    // 积压上报表
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS pending_reports (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            report_data TEXT NOT NULL,
+            report_date TEXT NOT NULL,
+            created_at INTEGER NOT NULL
+        )",
+        [],
+    )?;
+
     Ok(conn)
 }
