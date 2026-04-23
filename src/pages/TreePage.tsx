@@ -806,137 +806,225 @@ export function TreePage() {
         {/* 祖谱信息 */}
         <TabsContent value="info" className="flex-1 min-h-0 mt-4">
           <div className="space-y-6">
-            {/* 第一行：姓氏 + 名称 */}
-            <div className="grid grid-cols-2 gap-6">
-              <Card className="border-0 shadow-sm">
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <span className="w-7 h-7 rounded-lg bg-indigo-50 flex items-center justify-center">
-                      <span className="text-indigo-600 font-bold text-sm">姓</span>
-                    </span>
-                    家族姓氏
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <Input
-                    value={familySurname}
-                    onChange={(e) => setFamilySurname(e.target.value)}
-                    placeholder="如：贾、王、张"
-                    className="h-10"
-                  />
-                  <p className="text-xs text-muted-foreground mt-2">
-                    祖谱树会根据姓氏判断本家与外姓
-                  </p>
-                </CardContent>
-              </Card>
+            {isAdmin ? (
+              /* 管理员编辑模式 */
+              <>
+                {/* 第一行：姓氏 + 名称 */}
+                <div className="grid grid-cols-2 gap-6">
+                  <Card className="border-0 shadow-sm">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base flex items-center gap-2">
+                        <span className="w-7 h-7 rounded-lg bg-indigo-50 flex items-center justify-center">
+                          <span className="text-indigo-600 font-bold text-sm">姓</span>
+                        </span>
+                        家族姓氏
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <Input
+                        value={familySurname}
+                        onChange={(e) => setFamilySurname(e.target.value)}
+                        placeholder="如：贾、王、张"
+                        className="h-10"
+                      />
+                      <p className="text-xs text-muted-foreground mt-2">
+                        祖谱树会根据姓氏判断本家与外姓
+                      </p>
+                    </CardContent>
+                  </Card>
 
-              <Card className="border-0 shadow-sm">
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <span className="w-7 h-7 rounded-lg bg-amber-50 flex items-center justify-center">
-                      <span className="text-amber-600 font-bold text-sm">名</span>
-                    </span>
-                    家族名称
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <Input
-                    value={familyName}
-                    onChange={(e) => setFamilyName(e.target.value)}
-                    placeholder="如：红楼梦贾府"
-                    className="h-10"
-                  />
-                </CardContent>
-              </Card>
-            </div>
+                  <Card className="border-0 shadow-sm">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base flex items-center gap-2">
+                        <span className="w-7 h-7 rounded-lg bg-amber-50 flex items-center justify-center">
+                          <span className="text-amber-600 font-bold text-sm">名</span>
+                        </span>
+                        家族名称
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <Input
+                        value={familyName}
+                        onChange={(e) => setFamilyName(e.target.value)}
+                        placeholder="如：红楼梦贾府"
+                        className="h-10"
+                      />
+                    </CardContent>
+                  </Card>
+                </div>
 
-            {/* 第二行：祖训 + 辈字列表 */}
-            <div className="grid grid-cols-2 gap-6">
-              <Card className="border-0 shadow-sm">
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <span className="w-7 h-7 rounded-lg bg-rose-50 flex items-center justify-center">
-                      <span className="text-rose-600 font-bold text-sm">训</span>
-                    </span>
-                    祖训
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <textarea
-                    value={familyMaxim}
-                    onChange={(e) => setFamilyMaxim(e.target.value)}
-                    placeholder="记录家族的规矩、训诫文字，如：尊祖敬宗、孝顺父母、和睦乡邻"
-                    className="w-full h-28 px-3 py-2 text-sm border border-zinc-200 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-zinc-400"
-                  />
-                </CardContent>
-              </Card>
+                {/* 第二行：祖训 + 辈字列表 */}
+                <div className="grid grid-cols-2 gap-6">
+                  <Card className="border-0 shadow-sm">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base flex items-center gap-2">
+                        <span className="w-7 h-7 rounded-lg bg-rose-50 flex items-center justify-center">
+                          <span className="text-rose-600 font-bold text-sm">训</span>
+                        </span>
+                        祖训
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <textarea
+                        value={familyMaxim}
+                        onChange={(e) => setFamilyMaxim(e.target.value)}
+                        placeholder="记录家族的规矩、训诫文字，如：尊祖敬宗、孝顺父母、和睦乡邻"
+                        className="w-full h-28 px-3 py-2 text-sm border border-zinc-200 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-zinc-400"
+                      />
+                    </CardContent>
+                  </Card>
 
-              <Card className="border-0 shadow-sm">
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <span className="w-7 h-7 rounded-lg bg-violet-50 flex items-center justify-center">
-                      <span className="text-violet-600 font-bold text-sm">辈</span>
-                    </span>
-                    辈字列表
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <textarea
-                    value={familyGenerationWords}
-                    onChange={(e) => setFamilyGenerationWords(e.target.value)}
-                    placeholder="家族成员取名用的字辈序列，如：仁,义,礼,智,信"
-                    className="w-full h-28 px-3 py-2 text-sm border border-zinc-200 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-zinc-400"
-                  />
-                </CardContent>
-              </Card>
-            </div>
+                  <Card className="border-0 shadow-sm">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base flex items-center gap-2">
+                        <span className="w-7 h-7 rounded-lg bg-violet-50 flex items-center justify-center">
+                          <span className="text-violet-600 font-bold text-sm">辈</span>
+                        </span>
+                        辈字列表
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <textarea
+                        value={familyGenerationWords}
+                        onChange={(e) => setFamilyGenerationWords(e.target.value)}
+                        placeholder="家族成员取名用的字辈序列，如：仁,义,礼,智,信"
+                        className="w-full h-28 px-3 py-2 text-sm border border-zinc-200 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-zinc-400"
+                      />
+                    </CardContent>
+                  </Card>
+                </div>
 
-            {/* 第三行：家族来源 */}
-            <Card className="border-0 shadow-sm">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <span className="w-7 h-7 rounded-lg bg-emerald-50 flex items-center justify-center">
-                    <span className="text-emerald-600 font-bold text-sm">源</span>
-                  </span>
-                  家族来源
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <textarea
-                  value={familyOrigin}
-                  onChange={(e) => setFamilyOrigin(e.target.value)}
-                  placeholder="记录家族的起源或迁移历史，如：京城、江南金陵"
-                  className="w-full h-20 px-3 py-2 text-sm border border-zinc-200 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-zinc-400"
-                />
-              </CardContent>
-            </Card>
+                {/* 第三行：家族来源 */}
+                <Card className="border-0 shadow-sm">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <span className="w-7 h-7 rounded-lg bg-emerald-50 flex items-center justify-center">
+                        <span className="text-emerald-600 font-bold text-sm">源</span>
+                      </span>
+                      家族来源
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <textarea
+                      value={familyOrigin}
+                      onChange={(e) => setFamilyOrigin(e.target.value)}
+                      placeholder="记录家族的起源或迁移历史，如：京城、江南金陵"
+                      className="w-full h-20 px-3 py-2 text-sm border border-zinc-200 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-zinc-400"
+                    />
+                  </CardContent>
+                </Card>
 
-            {/* 第四行：说明 + 保存按钮 */}
-            <div className="flex items-start gap-6">
-              <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 w-1/2">
-                <h3 className="font-medium text-amber-800 mb-2">设置说明</h3>
-                <ul className="text-sm text-amber-700 space-y-1">
-                  <li>• <strong>家族姓氏</strong>：用于判断本家与外姓，是祖谱树正确展示的关键</li>
-                  <li>• <strong>同姓本家</strong>：如贾姓成员，将作为祖谱树上的节点展示</li>
-                  <li>• <strong>外姓配偶</strong>：如王氏，将显示在连接线上</li>
-                </ul>
-              </div>
+                {/* 第四行：说明 + 保存按钮 */}
+                <div className="flex items-start gap-6">
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 w-1/2">
+                    <h3 className="font-medium text-amber-800 mb-2">设置说明</h3>
+                    <ul className="text-sm text-amber-700 space-y-1">
+                      <li>• <strong>家族姓氏</strong>：用于判断本家与外姓，是祖谱树正确展示的关键</li>
+                      <li>• <strong>同姓本家</strong>：如贾姓成员，将作为祖谱树上的节点展示</li>
+                      <li>• <strong>外姓配偶</strong>：如王氏，将显示在连接线上</li>
+                    </ul>
+                  </div>
 
-              <Button
-                onClick={saveFamilyConfig}
-                disabled={familyConfigSaving}
-                size="lg"
-                className={cn(
-                  "gap-2 shrink-0",
-                  familyConfigSaveStatus === 'success' && "bg-green-600 hover:bg-green-700",
-                  familyConfigSaveStatus === 'error' && "bg-red-600 hover:bg-red-700",
-                  familyConfigSaveStatus === 'idle' && "bg-indigo-600 hover:bg-indigo-700"
-                )}
-              >
-                <Save className="w-4 h-4" />
-                {familyConfigSaving ? '保存中...' : familyConfigSaveStatus === 'success' ? '保存成功' : familyConfigSaveStatus === 'error' ? '保存失败' : '保存修改'}
-              </Button>
-            </div>
+                  <Button
+                    onClick={saveFamilyConfig}
+                    disabled={familyConfigSaving}
+                    size="lg"
+                    className={cn(
+                      "gap-2 shrink-0",
+                      familyConfigSaveStatus === 'success' && "bg-green-600 hover:bg-green-700",
+                      familyConfigSaveStatus === 'error' && "bg-red-600 hover:bg-red-700",
+                      familyConfigSaveStatus === 'idle' && "bg-indigo-600 hover:bg-indigo-700"
+                    )}
+                  >
+                    <Save className="w-4 h-4" />
+                    {familyConfigSaving ? '保存中...' : familyConfigSaveStatus === 'success' ? '保存成功' : familyConfigSaveStatus === 'error' ? '保存失败' : '保存修改'}
+                  </Button>
+                </div>
+              </>
+            ) : (
+              /* 普通用户查看模式 */
+              <>
+                {/* 第一行：姓氏 + 名称 */}
+                <div className="grid grid-cols-2 gap-6">
+                  <Card className="border-0 shadow-sm">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base flex items-center gap-2">
+                        <span className="w-7 h-7 rounded-lg bg-indigo-50 flex items-center justify-center">
+                          <span className="text-indigo-600 font-bold text-sm">姓</span>
+                        </span>
+                        家族姓氏
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-lg font-medium">{familySurname || '未设置'}</p>
+                      <p className="text-xs text-muted-foreground mt-2">
+                        祖谱树会根据姓氏判断本家与外姓
+                      </p>
+                    </CardContent>
+                  </Card>
+
+                  <Card className="border-0 shadow-sm">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base flex items-center gap-2">
+                        <span className="w-7 h-7 rounded-lg bg-amber-50 flex items-center justify-center">
+                          <span className="text-amber-600 font-bold text-sm">名</span>
+                        </span>
+                        家族名称
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-lg font-medium">{familyName || '未设置'}</p>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* 第二行：祖训 + 辈字列表 */}
+                <div className="grid grid-cols-2 gap-6">
+                  <Card className="border-0 shadow-sm">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base flex items-center gap-2">
+                        <span className="w-7 h-7 rounded-lg bg-rose-50 flex items-center justify-center">
+                          <span className="text-rose-600 font-bold text-sm">训</span>
+                        </span>
+                        祖训
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-sm whitespace-pre-wrap">{familyMaxim || '暂无祖训记录'}</p>
+                    </CardContent>
+                  </Card>
+
+                  <Card className="border-0 shadow-sm">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base flex items-center gap-2">
+                        <span className="w-7 h-7 rounded-lg bg-violet-50 flex items-center justify-center">
+                          <span className="text-violet-600 font-bold text-sm">辈</span>
+                        </span>
+                        辈字列表
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-sm whitespace-pre-wrap">{familyGenerationWords || '暂无辈字列表'}</p>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* 第三行：家族来源 */}
+                <Card className="border-0 shadow-sm">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <span className="w-7 h-7 rounded-lg bg-emerald-50 flex items-center justify-center">
+                        <span className="text-emerald-600 font-bold text-sm">源</span>
+                      </span>
+                      家族来源
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-sm whitespace-pre-wrap">{familyOrigin || '暂无家族来源记录'}</p>
+                  </CardContent>
+                </Card>
+              </>
+            )}
           </div>
         </TabsContent>
 
@@ -1449,18 +1537,20 @@ export function TreePage() {
                   标签管理
                   <Badge variant="outline">{tags.length}</Badge>
                 </CardTitle>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={async () => {
-                    await loadTags()
-                    setIsCreateTagOpen(true)
-                  }}
-                  className="gap-1"
-                >
-                  <Plus className="w-3 h-3" />
-                  创建标签
-                </Button>
+                {isAdmin && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={async () => {
+                      await loadTags()
+                      setIsCreateTagOpen(true)
+                    }}
+                    className="gap-1"
+                  >
+                    <Plus className="w-3 h-3" />
+                    创建标签
+                  </Button>
+                )}
               </div>
             </CardHeader>
             <CardContent>
@@ -1493,23 +1583,25 @@ export function TreePage() {
                             >
                               {tag.name}
                             </span>
-                            <button
-                              onClick={() => {
-                                setTagToDelete(tag)
-                                setIsDeleteTagOpen(true)
-                              }}
-                              className="ml-1 p-1 rounded hover:bg-black/10 transition-colors"
-                              style={{ color: tag.color }}
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
+                            {isAdmin && (
+                              <button
+                                onClick={() => {
+                                  setTagToDelete(tag)
+                                  setIsDeleteTagOpen(true)
+                                }}
+                                className="ml-1 p-1 rounded hover:bg-black/10 transition-colors"
+                                style={{ color: tag.color }}
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
                           </div>
                         ))}
                       </div>
                     </div>
                   )
                 })}
-                {tags.length === 0 && (
+                {tags.length === 0 && isAdmin && (
                   <div className="flex flex-col items-center justify-center py-16 text-center">
                     <div className="w-16 h-16 rounded-full bg-zinc-100 flex items-center justify-center mb-4">
                       <TagIcon className="w-8 h-8 text-zinc-400" />
@@ -1554,6 +1646,7 @@ export function TreePage() {
         onToggleSpouseTag={toggleSpouseTag}
         onRemoveSpouse={removeSpouse}
         onCreateTag={() => setIsCreateTagOpen(true)}
+        isAdmin={isAdmin}
       />
 
       {/* Edit Member Dialog */}
@@ -1583,6 +1676,7 @@ export function TreePage() {
         onToggleSpouseTag={toggleSpouseTag}
         onRemoveSpouse={removeSpouse}
         onCreateTag={() => setIsCreateTagOpen(true)}
+        isAdmin={isAdmin}
       />
 
       {/* Create Tag Dialog */}
@@ -1999,6 +2093,7 @@ interface MemberFormDialogProps {
   onToggleSpouseTag: (spouseId: number, tagId: number) => void
   onRemoveSpouse: (spouseId: number) => void
   onCreateTag: () => void
+  isAdmin?: boolean
 }
 
 function MemberFormDialog({
@@ -2022,6 +2117,7 @@ function MemberFormDialog({
   onToggleSpouseTag,
   onRemoveSpouse,
   onCreateTag,
+  isAdmin,
 }: MemberFormDialogProps) {
   // 使用 useMemo 从 initialData 派生表单值
   const formFromInitialData = useMemo(() => {
@@ -2410,7 +2506,7 @@ function MemberFormDialog({
                             </button>
                           ))}
                         </div>
-                      ) : (
+                      ) : isAdmin && (
                         <button
                           type="button"
                           onClick={onCreateTag}
@@ -2452,14 +2548,16 @@ function MemberFormDialog({
                 <TagIcon className="w-3.5 h-3.5" />
                 个人标签
               </label>
-              <button
-                type="button"
-                onClick={onCreateTag}
-                className="text-xs text-indigo-600 hover:text-indigo-700 flex items-center gap-1"
-              >
-                <Plus className="w-3 h-3" />
-                创建新标签
-              </button>
+              {isAdmin && (
+                <button
+                  type="button"
+                  onClick={onCreateTag}
+                  className="text-xs text-indigo-600 hover:text-indigo-700 flex items-center gap-1"
+                >
+                  <Plus className="w-3 h-3" />
+                  创建新标签
+                </button>
+              )}
             </div>
             <div className="space-y-3">
               {TAG_TYPES.filter(t => ['parent_child', 'sibling', 'special'].includes(t.value)).map(tagType => {
