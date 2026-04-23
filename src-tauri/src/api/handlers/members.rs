@@ -34,9 +34,11 @@ fn extract_user_info(headers: &HeaderMap) -> Result<(i64, String, Option<i64>), 
 }
 
 /// 检查当前用户是否有权限编辑/删除指定成员
-/// 普通用户只能编辑/删除自己及其直属上3代和下3代的成员
+/// - Admin: 可以编辑所有成员
+/// - 普通用户(未绑定成员): 不能编辑任何成员
+/// - 普通用户(已绑定成员): 只能编辑自己绑定的那个成员
 fn can_edit_member(
-    conn: &rusqlite::Connection,
+    _conn: &rusqlite::Connection,
     _current_user_id: i64,
     current_user_role: &str,
     current_user_member_id: Option<i64>,
@@ -55,28 +57,13 @@ fn can_edit_member(
 
     // 没有关联成员ID的用户不能编辑任何成员
     let Some(my_member_id) = current_user_member_id else {
-        eprintln!("[PERMISSION] Result: DENY (no member_id)");
+        eprintln!("[PERMISSION] Result: DENY (no member_id bound)");
         return false;
     };
 
-    // 不能编辑自己（这个应该在前端就限制）
-    if my_member_id == target_member_id {
-        eprintln!("[PERMISSION] Result: ALLOW (self)");
-        return true;
-    }
-
-    // 检查是否在3代以内（包括祖先和后代）
-    let ancestors = get_ancestors(conn, my_member_id, 3);
-    let descendants = get_descendants(conn, my_member_id, 3);
-
-    eprintln!("[PERMISSION]   my_member_id: {}", my_member_id);
-    eprintln!("[PERMISSION]   ancestors (3 gens up): {:?}", ancestors);
-    eprintln!("[PERMISSION]   descendants (3 gens down): {:?}", descendants);
-    eprintln!("[PERMISSION]   target in ancestors: {}", ancestors.contains(&target_member_id));
-    eprintln!("[PERMISSION]   target in descendants: {}", descendants.contains(&target_member_id));
-
-    let result = ancestors.contains(&target_member_id) || descendants.contains(&target_member_id);
-    eprintln!("[PERMISSION] Result: {}", if result { "ALLOW" } else { "DENY" });
+    // 只能编辑自己绑定的成员
+    let result = my_member_id == target_member_id;
+    eprintln!("[PERMISSION] Result: {}", if result { "ALLOW (self)" } else { "DENY" });
     result
 }
 
@@ -938,19 +925,9 @@ pub async fn get_editable_member_ids(
 
     eprintln!("[EDITABLE_IDS] user_member_id: {:?}", user_member_id);
 
-    // 没有关联成员ID的用户不能编辑任何成员
-    let Some(my_member_id) = user_member_id else {
-        return (StatusCode::OK, Json(json!({ "data": Vec::<i64>::new() })));
-    };
-
-    // 可编辑的成员：自己 + 祖先(3代) + 后代(3代)
-    let mut editable_ids = vec![my_member_id];
-
-    let ancestors = get_ancestors(&conn, my_member_id, 3);
-    let descendants = get_descendants(&conn, my_member_id, 3);
-
-    editable_ids.extend(ancestors);
-    editable_ids.extend(descendants);
+    // 普通用户只能编辑自己绑定的成员
+    let editable_ids: Vec<i64> = user_member_id.map(|id| vec![id])
+        .unwrap_or_default();
 
     eprintln!("[EDITABLE_IDS] editable_ids: {:?}", editable_ids);
 

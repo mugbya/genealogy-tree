@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react'
 import { invoke } from "@tauri-apps/api/core";
 import { useMembers, useCreateMember, useUpdateMember, useDeleteMember, useMemberRelations, useCreateMemberRelation, useDeleteMemberRelation, useEditableMemberIds } from '@/hooks/useMembers'
+import { useAuthStore } from '@/stores'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -74,6 +75,7 @@ export function TreePage() {
   const { data: relationsData } = useMemberRelations()
   const { data: editableIdsData } = useEditableMemberIds()
   const editableMemberIds = editableIdsData?.data || []
+  const { isAdmin } = useAuthStore()
   const createMember = useCreateMember()
   const updateMember = useUpdateMember()
   const deleteMember = useDeleteMember()
@@ -951,40 +953,45 @@ export function TreePage() {
                     <Badge variant="outline">共 {filteredMembers.length} 条</Badge>
                   </CardTitle>
                   <div className="flex gap-2 mt-2">
-                    <Button
-                      size="sm"
-                      onClick={handleOpenCreate}
-                      className="gap-1 bg-gray-900 hover:bg-gray-800"
-                    >
-                      <Plus className="w-3 h-3" />
-                      新增
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => fileInputRef.current?.click()}
-                      disabled={isImporting}
-                      className="gap-1"
-                    >
-                      <Upload className="w-3 h-3" />
-                      {isImporting ? '导入中...' : '导入'}
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={handleDownloadTemplate}
-                      className="gap-1"
-                    >
-                      <Download className="w-3 h-3" />
-                      {downloadSuccess ? (
-                        <span className="flex flex-col items-start">
-                          <span>已下载</span>
-                          {downloadPath && isDesktop && (
-                            <span className="text-[10px] text-muted-foreground font-normal">{downloadPath}</span>
-                          )}
-                        </span>
-                      ) : '模板'}
-                    </Button>
+                    {isAdmin && (
+                      <>
+                        <Button
+                          size="sm"
+                          onClick={handleOpenCreate}
+                          className="gap-1 bg-gray-900 hover:bg-gray-800"
+                        >
+                          <Plus className="w-3 h-3" />
+                          新增
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => fileInputRef.current?.click()}
+                          disabled={isImporting}
+                          className="gap-1"
+                        >
+                          <Upload className="w-3 h-3" />
+                          {isImporting ? '导入中...' : '导入'}
+                        </Button>
+                        <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={handleDownloadTemplate}
+                            className="gap-1"
+                          >
+                            <Download className="w-3 h-3" />
+                            {downloadSuccess ? (
+                              <span className="flex flex-col items-start">
+                                <span>已下载</span>
+                                {downloadPath && isDesktop && (
+                                  <span className="text-[10px] text-muted-foreground font-normal">{downloadPath}</span>
+                                )}
+                              </span>
+                            ) : '模板'}
+                        </Button>
+                      </>
+                    )}
+                    
                   </div>
                   <input
                     type="file"
