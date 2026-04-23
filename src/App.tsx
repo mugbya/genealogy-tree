@@ -41,7 +41,14 @@ function App() {
           >
             <Route path="/" element={<HomePage />} />
             <Route path="/tree" element={<TreePage />} />
-            <Route path="/config" element={<SettingsPage />} />
+            <Route
+              path="/config"
+              element={
+                <AdminRoute>
+                  <SettingsPage />
+                </AdminRoute>
+              }
+            />
             <Route path="/security" element={<SecurityPage />} />
             <Route
               path="/users"
