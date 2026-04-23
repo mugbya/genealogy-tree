@@ -662,6 +662,7 @@ export function TreePage() {
       }
 
       const result = await membersApi.import(base64)
+      console.log('Import result:', result)
       if (result.error) {
         alert('导入失败: ' + result.error)
       } else if (result.data) {

@@ -249,19 +249,39 @@ pub async fn import_members(
     };
 
     // Decode base64 to bytes
+    eprintln!("[import] Starting import, file_content length: {}", data.file_content.len());
     let bytes = match STANDARD.decode(&data.file_content) {
         Ok(b) => b,
-        Err(e) => return (StatusCode::BAD_REQUEST, Json(json!({ "error": format!("Failed to decode file: {}", e) }))),
+        Err(e) => {
+            eprintln!("[import] Failed to decode base64: {}", e);
+            return (StatusCode::BAD_REQUEST, Json(json!({ "error": format!("Failed to decode file: {}", e) })));
+        }
     };
+    eprintln!("[import] Decoded {} bytes", bytes.len());
 
-    // Parse Excel
-    let rows = match parse_excel(&bytes) {
-        Ok(r) => r,
-        Err(e) => return (StatusCode::BAD_REQUEST, Json(json!({ "error": format!("Failed to parse Excel: {}", e) }))),
+    // Check if it's CSV or Excel
+    eprintln!("[import] is_csv_content: {}", is_csv_content(&bytes));
+    let rows = if is_csv_content(&bytes) {
+        // Try to parse as CSV
+        let content = match String::from_utf8(bytes.clone()) {
+            Ok(c) => c,
+            Err(e) => return (StatusCode::BAD_REQUEST, Json(json!({ "error": format!("Failed to read file as text: {}", e) }))),
+        };
+        match parse_csv(&content) {
+            Ok(r) => r,
+            Err(e) => return (StatusCode::BAD_REQUEST, Json(json!({ "error": format!("Failed to parse CSV: {}", e) }))),
+        }
+    } else {
+        // Parse as Excel
+        match parse_excel(&bytes) {
+            Ok(r) => r,
+            Err(e) => return (StatusCode::BAD_REQUEST, Json(json!({ "error": format!("Failed to parse Excel: {}", e) }))),
+        }
     };
+    eprintln!("[import] Parsed {} rows", rows.len());
 
     if rows.is_empty() {
-        return (StatusCode::BAD_REQUEST, Json(json!({ "error": "No data found in Excel file" })));
+        return (StatusCode::BAD_REQUEST, Json(json!({ "error": "No data found in file" })));
     }
 
     let mut imported = 0;
@@ -462,30 +482,124 @@ fn parse_excel(bytes: &[u8]) -> Result<Vec<ImportMemberRow>, String> {
             }
         }
 
-        let member = ImportMemberRow {
-            姓名: map.get("姓名").cloned().unwrap_or_default(),
-            姓氏: map.get("姓氏").and_then(|s| if s.is_empty() { None } else { Some(s.clone()) }),
-            性别: map.get("性别").cloned().unwrap_or_default(),
-            字辈: map.get("字辈").and_then(|s| if s.is_empty() { None } else { Some(s.clone()) }),
-            排序: map.get("排序").and_then(|s| s.parse::<f64>().ok().map(|v| v as i32)),
-            出生日期: map.get("出生日期").and_then(|s| if s.is_empty() { None } else { Some(s.clone()) }),
-            逝世日期: map.get("逝世日期").and_then(|s| if s.is_empty() { None } else { Some(s.clone()) }),
-            是否离世: map.get("是否离世").and_then(|s| if s.is_empty() { None } else { Some(s.clone()) }),
-            籍贯: map.get("籍贯").and_then(|s| if s.is_empty() { None } else { Some(s.clone()) }),
-            职业: map.get("职业").and_then(|s| if s.is_empty() { None } else { Some(s.clone()) }),
-            父亲: map.get("父亲").and_then(|s| if s.is_empty() { None } else { Some(s.clone()) }),
-            母亲: map.get("母亲").and_then(|s| if s.is_empty() { None } else { Some(s.clone()) }),
-            配偶: map.get("配偶").and_then(|s| if s.is_empty() { None } else { Some(s.clone()) }),
-            是否入赘: map.get("是否入赘").and_then(|s| if s.is_empty() { None } else { Some(s.clone()) }),
-            是否招夫养子: map.get("是否招夫养子").and_then(|s| if s.is_empty() { None } else { Some(s.clone()) }),
-            生平简介: map.get("生平简介").and_then(|s| if s.is_empty() { None } else { Some(s.clone()) }),
-            突出事迹: map.get("突出事迹").and_then(|s| if s.is_empty() { None } else { Some(s.clone()) }),
-        };
-
+        let member = parse_row_from_map(&map);
         rows.push(member);
     }
 
     Ok(rows)
+}
+
+fn trim_bom(s: &str) -> &str {
+    s.strip_prefix('\u{feff}').unwrap_or(s)
+}
+
+fn parse_csv(content: &str) -> Result<Vec<ImportMemberRow>, String> {
+    eprintln!("[import] parse_csv called, content length: {}", content.len());
+    eprintln!("[import] First 200 chars: {:?}", &content.chars().take(200).collect::<String>());
+    let mut rows: Vec<ImportMemberRow> = Vec::new();
+    let mut lines = content.lines();
+
+    // Parse header row
+    let headers: Vec<String> = lines.next()
+        .map(|line| {
+            parse_csv_line(line).into_iter()
+                .map(|s| trim_bom(&s).to_string())
+                .collect()
+        })
+        .unwrap_or_default();
+    eprintln!("[import] CSV headers: {:?}", headers);
+
+    // Parse data rows
+    for line in lines {
+        let values = parse_csv_line(line);
+        if values.is_empty() || values.iter().all(|s| s.trim().is_empty()) {
+            continue;
+        }
+
+        let mut map: HashMap<String, String> = HashMap::new();
+        for (i, value) in values.iter().enumerate() {
+            if let Some(header) = headers.get(i) {
+                map.insert(header.clone(), value.clone());
+            }
+        }
+
+        let member = parse_row_from_map(&map);
+        eprintln!("[import] Row {}: name='{}', gender='{}', surname='{:?}'", rows.len(), member.姓名, member.性别, member.姓氏);
+        // Debug: check if name is empty
+        if member.姓名.trim().is_empty() {
+            eprintln!("[import] WARNING: name is empty! map keys: {:?}", map.keys().collect::<Vec<_>>());
+            eprintln!("[import] map content: {:?}", map);
+        }
+        rows.push(member);
+    }
+
+    eprintln!("[import] Total CSV rows parsed: {}", rows.len());
+    Ok(rows)
+}
+
+fn parse_csv_line(line: &str) -> Vec<String> {
+    let mut result = Vec::new();
+    let mut in_quotes = false;
+    let mut current = String::new();
+
+    for ch in line.chars() {
+        match ch {
+            '"' => {
+                in_quotes = !in_quotes;
+            }
+            ',' if !in_quotes => {
+                result.push(current.trim().to_string());
+                current = String::new();
+            }
+            _ => {
+                current.push(ch);
+            }
+        }
+    }
+    result.push(current.trim().to_string());
+
+    result
+}
+
+fn parse_row_from_map(map: &HashMap<String, String>) -> ImportMemberRow {
+    ImportMemberRow {
+        姓名: map.get("姓名").cloned().unwrap_or_default(),
+        姓氏: map.get("姓氏").and_then(|s| if s.is_empty() { None } else { Some(s.clone()) }),
+        性别: map.get("性别").cloned().unwrap_or_default(),
+        字辈: map.get("字辈").and_then(|s| if s.is_empty() { None } else { Some(s.clone()) }),
+        排序: map.get("排序").and_then(|s| s.parse::<f64>().ok().map(|v| v as i32)),
+        出生日期: map.get("出生日期").and_then(|s| if s.is_empty() { None } else { Some(s.clone()) }),
+        逝世日期: map.get("逝世日期").and_then(|s| if s.is_empty() { None } else { Some(s.clone()) }),
+        是否离世: map.get("是否离世").and_then(|s| if s.is_empty() { None } else { Some(s.clone()) }),
+        籍贯: map.get("籍贯").and_then(|s| if s.is_empty() { None } else { Some(s.clone()) }),
+        职业: map.get("职业").and_then(|s| if s.is_empty() { None } else { Some(s.clone()) }),
+        父亲: map.get("父亲").and_then(|s| if s.is_empty() { None } else { Some(s.clone()) }),
+        母亲: map.get("母亲").and_then(|s| if s.is_empty() { None } else { Some(s.clone()) }),
+        配偶: map.get("配偶").and_then(|s| if s.is_empty() { None } else { Some(s.clone()) }),
+        是否入赘: map.get("是否入赘").and_then(|s| if s.is_empty() { None } else { Some(s.clone()) }),
+        是否招夫养子: map.get("是否招夫养子").and_then(|s| if s.is_empty() { None } else { Some(s.clone()) }),
+        生平简介: map.get("生平简介").and_then(|s| if s.is_empty() { None } else { Some(s.clone()) }),
+        突出事迹: map.get("突出事迹").and_then(|s| if s.is_empty() { None } else { Some(s.clone()) }),
+    }
+}
+
+fn is_csv_content(content: &[u8]) -> bool {
+    // CSV files start with printable ASCII characters
+    // xlsx files start with PK (0x50, 0x4B) which is not printable ASCII
+    if content.is_empty() {
+        return false;
+    }
+    // Check first few bytes - xlsx starts with PK (ZIP format)
+    if content.len() >= 2 && content[0] == 0x50 && content[1] == 0x4B {
+        eprintln!("[import] Detected xlsx (starts with PK)");
+        return false;
+    }
+    // Check if content starts with printable ASCII or BOM
+    let starts_valid = content[0] == 0xEF && content.len() >= 3 && content[1] == 0xBB && content[2] == 0xBF  // UTF-8 BOM
+        || content[0] >= 0x20 && content[0] <= 0x7E  // Printable ASCII
+        || content[0] >= 0xA0;  // High ASCII (likely UTF-8)
+    eprintln!("[import] is_csv_content check: first bytes {:?}, result: {}", &content[..content.len().min(10)], starts_valid);
+    starts_valid
 }
 
 pub async fn get_members(

@@ -9,7 +9,8 @@ interface ApiResponse<T> {
 async function handleResponse<T>(res: Response): Promise<ApiResponse<T>> {
   if (!res.ok) {
     const body = await res.json().catch(() => ({}))
-    return { error: body.error || `HTTP ${res.status}` }
+    console.error('API Error Response:', res.status, body)
+    return { error: body.error || body.message || `HTTP ${res.status}` }
   }
   const body = await res.json()
   return { data: body.data }
