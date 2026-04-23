@@ -321,6 +321,15 @@ export function TraditionalGenealogy({
         </div>
       </div>
 
+      {/* 未配置家族姓氏警告 */}
+      {!familySurname && (
+        <div className="shrink-0 mx-4 mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+          <p className="text-sm text-amber-700">
+            <span className="font-medium">提示：</span>请先在「族谱信息」中配置家族姓氏，避免有零散的成员展示。
+          </p>
+        </div>
+      )}
+
       {/* 祖谱内容 - 竖排古籍样式 */}
       <div className="flex-1 overflow-auto p-4">
         <div

@@ -290,6 +290,15 @@ export function TraditionalGenealogyBook({
         </div>
       </div>
 
+      {/* 未配置家族姓氏警告 */}
+      {!familySurname && (
+        <div className="shrink-0 mx-4 mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+          <p className="text-sm text-amber-700">
+            <span className="font-medium">提示：</span>请先在「族谱信息」中配置家族姓氏，避免有零散的成员展示。
+          </p>
+        </div>
+      )}
+
       <div className="flex-1 overflow-auto p-4">
         <div
           className="dieji-book bg-amber-50 w-[210mm] min-h-[297mm] mx-auto shadow-xl border border-amber-300 relative overflow-hidden"

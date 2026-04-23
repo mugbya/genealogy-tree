@@ -1193,6 +1193,14 @@ export const GenealogyTree = forwardRef<GenealogyTreeRef, GenealogyTreeProps>(fu
 
   return (
     <div className="relative w-full h-full">
+      {/* 未配置家族姓氏警告 */}
+      {!familySurname && (
+        <div className="absolute top-4 left-4 z-10 p-3 bg-amber-50 border border-amber-200 rounded-lg shadow-md max-w-xs">
+          <p className="text-sm text-amber-700">
+            <span className="font-medium">提示：</span>请先在「族谱信息」中配置家族姓氏
+          </p>
+        </div>
+      )}
       {/* Zoom controls */}
       <div className="absolute top-4 right-4 z-10 flex flex-col gap-1 bg-white/90 backdrop-blur-sm rounded-lg shadow-md p-1">
         <button
