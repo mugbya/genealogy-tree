@@ -286,11 +286,11 @@ export function HomePage() {
                         <div className="flex-1 h-6 bg-gray-100 rounded-full overflow-hidden">
                           <div
                             className="h-full bg-gradient-to-r from-blue-500 to-indigo-600 rounded-full transition-all duration-500"
-                            style={{ width: `${percentage}%` }}
+                            style={{ width: `${Math.round(percentage)}%` }}
                           />
                         </div>
                         <span className="w-12 text-sm text-gray-500 text-right">
-                          {item.count}人 ({percentage.toFixed(1)}%)
+                          {item.count}人 ({Math.round(percentage)}%)
                         </span>
                       </div>
                     );
