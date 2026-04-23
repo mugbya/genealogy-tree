@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { cn } from '@/lib/utils'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -482,12 +483,23 @@ function IntranetPenetration() {
 }
 
 function UpdateSettings() {
-  const { updateInfo, downloading, downloadProgress, checkForUpdates, startUpdate, clearDismissedVersion } = useUpdateChecker()
+  const { updateInfo, downloading, downloadProgress, checkForUpdates, startUpdate, clearDismissedVersion, error } = useUpdateChecker()
   const [currentVersion, setCurrentVersion] = useState('0.0.0')
+  const [isChecking, setIsChecking] = useState(false)
 
   useEffect(() => {
     getVersion().then(version => setCurrentVersion(version)).catch(() => {})
   }, [])
+
+  const handleCheckUpdate = async () => {
+    setIsChecking(true)
+    try {
+      clearDismissedVersion()
+      await checkForUpdates()
+    } finally {
+      setIsChecking(false)
+    }
+  }
 
   return (
     <Card className="border-0 shadow-sm">
@@ -512,14 +524,11 @@ function UpdateSettings() {
             <Button
               variant="outline"
               className="gap-2"
-              onClick={() => {
-                clearDismissedVersion()
-                checkForUpdates()
-              }}
-              disabled={downloading}
+              onClick={handleCheckUpdate}
+              disabled={downloading || isChecking}
             >
-              <RefreshCw className="w-4 h-4" />
-              检查更新
+              <RefreshCw className={cn("w-4 h-4", isChecking && "animate-spin")} />
+              {isChecking ? '检查中...' : '检查更新'}
             </Button>
           </div>
         </div>
@@ -558,6 +567,18 @@ function UpdateSettings() {
               />
             </div>
             <p className="text-sm text-green-700 text-center">{downloadProgress.toFixed(1)}%</p>
+          </div>
+        )}
+
+        {!updateInfo && !downloading && !isChecking && error && (
+          <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+            <p className="text-sm text-red-700">{error}</p>
+          </div>
+        )}
+
+        {!updateInfo && !downloading && !isChecking && !error && (
+          <div className="p-4 bg-zinc-50 border border-zinc-200 rounded-lg">
+            <p className="text-sm text-zinc-600">已是最新版本</p>
           </div>
         )}
 
