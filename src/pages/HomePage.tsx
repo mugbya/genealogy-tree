@@ -11,14 +11,15 @@ import {
   Crown,
   Copy,
   Check,
-  Cpu,
   Shield,
   RefreshCw,
+  User,
+  UsersRound,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState, useEffect, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { systemApi, SystemInfo, NetworkInterface } from "@/api/client";
+import { systemApi, membersApi, NetworkInterface } from "@/api/client";
 
 // 通过自定义 User-Agent 检测是否为桌面端（WebView）
 const isDesktop = typeof window !== 'undefined' &&
@@ -30,10 +31,16 @@ interface ServiceStatus {
   expireDate?: string;
 }
 
-export function HomePage() {
-  // 系统信息
-  const [systemInfo, setSystemInfo] = useState<SystemInfo | null>(null);
+// 家族统计类型
+interface FamilyStats {
+  totalMembers: number;
+  maleCount: number;
+  femaleCount: number;
+  deceasedCount: number;
+  surnameCounts: { surname: string; count: number }[];
+}
 
+export function HomePage() {
   // 网络接口
   const [networkInterfaces, setNetworkInterfaces] = useState<
     NetworkInterface[]
@@ -47,35 +54,20 @@ export function HomePage() {
     type: "free",
   });
 
+  // 家族统计
+  const [familyStats, setFamilyStats] = useState<FamilyStats>({
+    totalMembers: 0,
+    maleCount: 0,
+    femaleCount: 0,
+    deceasedCount: 0,
+    surnameCounts: [],
+  });
+
   // 复制状态
   const [copied, setCopied] = useState<string | null>(null);
 
   // 刷新状态
   const [isRefreshing, setIsRefreshing] = useState(false);
-
-  // 获取系统信息
-  const fetchSystemInfo = useCallback(async () => {
-    setIsRefreshing(true);
-    try {
-      if (isDesktop) {
-        // 桌面端：使用 Tauri invoke
-        const info = await invoke<SystemInfo>("get_system_info");
-        setSystemInfo(info);
-      } else {
-        // 网页版：通过 HTTP API 获取服务端系统信息
-        const result = await systemApi.getSystemInfo();
-        if (result.data) {
-          setSystemInfo(result.data);
-        } else if (result.error) {
-          console.error("Failed to get system info:", result.error);
-        }
-      }
-    } catch (err) {
-      console.error("Failed to get system info:", err);
-    } finally {
-      setIsRefreshing(false);
-    }
-  }, []);
 
   // 获取网络接口
   const fetchNetworkInterfaces = useCallback(async () => {
@@ -98,19 +90,47 @@ export function HomePage() {
     }
   }, []);
 
-  useEffect(() => {
-    fetchSystemInfo();
-    fetchNetworkInterfaces();
-  }, [fetchSystemInfo, fetchNetworkInterfaces]);
+  // 获取家族统计
+  const fetchFamilyStats = useCallback(async () => {
+    setIsRefreshing(true);
+    try {
+      const result = await membersApi.list();
+      if (result.data) {
+        const members = result.data;
+        const maleCount = members.filter(m => m.gender === 'male').length;
+        const femaleCount = members.filter(m => m.gender === 'female').length;
+        const deceasedCount = members.filter(m => m.is_deceased).length;
 
-  // 格式化字节数
-  const formatBytes = (bytes: number): string => {
-    if (bytes === 0) return "0 B";
-    const k = 1024;
-    const sizes = ["B", "KB", "MB", "GB", "TB"];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + " " + sizes[i];
-  };
+        // 姓氏统计
+        const surnameMap = new Map<string, number>();
+        members.forEach(m => {
+          const surname = m.surname || '未知';
+          surnameMap.set(surname, (surnameMap.get(surname) || 0) + 1);
+        });
+        const surnameCounts = Array.from(surnameMap.entries())
+          .map(([surname, count]) => ({ surname, count }))
+          .sort((a, b) => b.count - a.count)
+          .slice(0, 5);
+
+        setFamilyStats({
+          totalMembers: members.length,
+          maleCount,
+          femaleCount,
+          deceasedCount,
+          surnameCounts,
+        });
+      }
+    } catch (err) {
+      console.error("Failed to get family stats:", err);
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchNetworkInterfaces();
+    fetchFamilyStats();
+  }, [fetchNetworkInterfaces, fetchFamilyStats]);
 
   const copyToClipboard = async (text: string) => {
     await navigator.clipboard.writeText(text);
@@ -210,12 +230,12 @@ export function HomePage() {
             <div className="flex items-center justify-between">
               <CardTitle className="text-lg font-semibold flex items-center gap-2">
                 <Monitor className="w-5 h-5 text-gray-600" />
-                系统状态
+                家族分布
               </CardTitle>
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={fetchSystemInfo}
+                onClick={fetchFamilyStats}
                 disabled={isRefreshing}
                 className="gap-1"
               >
@@ -227,122 +247,60 @@ export function HomePage() {
             </div>
           </CardHeader>
           <CardContent>
-            {/* 系统基本信息 */}
-            <div className="grid grid-cols-3 gap-6 mb-6">
-              {/* 软件版本 */}
-              <div className="text-center">
-                <div className="w-12 h-12 rounded-xl bg-gray-100 flex items-center justify-center mx-auto mb-3">
-                  <Settings className="w-6 h-6 text-gray-600" />
-                </div>
-                <p className="text-2xl font-bold text-gray-900">
-                  {systemInfo?.version || "-"}
-                </p>
-                <p className="text-sm text-muted-foreground mt-1">软件版本</p>
+            {/* 基础统计 */}
+            <div className="grid grid-cols-4 gap-4 mb-6">
+              <div className="text-center p-4 rounded-xl bg-blue-50">
+                <UsersRound className="w-8 h-8 text-blue-600 mx-auto mb-2" />
+                <p className="text-2xl font-bold text-gray-900">{familyStats.totalMembers}</p>
+                <p className="text-sm text-muted-foreground">总人数</p>
               </div>
-
-              {/* 内存 */}
-              <div className="text-center">
-                <div className="relative w-12 h-12 mx-auto mb-3">
-                  <svg className="w-12 h-12 transform -rotate-90">
-                    <circle
-                      cx="24"
-                      cy="24"
-                      r="20"
-                      strokeWidth="6"
-                      className="stroke-gray-200"
-                      fill="none"
-                    />
-                    <circle
-                      cx="24"
-                      cy="24"
-                      r="20"
-                      strokeWidth="6"
-                      className="stroke-purple-500"
-                      fill="none"
-                      strokeDasharray={`${(systemInfo?.memory_usage || 0) * 1.26} 126`}
-                      strokeLinecap="round"
-                    />
-                  </svg>
-                  <span className="absolute inset-0 flex items-center justify-center text-xs font-semibold text-gray-700">
-                    {Math.round(systemInfo?.memory_usage || 0)}%
-                  </span>
-                </div>
-                <p className="text-lg font-semibold text-gray-900">内存</p>
-                <p className="text-sm text-muted-foreground mt-1">
-                  {systemInfo
-                    ? `${formatBytes(systemInfo.used_memory)} / ${formatBytes(systemInfo.total_memory)}`
-                    : "-"}
-                </p>
+              <div className="text-center p-4 rounded-xl bg-indigo-50">
+                <User className="w-8 h-8 text-indigo-600 mx-auto mb-2" />
+                <p className="text-2xl font-bold text-gray-900">{familyStats.maleCount}</p>
+                <p className="text-sm text-muted-foreground">男</p>
               </div>
-
-              {/* 平台 */}
-              <div className="text-center">
-                <div className="w-12 h-12 rounded-xl bg-green-100 flex items-center justify-center mx-auto mb-3">
-                  <Monitor className="w-6 h-6 text-green-600" />
-                </div>
-                <p
-                  className="text-lg font-bold text-gray-900 truncate"
-                  title={systemInfo?.platform || "-"}
-                >
-                  {systemInfo?.platform?.split(" ")[0] || "-"}
-                </p>
-                <p className="text-sm text-muted-foreground mt-1">
-                  {systemInfo?.platform?.split(" ").slice(1).join(" ") || ""}
-                </p>
+              <div className="text-center p-4 rounded-xl bg-pink-50">
+                <User className="w-8 h-8 text-pink-600 mx-auto mb-2" />
+                <p className="text-2xl font-bold text-gray-900">{familyStats.femaleCount}</p>
+                <p className="text-sm text-muted-foreground">女</p>
+              </div>
+              <div className="text-center p-4 rounded-xl bg-gray-100">
+                <Users className="w-8 h-8 text-gray-600 mx-auto mb-2" />
+                <p className="text-2xl font-bold text-gray-900">{familyStats.deceasedCount}</p>
+                <p className="text-sm text-muted-foreground">已故</p>
               </div>
             </div>
 
-            {/* CPU 多核心 */}
+            {/* 姓氏分布 */}
             <div>
-              <h4 className="text-sm font-medium text-gray-700 mb-3 flex items-center gap-2">
-                <Cpu className="w-4 h-4" />
-                CPU 核心
-              </h4>
-              <div className="grid grid-cols-8 gap-2">
-                {systemInfo?.cpu_cores.map((core, index) => (
-                  <div
-                    key={index}
-                    className="text-center p-2 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors"
-                  >
-                    <div className="relative w-10 h-10 mx-auto mb-1">
-                      <svg className="w-10 h-10 transform -rotate-90">
-                        <circle
-                          cx="20"
-                          cy="20"
-                          r="16"
-                          strokeWidth="4"
-                          className="stroke-gray-200"
-                          fill="none"
-                        />
-                        <circle
-                          cx="20"
-                          cy="20"
-                          r="16"
-                          strokeWidth="4"
-                          className={cn(
-                            "fill-none",
-                            core.usage > 80
-                              ? "stroke-red-500"
-                              : core.usage > 50
-                                ? "stroke-amber-500"
-                                : "stroke-green-500",
-                          )}
-                          strokeDasharray={`${core.usage * 1.0} 100`}
-                          strokeLinecap="round"
-                        />
-                      </svg>
-                      <span className="absolute inset-0 flex items-center justify-center text-[10px] font-semibold text-gray-700">
-                        {Math.round(core.usage)}%
-                      </span>
-                    </div>
-                    <p className="text-xs text-gray-500">{core.name}</p>
-                  </div>
-                )) || (
-                  <div className="col-span-full text-center text-sm text-gray-500 py-4">
-                    加载中...
-                  </div>
-                )}
-              </div>
+              <h4 className="text-sm font-medium text-gray-700 mb-3">姓氏分布</h4>
+              {familyStats.surnameCounts.length > 0 ? (
+                <div className="space-y-3">
+                  {familyStats.surnameCounts.map((item, index) => {
+                    const percentage = familyStats.totalMembers > 0
+                      ? (item.count / familyStats.totalMembers * 100)
+                      : 0;
+                    return (
+                      <div key={index} className="flex items-center gap-3">
+                        <span className="w-16 text-sm font-medium text-gray-700">{item.surname}</span>
+                        <div className="flex-1 h-6 bg-gray-100 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-gradient-to-r from-blue-500 to-indigo-600 rounded-full transition-all duration-500"
+                            style={{ width: `${percentage}%` }}
+                          />
+                        </div>
+                        <span className="w-12 text-sm text-gray-500 text-right">
+                          {item.count}人 ({percentage.toFixed(1)}%)
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="text-center text-sm text-gray-500 py-8">
+                  暂无家族成员数据
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
