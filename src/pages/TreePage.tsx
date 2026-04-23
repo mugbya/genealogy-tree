@@ -104,7 +104,7 @@ export function TreePage() {
   const [newTagType, setNewTagType] = useState('special')
   const [newTagColor, setNewTagColor] = useState(DEFAULT_TAG_COLORS[0])
   const [activeTab, setActiveTab] = useState('list')
-  // 族谱树起始成员选择
+  // 祖谱树起始成员选择
   const [treeRootMemberId, setTreeRootMemberId] = useState<number | null>(null)
   const treeRef = useRef<{ container: HTMLDivElement | null; exportSvgAsDataUrl: () => string }>(null)
 
@@ -127,7 +127,7 @@ export function TreePage() {
   const [originalFatherId, setOriginalFatherId] = useState<number | undefined>()
   const [originalMotherId, setOriginalMotherId] = useState<number | undefined>()
 
-  // 族谱配置状态
+  // 祖谱配置状态
   const [familyName, setFamilyName] = useState('')
   const [familySurname, setFamilySurname] = useState('')
   const [familyOrigin, setFamilyOrigin] = useState('')
@@ -140,7 +140,7 @@ export function TreePage() {
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize, setPageSize] = useState(50)
 
-  // 加载族谱配置
+  // 加载祖谱配置
   useEffect(() => {
     loadFamilyConfig()
   }, [])
@@ -398,7 +398,7 @@ export function TreePage() {
     setCurrentPage(1)
   }, [searchKeyword, filterGender, filterIsDeceased, filterIsMatrilocal, filterIsAdoptedSon, filterSurname, filterGeneration])
 
-  // 计算有子女的成员（用于族谱树起始成员选择）
+  // 计算有子女的成员（用于祖谱树起始成员选择）
   const membersWithChildren = useMemo(() => {
     const relations = relationsData?.data || []
     const parentChildRelations = relations.filter(r => r.relation_type === 'father' || r.relation_type === 'mother')
@@ -433,12 +433,12 @@ export function TreePage() {
     setIsCreateOpen(true)
   }
 
-  // 截图下载族谱树
+  // 截图下载祖谱树
   const handleScreenshot = async () => {
     if (!treeRef.current) return
     try {
       // 确定导出文件名：优先使用根成员姓名，其次使用家族名
-      let exportName = familyName || '族谱树'
+      let exportName = familyName || '祖谱树'
       if (treeRootMemberId) {
         const rootMember = members.find(m => m.id === treeRootMemberId)
         if (rootMember) {
@@ -446,7 +446,7 @@ export function TreePage() {
         }
       }
 
-      // 使用 SVG 方式导出完整族谱树
+      // 使用 SVG 方式导出完整祖谱树
       const svgContent = treeRef.current.exportSvgAsDataUrl()
       if (!svgContent) return
 
@@ -770,7 +770,7 @@ export function TreePage() {
     <div className="h-[calc(100vh-8rem)] flex flex-col animate-fade-in">
       {/* 页面标题 */}
       <div className="mb-4 shrink-0">
-        <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">族谱管理</h1>
+        <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">祖谱管理</h1>
         <p className="text-muted-foreground mt-1">管理家族成员信息</p>
       </div>
 
@@ -779,7 +779,7 @@ export function TreePage() {
         <TabsList className="shrink-0 bg-white">
           <TabsTrigger value="info" className="gap-2 text-base py-3 px-4">
             <BookOpen className="w-5 h-5" />
-            族谱信息
+            祖谱信息
           </TabsTrigger>
           <TabsTrigger value="list" className="gap-2 text-base py-3 px-4">
             <Users className="w-5 h-5" />
@@ -787,7 +787,7 @@ export function TreePage() {
           </TabsTrigger>
           <TabsTrigger value="tree" className="gap-2 text-base py-3 px-4">
             <TreeDeciduous className="w-5 h-5" />
-            族谱树
+            祖谱树
           </TabsTrigger>
           <TabsTrigger value="tags" className="gap-2 text-base py-3 px-4">
             <TagIcon className="w-5 h-5" />
@@ -795,7 +795,7 @@ export function TreePage() {
           </TabsTrigger>
           <TabsTrigger value="traditional" className="gap-2 text-base py-3 px-4">
             <BookOpen className="w-5 h-5" />
-            族谱导航
+            祖谱导航
           </TabsTrigger>
           {/* <TabsTrigger value="book" className="gap-2 text-base py-3 px-4">
             <BookOpen className="w-5 h-5" />
@@ -803,7 +803,7 @@ export function TreePage() {
           </TabsTrigger> */}
         </TabsList>
 
-        {/* 族谱信息 */}
+        {/* 祖谱信息 */}
         <TabsContent value="info" className="flex-1 min-h-0 mt-4">
           <div className="space-y-6">
             {/* 第一行：姓氏 + 名称 */}
@@ -825,7 +825,7 @@ export function TreePage() {
                     className="h-10"
                   />
                   <p className="text-xs text-muted-foreground mt-2">
-                    族谱树会根据姓氏判断本家与外姓
+                    祖谱树会根据姓氏判断本家与外姓
                   </p>
                 </CardContent>
               </Card>
@@ -916,8 +916,8 @@ export function TreePage() {
               <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 w-1/2">
                 <h3 className="font-medium text-amber-800 mb-2">设置说明</h3>
                 <ul className="text-sm text-amber-700 space-y-1">
-                  <li>• <strong>家族姓氏</strong>：用于判断本家与外姓，是族谱树正确展示的关键</li>
-                  <li>• <strong>同姓本家</strong>：如贾姓成员，将作为族谱树上的节点展示</li>
+                  <li>• <strong>家族姓氏</strong>：用于判断本家与外姓，是祖谱树正确展示的关键</li>
+                  <li>• <strong>同姓本家</strong>：如贾姓成员，将作为祖谱树上的节点展示</li>
                   <li>• <strong>外姓配偶</strong>：如王氏，将显示在连接线上</li>
                 </ul>
               </div>
@@ -1317,14 +1317,14 @@ export function TreePage() {
           </div>
         </TabsContent>
 
-        {/* 族谱树 */}
+        {/* 祖谱树 */}
         <TabsContent value="tree" className="flex-1 min-h-0 mt-4">
           <Card className="h-full border-0 shadow-sm flex flex-col">
             <CardHeader className="pb-3 shrink-0">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-lg font-semibold flex items-center gap-2">
                   <TreeDeciduous className="w-5 h-5" />
-                  族谱树可视化
+                  祖谱树可视化
                 </CardTitle>
                 <div className="flex items-center gap-2">
                   <Button
@@ -1343,9 +1343,9 @@ export function TreePage() {
                   <div className="w-24 h-24 rounded-full bg-gradient-to-br from-indigo-50 to-purple-50 flex items-center justify-center mb-6">
                     <TreeDeciduous className="w-12 h-12 text-indigo-400" />
                   </div>
-                  <h3 className="text-xl font-semibold text-gray-900 mb-2">暂无族谱数据</h3>
+                  <h3 className="text-xl font-semibold text-gray-900 mb-2">暂无祖谱数据</h3>
                   <p className="text-muted-foreground mb-6 max-w-sm">
-                    添加家族成员开始构建您的族谱树，系统将自动生成可视化谱系图
+                    添加家族成员开始构建您的祖谱树，系统将自动生成可视化谱系图
                   </p>
                   <Button
                     onClick={handleOpenCreate}
@@ -1359,7 +1359,7 @@ export function TreePage() {
                 <div className={cn(
                   "h-full overflow-auto bg-gradient-to-br from-zinc-50 to-zinc-100/50 p-4",
                 )}>
-                  {/* 族谱树起始成员选择器 */}
+                  {/* 祖谱树起始成员选择器 */}
                   <div className="mb-4 flex items-center gap-3 bg-white/80 backdrop-blur-sm rounded-lg px-4 py-2 shadow-sm">
                     <span className="text-sm text-gray-600">从以下成员开始展示：</span>
                     <select
@@ -1413,7 +1413,7 @@ export function TreePage() {
           </Card>
         </TabsContent>
 
-        {/* 族谱导航 */}
+        {/* 祖谱导航 */}
         <TabsContent value="traditional" className="flex-1 min-h-0 mt-4">
           <TraditionalGenealogy
             familyName={familyName}
@@ -1909,7 +1909,7 @@ export function TreePage() {
                   }}
                 >
                   <TreeDeciduous className="w-4 h-4" />
-                  查看族谱树
+                  查看祖谱树
                 </Button>
                 {editableMemberIds.includes(detailMember.id) && (
                   <Button

@@ -114,7 +114,7 @@ function GeneralSettings() {
               </div>
               <div>
                 <p className="font-medium">开机启动</p>
-                <p className="text-sm text-zinc-500">开机时自动启动族谱服务</p>
+                <p className="text-sm text-zinc-500">开机时自动启动祖谱服务</p>
               </div>
             </div>
             <button
@@ -145,7 +145,7 @@ function GeneralSettings() {
                 placeholder="8080"
                 className="max-w-xs"
               />
-              <p className="text-xs text-zinc-400">用于局域网访问族谱服务</p>
+              <p className="text-xs text-zinc-400">用于局域网访问祖谱服务</p>
             </div>
             <div className="grid gap-2">
               <label className="text-sm text-zinc-600">HTTPS 端口</label>
@@ -295,7 +295,7 @@ function IntranetPenetration() {
       <CardContent className="space-y-6 max-w-xl">
         <div className="p-4 bg-zinc-50 rounded-lg">
           <p className="text-sm text-zinc-600">
-            配置二级域名后，您可以通过互联网远程访问您的族谱。例如您的域名为 genealogy-tree.com，配置二级域名 myfamily，则访问地址为 https://myfamily.genealogy-tree.com
+            配置二级域名后，您可以通过互联网远程访问您的祖谱。例如您的域名为 genealogy-tree.com，配置二级域名 myfamily，则访问地址为 https://myfamily.genealogy-tree.com
           </p>
         </div>
 
@@ -307,7 +307,7 @@ function IntranetPenetration() {
             </div>
             <div>
               <p className="font-medium">启用内网穿透</p>
-              <p className="text-sm text-zinc-500">通过互联网访问族谱</p>
+              <p className="text-sm text-zinc-500">通过互联网访问祖谱</p>
             </div>
           </div>
           <button
@@ -365,7 +365,7 @@ function IntranetPenetration() {
               </div>
               {isConnected && (
                 <div className="p-3 bg-green-50 border border-green-200 rounded text-sm">
-                  <p className="text-green-700">您的族谱已上线！</p>
+                  <p className="text-green-700">您的祖谱已上线！</p>
                   <p className="font-mono text-green-600 mt-1">
                     https://{subdomain || 'your-subdomain'}.genealogy-tree.com
                   </p>

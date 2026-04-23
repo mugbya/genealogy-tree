@@ -15,7 +15,7 @@ import { Dropdown, DropdownItem } from '@/components/ui/dropdown'
 
 const navItems = [
   { path: '/', label: '首页', icon: Home, adminOnly: false },
-  // { path: '/tree', label: '族谱树', icon: TreeDeciduous },
+  // { path: '/tree', label: '祖谱树', icon: TreeDeciduous },
   // { path: '/members', label: '成员', icon: Users },
   // { path: '/relations', label: '关系', icon: Link2 },
   // { path: '/tags', label: '标签', icon: Tag },
@@ -46,7 +46,7 @@ export function Layout() {
                   <TreeDeciduous className="w-6 h-6 text-white" />
                 </div>
                 <div className="hidden sm:block">
-                  <h1 className="font-bold text-zinc-900 text-xl leading-none">族谱</h1>
+                  <h1 className="font-bold text-zinc-900 text-xl leading-none">祖谱</h1>
                   <p className="text-sm text-zinc-500 mt-1">Family Tree</p>
                 </div>
               </Link>

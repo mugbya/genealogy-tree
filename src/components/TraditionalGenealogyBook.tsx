@@ -272,7 +272,7 @@ export function TraditionalGenealogyBook({
       <div className="shrink-0 flex items-center justify-between p-4 border-b bg-white">
         <div>
           <h2 className="text-lg font-semibold text-zinc-900">传统祖谱</h2>
-          <p className="text-sm text-zinc-500">牒记式族谱，按家庭分列</p>
+          <p className="text-sm text-zinc-500">牒记式祖谱，按家庭分列</p>
         </div>
         <div className="flex gap-2 items-center">
           <div className="flex items-center gap-2 mr-4">
@@ -294,7 +294,7 @@ export function TraditionalGenealogyBook({
       {!familySurname && (
         <div className="shrink-0 mx-4 mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
           <p className="text-sm text-amber-700">
-            <span className="font-medium">提示：</span>请先在「族谱信息」中配置家族姓氏，避免有零散的成员展示。
+            <span className="font-medium">提示：</span>请先在「祖谱信息」中配置家族姓氏，避免有零散的成员展示。
           </p>
         </div>
       )}

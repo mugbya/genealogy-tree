@@ -1122,7 +1122,7 @@ export const GenealogyTree = forwardRef<GenealogyTreeRef, GenealogyTreeProps>(fu
   if (!positionedTree) {
     return (
       <div className="flex items-center justify-center h-96 text-muted-foreground">
-        暂无族谱数据，请先添加成员
+        暂无祖谱数据，请先添加成员
       </div>
     )
   }
@@ -1197,7 +1197,7 @@ export const GenealogyTree = forwardRef<GenealogyTreeRef, GenealogyTreeProps>(fu
       {!familySurname && (
         <div className="absolute top-4 left-4 z-10 p-3 bg-amber-50 border border-amber-200 rounded-lg shadow-md max-w-xs">
           <p className="text-sm text-amber-700">
-            <span className="font-medium">提示：</span>请先在「族谱信息」中配置家族姓氏
+            <span className="font-medium">提示：</span>请先在「祖谱信息」中配置家族姓氏
           </p>
         </div>
       )}

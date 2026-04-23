@@ -167,7 +167,7 @@ export function LoginPage() {
           <div className="w-16 h-16 rounded-2xl bg-white/20 backdrop-blur-xl flex items-center justify-center mx-auto mb-4 shadow-2xl">
             <TreeDeciduous className="w-8 h-8 text-white" />
           </div>
-          <h1 className="text-3xl font-bold text-white mb-2">族谱</h1>
+          <h1 className="text-3xl font-bold text-white mb-2">祖谱</h1>
           <p className="text-white/80">Family Tree Management</p>
         </div>
 
