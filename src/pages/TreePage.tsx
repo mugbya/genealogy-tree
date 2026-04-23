@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react'
+import { invoke } from "@tauri-apps/api/core";
 import { useMembers, useCreateMember, useUpdateMember, useDeleteMember, useMemberRelations, useCreateMemberRelation, useDeleteMemberRelation, useEditableMemberIds } from '@/hooks/useMembers'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -62,6 +63,10 @@ const DEFAULT_TAG_COLORS = [
   '#14b8a6', '#06b6d4', '#3b82f6', '#6366f1', '#8b5cf6',
   '#a855f7', '#d946ef', '#ec4899', '#f43f5e',
 ]
+
+// 通过自定义 User-Agent 检测是否为桌面端（WebView）
+const isDesktop = typeof window !== 'undefined' &&
+  navigator.userAgent.includes('GenealogyDesktop')
 
 export function TreePage() {
   // 成员相关
@@ -182,6 +187,8 @@ export function TreePage() {
   const [isImporting, setIsImporting] = useState(false)
   const [importResult, setImportResult] = useState<{ imported: number; updated: number; errors: string[] } | null>(null)
   const [isImportResultOpen, setIsImportResultOpen] = useState(false)
+  const [downloadSuccess, setDownloadSuccess] = useState(false)
+  const [downloadPath, setDownloadPath] = useState<string>('')
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
   // 切换标签选择
@@ -670,21 +677,86 @@ export function TreePage() {
   }
 
   // 下载模板
-  const handleDownloadTemplate = () => {
-    const template = `姓名,性别,出生日期,逝世日期,是否离世,籍贯,职业,父亲,母亲,配偶
-贾演,男,,,,是,京城,官绅,,
-贾代化,男,,,,是,京城,官绅,贾演,,
-贾敬,男,,,,是,京城,道士,贾代化,,
-贾珍,男,,,,是,京城,官绅,贾敬,,
-贾珍配偶,女,,,,是,京城,,贾珍,,`
+  const handleDownloadTemplate = async () => {
+    // 完整的模板列名（按用户要求的顺序）
+    const headers = [
+      '姓名', '姓氏', '字辈', '性别', '排序', '出生日期', '逝世日期', '是否离世',
+      '籍贯', '职业', '父亲', '母亲', '配偶', '是否入赘', '是否招夫养子', '生平简介', '突出事迹'
+    ];
 
-    const blob = new Blob([template], { type: 'text/csv;charset=utf-8;' })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = '家族成员导入模板.csv'
-    link.click()
-    URL.revokeObjectURL(url)
+    // 红楼梦贾家模拟数据（与列名顺序对应）
+    const sampleData = [
+      // 宁国公
+      ['贾演', '贾', '', '男', '1', '', '', '是', '京城', '宁国公', '', '', '', '', '', '', ''],
+      // 贾演之子
+      ['贾代化', '贾', '', '男', '2', '', '', '是', '京城', '京营节度使', '贾演', '', '', '', '', '', ''],
+      // 贾代化之子
+      ['贾敬', '贾', '', '男', '3', '', '', '是', '京城', '进士/道士', '贾代化', '', '', '', '', '', ''],
+      // 贾珍（贾敬之子）
+      ['贾珍', '贾', '', '男', '4', '', '', '是', '京城', '三品威烈将军', '贾敬', '', '尤氏', '', '', '', ''],
+      // 贾蓉（贾珍之子）
+      ['贾蓉', '贾', '', '男', '5', '', '', '是', '京城', '轻车都尉', '贾珍', '', '秦可卿', '', '', '', ''],
+      // 尤氏（贾珍配偶）
+      ['尤氏', '尤', '', '女', '', '', '', '是', '京城', '', '', '', '贾珍', '', '', '', ''],
+      // 秦可卿（贾蓉配偶）
+      ['秦可卿', '秦', '', '女', '', '', '', '是', '京城', '', '', '', '贾蓉', '', '', '', ''],
+      // 荣国公
+      ['贾源', '贾', '', '男', '1', '', '', '是', '京城', '荣国公', '', '', '', '', '', '', ''],
+      // 贾源之子
+      ['贾代善', '贾', '', '男', '2', '', '', '是', '京城', '京营节度使', '贾源', '', '', '', '', '', ''],
+      // 贾代善之子（贾赦）
+      ['贾赦', '贾', '', '男', '3', '', '', '是', '京城', '一等将军', '贾代善', '', '邢氏', '', '', '', ''],
+      // 贾代善之子（贾政）
+      ['贾政', '贾', '', '男', '3', '', '', '是', '京城', '工部员外郎', '贾代善', '', '王氏', '', '', '', ''],
+      // 贾赦之子（贾琏）
+      ['贾琏', '贾', '', '男', '4', '', '', '是', '京城', '同知', '贾赦', '', '王熙凤', '', '', '', ''],
+      // 贾政之子（贾珠）
+      ['贾珠', '贾', '', '男', '4', '', '', '是', '京城', '早夭', '贾政', '', '李纨', '', '', '', ''],
+      // 贾政之子（贾宝玉）
+      ['贾宝玉', '贾', '玉', '男', '5', '', '', '否', '京城', '读书', '贾政', '王氏', '薛宝钗', '', '', '', ''],
+      // 贾政之子（贾环）
+      ['贾环', '贾', '', '男', '5', '', '', '否', '京城', '读书', '贾政', '赵姨娘', '', '', '', '', ''],
+      // 贾珠配偶
+      ['李纨', '李', '', '女', '', '', '', '是', '京城', '', '', '', '贾珠', '', '', '', ''],
+      // 贾宝玉配偶
+      ['薛宝钗', '薛', '', '女', '', '', '', '否', '金陵', '', '', '', '贾宝玉', '', '', '', ''],
+      // 贾琏配偶
+      ['王熙凤', '王', '', '女', '', '', '', '否', '京城', '管家', '', '', '贾琏', '', '', '', ''],
+      // 邢氏（贾赦配偶）
+      ['邢氏', '邢', '', '女', '', '', '', '是', '京城', '', '', '', '贾赦', '', '', '', ''],
+      // 王氏（贾政配偶）
+      ['王氏', '王', '', '女', '', '', '', '是', '京城', '', '', '', '贾政', '', '', '', ''],
+    ];
+
+    const csvContent = [
+      headers.join(','),
+      ...sampleData.map(row => row.map(cell => {
+        // 如果单元格包含逗号或换行符，需要用引号包裹
+        if (typeof cell === 'string' && (cell.includes(',') || cell.includes('\n'))) {
+          return `"${cell.replace(/"/g, '""')}"`;
+        }
+        return cell;
+      }).join(','))
+    ].join('\n');
+
+    const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = '家族成员导入模板.csv';
+    link.click();
+    URL.revokeObjectURL(url);
+    setDownloadSuccess(true);
+    // 获取下载目录路径
+    if (isDesktop) {
+      try {
+        const path = await invoke<string>('get_download_path');
+        setDownloadPath(path);
+      } catch {
+        setDownloadPath('');
+      }
+    }
+    setTimeout(() => setDownloadSuccess(false), 5000);
   }
 
   return (
@@ -894,7 +966,14 @@ export function TreePage() {
                       className="gap-1"
                     >
                       <Download className="w-3 h-3" />
-                      模板
+                      {downloadSuccess ? (
+                        <span className="flex flex-col items-start">
+                          <span>已下载</span>
+                          {downloadPath && isDesktop && (
+                            <span className="text-[10px] text-muted-foreground font-normal">{downloadPath}</span>
+                          )}
+                        </span>
+                      ) : '模板'}
                     </Button>
                   </div>
                   <input

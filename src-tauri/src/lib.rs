@@ -137,12 +137,20 @@ fn get_network_interfaces() -> Vec<NetworkInterface> {
     interfaces
 }
 
+// 获取下载目录路径
+#[tauri::command]
+fn get_download_path() -> String {
+    dirs_next::download_dir()
+        .map(|p| p.to_string_lossy().to_string())
+        .unwrap_or_else(|| "下载文件夹".to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
-        .invoke_handler(tauri::generate_handler![get_system_info, get_network_interfaces])
+        .invoke_handler(tauri::generate_handler![get_system_info, get_network_interfaces, get_download_path])
         .setup(|app| {
             // 获取应用数据目录，使用绝对路径初始化数据库
             let app_data_dir = app.path().app_data_dir().expect("Failed to get app data dir");
