@@ -1,10 +1,12 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Avatar } from '@/components/ui/avatar'
 import type { Member, MemberRelation } from '@/api/client'
-import { Users, BookOpen, Award, Briefcase, Home, Calendar, ArrowLeft, Download } from 'lucide-react'
+import { Users, BookOpen, Award, Briefcase, Home, Calendar, ArrowLeft, Download, Loader2 } from 'lucide-react'
+import html2canvas from 'html2canvas'
+import jsPDF from 'jspdf'
 
 interface ModernGenealogyBookProps {
   familyName: string
@@ -18,7 +20,7 @@ interface ModernGenealogyBookProps {
 
 type ViewState = 'cover' | 'toc' | 'detail'
 
-const PAGE_SIZE = 6
+const MEMBERS_PER_PAGE = 12 // 每页12人
 
 export function ModernGenealogyBook({
   familyName,
@@ -31,7 +33,9 @@ export function ModernGenealogyBook({
 }: ModernGenealogyBookProps) {
   const [view, setView] = useState<ViewState>('cover')
   const [selectedMember, setSelectedMember] = useState<Member | null>(null)
-  const [tocPage, setTocPage] = useState(1)
+  const [isExporting, setIsExporting] = useState(false)
+  const coverRef = useRef<HTMLDivElement>(null)
+  const tocRef = useRef<HTMLDivElement>(null)
 
   const generationWords = useMemo(() => {
     if (!familyGenerationWords) return []
@@ -147,7 +151,6 @@ export function ModernGenealogyBook({
       byGen.get(gen)!.push(m)
     })
 
-    // 排序
     const sortedGens = Array.from(byGen.keys()).sort((a, b) => a - b)
     return sortedGens.map(gen => ({
       generation: gen,
@@ -155,12 +158,23 @@ export function ModernGenealogyBook({
     }))
   }, [members, relations, isOwnFamily, memberRelations])
 
-  // 目录页的分页数据 - 在顶层计算，避免 hook 顺序问题
-  const tocTotalPages = Math.ceil(membersByGeneration.length / PAGE_SIZE)
-  const paginatedGenerations = useMemo(() => {
-    const start = (tocPage - 1) * PAGE_SIZE
-    return membersByGeneration.slice(start, start + PAGE_SIZE)
-  }, [membersByGeneration, tocPage])
+  // 全部族人按页码排列
+  const allMembersSorted = useMemo(() => {
+    return members
+      .filter(m => isOwnFamily(m))
+      .sort((a, b) => (b.weight ?? 0) - (a.weight ?? 0))
+  }, [members, isOwnFamily])
+
+  // 计算每个成员的页码
+  const memberPageMap = useMemo(() => {
+    const map = new Map<number, number>()
+    allMembersSorted.forEach((member, index) => {
+      map.set(member.id, Math.floor(index / MEMBERS_PER_PAGE) + 1)
+    })
+    return map
+  }, [allMembersSorted])
+
+  const totalPages = Math.ceil(allMembersSorted.length / MEMBERS_PER_PAGE) || 1
 
   const handleViewDetail = (member: Member) => {
     setSelectedMember(member)
@@ -168,8 +182,96 @@ export function ModernGenealogyBook({
   }
 
   const handleEnterToc = () => {
-    setTocPage(1)
     setView('toc')
+  }
+
+  const handleExportPdf = async () => {
+    setIsExporting(true)
+    try {
+      const pdf = new jsPDF('p', 'mm', 'a4')
+      const pageWidth = pdf.internal.pageSize.getWidth()
+
+      // 深度清理函数 - 移除所有可能含oklch的样式
+      const deepCleanElement = (el: HTMLElement) => {
+        // 移除所有类名
+        el.removeAttribute('class')
+        // 重置内联背景
+        el.style.background = ''
+        el.style.backgroundColor = ''
+        // 递归处理子元素
+        Array.from(el.children).forEach(child => deepCleanElement(child as HTMLElement))
+      }
+
+      // 1. 导出封面
+      if (coverRef.current) {
+        const clone = coverRef.current.cloneNode(true) as HTMLElement
+        deepCleanElement(clone)
+
+        clone.style.cssText = `
+          position: absolute;
+          left: -9999px;
+          top: 0;
+          width: ${coverRef.current.offsetWidth}px;
+          height: ${coverRef.current.offsetHeight}px;
+          background: #faf3e0;
+        `
+        document.body.appendChild(clone)
+
+        await new Promise(resolve => setTimeout(resolve, 100))
+
+        const coverCanvas = await html2canvas(clone, {
+          scale: 2,
+          useCORS: true,
+          logging: false,
+          backgroundColor: '#faf3e0',
+        })
+
+        document.body.removeChild(clone)
+
+        const coverImgData = coverCanvas.toDataURL('image/jpeg', 0.95)
+        const coverImgHeight = (coverCanvas.height * pageWidth) / coverCanvas.width
+        pdf.addImage(coverImgData, 'JPEG', 0, 0, pageWidth, coverImgHeight)
+      }
+
+      // 2. 导出目录页
+      if (tocRef.current) {
+        pdf.addPage()
+
+        const clone = tocRef.current.cloneNode(true) as HTMLElement
+        deepCleanElement(clone)
+
+        clone.style.cssText = `
+          position: absolute;
+          left: -9999px;
+          top: 0;
+          width: ${tocRef.current.offsetWidth}px;
+          min-height: ${tocRef.current.offsetHeight}px;
+          background: #ffffff;
+        `
+        document.body.appendChild(clone)
+
+        await new Promise(resolve => setTimeout(resolve, 100))
+
+        const tocCanvas = await html2canvas(clone, {
+          scale: 2,
+          useCORS: true,
+          logging: false,
+          backgroundColor: '#ffffff',
+        })
+
+        document.body.removeChild(clone)
+
+        const tocImgData = tocCanvas.toDataURL('image/jpeg', 0.95)
+        const tocImgHeight = (tocCanvas.height * pageWidth) / tocCanvas.width
+        pdf.addImage(tocImgData, 'JPEG', 0, 0, pageWidth, tocImgHeight)
+      }
+
+      pdf.save(`${familyName || '家族'}族谱.pdf`)
+    } catch (error) {
+      console.error('Export failed:', error)
+    } finally {
+      setIsExporting(false)
+    }
   }
 
   const getGenerationLabel = (gen?: string) => {
@@ -180,8 +282,25 @@ export function ModernGenealogyBook({
 
   // 封面页
   const renderCover = () => (
-    <div className="h-full flex items-center justify-center bg-gradient-to-br from-amber-100 to-orange-100 p-8">
-      <div className="w-[500px] aspect-[3/4] bg-gradient-to-b from-amber-50 to-orange-50 border-4 border-amber-800 rounded-lg shadow-2xl relative overflow-hidden">
+    <div className="h-full flex items-center justify-center bg-gradient-to-br from-amber-100 to-orange-100 p-8 relative">
+      {/* 顶部导出按钮 */}
+      <div className="absolute top-4 right-4 z-10">
+        <Button
+          variant="default"
+          size="sm"
+          onClick={handleExportPdf}
+          disabled={isExporting}
+          className="gap-2 shadow-lg bg-emerald-600 hover:bg-emerald-700"
+        >
+          {isExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+          导出PDF
+        </Button>
+      </div>
+
+      <div
+        ref={coverRef}
+        className="w-[500px] aspect-[3/4] bg-gradient-to-b from-amber-50 to-orange-50 border-4 border-amber-800 rounded-lg shadow-2xl relative overflow-hidden"
+      >
         {/* 装饰边框 - 外层 */}
         <div className="absolute inset-1 border-2 border-amber-700 pointer-events-none" />
         {/* 装饰边框 - 内层 */}
@@ -216,14 +335,10 @@ export function ModernGenealogyBook({
         {/* 中式徽章 - 圆形传统纹样 */}
         <div className="flex justify-center pt-16 pb-6">
           <div className="w-28 h-28 relative">
-            {/* 外圈 */}
             <div className="absolute inset-0 rounded-full border-4 border-amber-700 bg-gradient-to-br from-amber-200 to-amber-400 shadow-lg">
-              {/* 内部装饰 */}
               <div className="absolute inset-2 rounded-full border-2 border-amber-600 flex items-center justify-center">
-                {/* 中式回纹图案 */}
                 <div className="text-5xl text-amber-800 font-serif">谱</div>
               </div>
-              {/* 四个小圆点装饰 */}
               <div className="absolute top-1 left-1/2 -translate-x-1/2 w-2 h-2 rounded-full bg-amber-600"/>
               <div className="absolute bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 rounded-full bg-amber-600"/>
               <div className="absolute left-1 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-amber-600"/>
@@ -239,7 +354,7 @@ export function ModernGenealogyBook({
           </h1>
           <p className="text-lg text-amber-700 tracking-wider">族谱</p>
 
-          {/* 分隔线 - 古风云纹装饰 */}
+          {/* 分隔线 */}
           <div className="flex items-center justify-center gap-3 my-6">
             <div className="h-px w-16 bg-gradient-to-r from-transparent to-amber-500" />
             <div className="flex gap-1">
@@ -250,7 +365,6 @@ export function ModernGenealogyBook({
             <div className="h-px w-16 bg-gradient-to-l from-transparent to-amber-500" />
           </div>
 
-          {/* 副标题 */}
           <Badge variant="outline" className="text-amber-800 border-amber-400 bg-amber-50 text-sm px-3 py-1">
             现代版
           </Badge>
@@ -273,7 +387,7 @@ export function ModernGenealogyBook({
         {/* 统计信息 */}
         <div className="absolute bottom-20 left-0 right-0 text-center">
           <p className="text-sm text-amber-700">
-            共录 <span className="font-bold text-amber-900">{members.filter(m => isOwnFamily(m)).length}</span> 名族人
+            共录 <span className="font-bold text-amber-900">{allMembersSorted.length}</span> 名族人
           </p>
           <p className="text-xs text-amber-600 mt-1">
             传承 {membersByGeneration.length} 代
@@ -294,131 +408,135 @@ export function ModernGenealogyBook({
     </div>
   )
 
-  // 目录页
-  const renderToc = () => (
-    <div className="h-full flex flex-col bg-gradient-to-br from-amber-50 to-orange-50">
-      {/* 顶部导航 */}
-      <div className="shrink-0 flex items-center gap-4 p-4 bg-white border-b">
-        <Button variant="ghost" onClick={() => setView('cover')} className="gap-1">
-          <ArrowLeft className="w-4 h-4" />
-          返回封面
-        </Button>
-        <div className="flex-1 text-center">
-          <h2 className="text-lg font-semibold text-amber-900">家族成员目录</h2>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => window.print()}
-            className="gap-1"
-          >
-            <Download className="w-4 h-4" />
-            导出PDF
-          </Button>
-        </div>
-      </div>
+  // 目录页 - 书籍索引风格（两列布局，适合打印）
+  const renderToc = () => {
+    // 生成书籍风格的索引列表 - 按姓名拼音排序
+    const indexedMembers = allMembersSorted.map((member, index) => ({
+      member,
+      page: Math.floor(index / MEMBERS_PER_PAGE) + 1
+    }))
 
-      {/* 代数卡片 */}
-      <div className="flex-1 overflow-auto p-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {paginatedGenerations.map(({ generation, members: genMembers }) => {
-            const genLabel = generationWords[generation - 1] || `第${generation}代`
-            return (
-              <Card
-                key={generation}
-                className="bg-gradient-to-br from-amber-50 to-orange-50 border-amber-300 overflow-hidden"
-              >
-                <CardContent className="p-0">
-                  {/* 卡片头部 */}
-                  <div className="bg-gradient-to-r from-amber-600 to-orange-600 text-white p-3">
-                    <div className="flex items-center justify-between">
-                      <Badge className="bg-white/20 text-white border-0">
-                        {genLabel}
-                      </Badge>
-                      <span className="text-2xl">👨‍👩‍👧</span>
-                    </div>
-                  </div>
-                  {/* 成员列表 */}
-                  <div className="p-3 space-y-2 max-h-64 overflow-auto">
-                    {genMembers.map(member => (
-                      <div
+    // 分成两列显示
+    const half = Math.ceil(indexedMembers.length / 2)
+    const leftColumn = indexedMembers.slice(0, half)
+    const rightColumn = indexedMembers.slice(half)
+
+    return (
+      <div className="h-full flex flex-col bg-gradient-to-br from-amber-50 to-orange-50">
+        {/* 顶部导航 */}
+        <div className="shrink-0 flex items-center justify-between gap-4 p-4 bg-white border-b">
+          <Button variant="ghost" onClick={() => setView('cover')} className="gap-1">
+            <ArrowLeft className="w-4 h-4" />
+            返回封面
+          </Button>
+          <div className="flex-1 text-center">
+            <h2 className="text-lg font-semibold text-amber-900">家族成员索引</h2>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleExportPdf}
+              disabled={isExporting}
+              className="gap-1"
+            >
+              {isExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+              导出PDF
+            </Button>
+          </div>
+        </div>
+
+        {/* 目录内容 - 书籍索引风格 */}
+        <div className="flex-1 overflow-auto p-4">
+          <div
+            ref={tocRef}
+            className="bg-white mx-auto shadow-lg border-2 border-amber-300"
+            style={{ width: '210mm', minHeight: '297mm', padding: '15mm 20mm', fontFamily: 'serif' }}
+          >
+            {/* 标题 */}
+            <div className="text-center mb-6 pb-4 border-b-2 border-amber-400">
+              <h1 className="text-2xl font-bold text-amber-900 tracking-widest">{familyName || '某某家族'}</h1>
+              <p className="text-amber-700 text-lg mt-1">成员索引</p>
+            </div>
+
+            {/* 索引表格 - 两列布局 */}
+            <div className="flex gap-8">
+              {/* 左列 */}
+              <div className="flex-1">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-amber-800 border-b border-amber-200">
+                      <th className="text-left py-2 w-16">页码</th>
+                      <th className="text-left py-2">姓名</th>
+                      <th className="text-left py-2 w-20">生卒年</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {leftColumn.map(({ member, page }) => (
+                      <tr
                         key={member.id}
-                        className="flex items-center gap-2 p-2 rounded hover:bg-amber-100 cursor-pointer transition-colors"
+                        className="border-b border-dotted border-amber-100 hover:bg-amber-50 cursor-pointer"
                         onClick={() => handleViewDetail(member)}
                       >
-                        <div className="w-8 h-8 rounded-full border border-amber-300 bg-gradient-to-br from-amber-100 to-orange-100 flex items-center justify-center text-xs text-amber-800">
-                          {member.name.charAt(0)}
-                        </div>
-                        <div className="flex-1">
-                          <div className="font-medium text-amber-900 text-sm">{member.name}</div>
-                          {member.birth_date && (
-                            <div className="text-xs text-zinc-500">{member.birth_date}</div>
-                          )}
-                        </div>
-                        {member.is_deceased && (
-                          <span className="text-xs text-zinc-400">故</span>
-                        )}
-                      </div>
+                        <td className="py-1.5 text-amber-600">{page}</td>
+                        <td className="py-1.5 font-medium text-amber-900">{member.name}</td>
+                        <td className="py-1.5 text-zinc-500 text-xs">
+                          {member.birth_date?.substring(0, 4) || '-'}
+                          {member.is_deceased && <span className="ml-1">故</span>}
+                        </td>
+                      </tr>
                     ))}
-                  </div>
-                  <div className="px-3 pb-3 text-center">
-                    <span className="text-sm text-amber-600">共 {genMembers.length} 人</span>
-                  </div>
-                </CardContent>
-              </Card>
-            )
-          })}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* 右列 */}
+              <div className="flex-1">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-amber-800 border-b border-amber-200">
+                      <th className="text-left py-2 w-16">页码</th>
+                      <th className="text-left py-2">姓名</th>
+                      <th className="text-left py-2 w-20">生卒年</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rightColumn.map(({ member, page }) => (
+                      <tr
+                        key={member.id}
+                        className="border-b border-dotted border-amber-100 hover:bg-amber-50 cursor-pointer"
+                        onClick={() => handleViewDetail(member)}
+                      >
+                        <td className="py-1.5 text-amber-600">{page}</td>
+                        <td className="py-1.5 font-medium text-amber-900">{member.name}</td>
+                        <td className="py-1.5 text-zinc-500 text-xs">
+                          {member.birth_date?.substring(0, 4) || '-'}
+                          {member.is_deceased && <span className="ml-1">故</span>}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* 统计信息 */}
+            <div className="mt-8 pt-4 border-t border-amber-200 text-center text-sm text-amber-700">
+              <p>共 {allMembersSorted.length} 名族人，分为 {totalPages} 页记载</p>
+              <p className="mt-1 text-zinc-500">编纂于 {new Date().toLocaleDateString('zh-CN')}</p>
+            </div>
+          </div>
         </div>
 
-        {membersByGeneration.length === 0 && (
-          <div className="text-center py-12 text-amber-600">
-            <Users className="w-12 h-12 mx-auto mb-4 opacity-50" />
-            <p>暂无家族成员记录</p>
-          </div>
-        )}
+        <style>{`
+          @media print {
+            button { display: none !important; }
+            .bg-white { background: white !important; }
+          }
+        `}</style>
       </div>
-
-      {/* 分页 */}
-      {tocTotalPages > 1 && (
-        <div className="shrink-0 flex items-center justify-between p-4 bg-white border-t">
-          <span className="text-sm text-zinc-600">
-            第 {tocPage} / {tocTotalPages} 页
-          </span>
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setTocPage(p => Math.max(1, p - 1))}
-              disabled={tocPage <= 1}
-              className="gap-1"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              上一页
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setTocPage(p => Math.min(tocTotalPages, p + 1))}
-              disabled={tocPage >= tocTotalPages}
-              className="gap-1"
-            >
-              下一页
-              <ArrowLeft className="w-4 h-4 rotate-180" />
-            </Button>
-          </div>
-        </div>
-      )}
-
-      <style>{`
-        @media print {
-          button { display: none !important; }
-          .bg-white { background: white !important; }
-          .border-b { border: none !important; }
-        }
-      `}</style>
-    </div>
-  )
+    )
+  }
 
   // 成员详情页
   const renderDetail = () => {
@@ -426,13 +544,12 @@ export function ModernGenealogyBook({
 
     const rels = memberRelations.get(selectedMember.id)
     const memberMap = new Map(members.map(m => [m.id, m]))
-
-    // 获取家庭成员信息
     const fatherInfo = rels?.father ? memberMap.get(rels.father.id) : null
     const motherInfo = rels?.mother ? memberMap.get(rels.mother.id) : null
     const spouseInfo = rels?.spouses || []
     const childrenInfo = (rels?.children || []).map(c => memberMap.get(c.id)).filter(Boolean) as Member[]
     const genLabel = getGenerationLabel(selectedMember.generation)
+    const memberPage = memberPageMap.get(selectedMember.id) || 1
 
     return (
       <div className="h-full flex flex-col bg-gradient-to-br from-amber-50 to-orange-50">
@@ -445,17 +562,20 @@ export function ModernGenealogyBook({
           <div className="flex-1 text-center">
             <h2 className="text-lg font-semibold text-amber-900">成员详情</h2>
           </div>
-          <div className="w-20" />
+          <div className="flex items-center gap-2">
+            <Badge variant="outline" className="text-amber-700">
+              第 {memberPage} 页
+            </Badge>
+          </div>
         </div>
 
         {/* 详情内容 */}
         <div className="flex-1 overflow-auto p-6">
           <div className="max-w-2xl mx-auto space-y-6">
             {/* 照片和基本信息卡片 */}
-            <Card className="border-amber-200 bg-gradient-to-br from-amber-50 to-orange-50 print:border-4 print:shadow-none">
+            <Card className="border-amber-200 bg-gradient-to-br from-amber-50 to-orange-50">
               <CardContent className="p-6">
                 <div className="flex items-start gap-6">
-                  {/* 照片 - 圆形古风边框 */}
                   <div className="relative">
                     <div className="w-32 h-32 rounded-full border-4 border-amber-700 bg-gradient-to-br from-amber-100 to-orange-100 overflow-hidden shadow-lg">
                       <Avatar
@@ -472,7 +592,6 @@ export function ModernGenealogyBook({
                     )}
                   </div>
 
-                  {/* 基础信息 */}
                   <div className="flex-1">
                     <div className="flex items-center gap-3 mb-2">
                       <h3 className="text-2xl font-bold text-amber-900">{selectedMember.name}</h3>
@@ -520,7 +639,7 @@ export function ModernGenealogyBook({
 
             {/* 生平事迹 */}
             {selectedMember.biography && (
-              <Card className="border-amber-200 print:border-4 print:shadow-none">
+              <Card className="border-amber-200">
                 <CardContent className="p-4">
                   <h4 className="text-sm font-semibold text-amber-800 mb-2 flex items-center gap-2">
                     <BookOpen className="w-4 h-4" />
@@ -533,7 +652,7 @@ export function ModernGenealogyBook({
 
             {/* 主要成就 */}
             {selectedMember.remarkable_deeds && (
-              <Card className="border-amber-200 bg-gradient-to-br from-amber-50 to-orange-50 print:border-4 print:shadow-none">
+              <Card className="border-amber-200 bg-gradient-to-br from-amber-50 to-orange-50">
                 <CardContent className="p-4">
                   <h4 className="text-sm font-semibold text-amber-800 mb-2 flex items-center gap-2">
                     <Award className="w-4 h-4" />
@@ -545,7 +664,7 @@ export function ModernGenealogyBook({
             )}
 
             {/* 家族关系 */}
-            <Card className="border-amber-200 print:border-4 print:shadow-none">
+            <Card className="border-amber-200">
               <CardContent className="p-4">
                 <h4 className="text-sm font-semibold text-amber-800 mb-3 flex items-center gap-2">
                   <Users className="w-4 h-4" />
@@ -553,7 +672,6 @@ export function ModernGenealogyBook({
                 </h4>
 
                 <div className="space-y-3">
-                  {/* 父母 */}
                   {(fatherInfo || motherInfo) && (
                     <div className="flex items-center gap-2 text-sm">
                       <span className="text-amber-600 w-12">父母</span>
@@ -582,7 +700,6 @@ export function ModernGenealogyBook({
                     </div>
                   )}
 
-                  {/* 配偶 */}
                   {spouseInfo.length > 0 && (
                     <div className="flex items-center gap-2 text-sm">
                       <span className="text-amber-600 w-12">配偶</span>
@@ -606,7 +723,6 @@ export function ModernGenealogyBook({
                     </div>
                   )}
 
-                  {/* 子女 */}
                   {childrenInfo.length > 0 && (
                     <div className="flex items-center gap-2 text-sm">
                       <span className="text-amber-600 w-12">子女</span>
@@ -636,17 +752,10 @@ export function ModernGenealogyBook({
   }
 
   return (
-    <div className="h-full">
+    <div className="h-full relative">
       {view === 'cover' && renderCover()}
       {view === 'toc' && renderToc()}
       {view === 'detail' && renderDetail()}
-
-      <style>{`
-        @media print {
-          button { display: none !important; }
-          .border-b { border: none !important; }
-        }
-      `}</style>
     </div>
   )
 }
