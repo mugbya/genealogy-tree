@@ -12,6 +12,8 @@ import { Switch } from '@/components/ui/switch'
 import { GenealogyTree } from '@/components/TreeNode'
 import { TraditionalGenealogy } from '@/components/TraditionalGenealogy'
 import { TraditionalGenealogyBook } from '@/components/TraditionalGenealogyBook'
+import { ModernGenealogyBook } from '@/components/ModernGenealogyBook'
+import { MemberDirectory } from '@/components/MemberDirectory'
 import { membersApi, relationTagsApi, configApi, type Member, type RelationTag, type CreateMemberInput } from '@/api/client'
 import {
   Dialog,
@@ -789,6 +791,10 @@ export function TreePage() {
             <TreeDeciduous className="w-5 h-5" />
             祖谱树
           </TabsTrigger>
+          <TabsTrigger value="directory" className="gap-2 text-base py-3 px-4">
+            <Users className="w-5 h-5" />
+            成员目录
+          </TabsTrigger>
           <TabsTrigger value="tags" className="gap-2 text-base py-3 px-4">
             <TagIcon className="w-5 h-5" />
             标签管理
@@ -796,6 +802,10 @@ export function TreePage() {
           <TabsTrigger value="traditional" className="gap-2 text-base py-3 px-4">
             <BookOpen className="w-5 h-5" />
             祖谱导航
+          </TabsTrigger>
+          <TabsTrigger value="modern" className="gap-2 text-base py-3 px-4">
+            <BookOpen className="w-5 h-5" />
+            现代族谱
           </TabsTrigger>
           {/* <TabsTrigger value="book" className="gap-2 text-base py-3 px-4">
             <BookOpen className="w-5 h-5" />
@@ -1514,6 +1524,19 @@ export function TreePage() {
           />
         </TabsContent>
 
+        {/* 现代族谱 */}
+        <TabsContent value="modern" className="flex-1 min-h-0 mt-4">
+          <ModernGenealogyBook
+            familyName={familyName}
+            familySurname={familySurname}
+            familyOrigin={familyOrigin}
+            familyMaxim={familyMaxim}
+            familyGenerationWords={familyGenerationWords}
+            members={members}
+            relations={relationsData?.data || []}
+          />
+        </TabsContent>
+
         {/* 传统祖谱 */}
         <TabsContent value="book" className="flex-1 min-h-0 mt-4">
           <TraditionalGenealogyBook
@@ -1524,6 +1547,20 @@ export function TreePage() {
             familyGenerationWords={familyGenerationWords}
             members={members}
             relations={relationsData?.data || []}
+          />
+        </TabsContent>
+
+        {/* 成员目录 */}
+        <TabsContent value="directory" className="flex-1 min-h-0 mt-4">
+          <MemberDirectory
+            familySurname={familySurname}
+            familyGenerationWords={familyGenerationWords}
+            members={members}
+            relations={relationsData?.data || []}
+            onViewDetail={(member) => {
+              setSelectedMember(member)
+              setIsDetailOpen(true)
+            }}
           />
         </TabsContent>
 
