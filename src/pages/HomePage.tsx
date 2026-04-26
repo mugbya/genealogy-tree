@@ -15,6 +15,7 @@ import {
   RefreshCw,
   User,
   UsersRound,
+  GitBranch,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState, useEffect, useCallback } from "react";
@@ -37,6 +38,7 @@ interface FamilyStats {
   maleCount: number;
   femaleCount: number;
   deceasedCount: number;
+  generationCount: number;
   surnameCounts: { surname: string; count: number }[];
 }
 
@@ -60,6 +62,7 @@ export function HomePage() {
     maleCount: 0,
     femaleCount: 0,
     deceasedCount: 0,
+    generationCount: 0,
     surnameCounts: [],
   });
 
@@ -112,11 +115,23 @@ export function HomePage() {
           .sort((a, b) => b.count - a.count)
           .slice(0, 5);
 
+        // 代数统计：找出最大的代数
+        let maxGeneration = 0;
+        members.forEach(m => {
+          if (m.generation) {
+            const genNum = parseInt(m.generation, 10);
+            if (!isNaN(genNum) && genNum > maxGeneration) {
+              maxGeneration = genNum;
+            }
+          }
+        });
+
         setFamilyStats({
           totalMembers: members.length,
           maleCount,
           femaleCount,
           deceasedCount,
+          generationCount: maxGeneration,
           surnameCounts,
         });
       }
@@ -248,11 +263,16 @@ export function HomePage() {
           </CardHeader>
           <CardContent>
             {/* 基础统计 */}
-            <div className="grid grid-cols-4 gap-4 mb-6">
+            <div className="grid grid-cols-5 gap-4 mb-6">
               <div className="text-center p-4 rounded-xl bg-blue-50">
                 <UsersRound className="w-8 h-8 text-blue-600 mx-auto mb-2" />
                 <p className="text-2xl font-bold text-gray-900">{familyStats.totalMembers}</p>
                 <p className="text-sm text-muted-foreground">总人数</p>
+              </div>
+              <div className="text-center p-4 rounded-xl bg-amber-50">
+                <GitBranch className="w-8 h-8 text-amber-600 mx-auto mb-2" />
+                <p className="text-2xl font-bold text-gray-900">{familyStats.generationCount}</p>
+                <p className="text-sm text-muted-foreground">代数</p>
               </div>
               <div className="text-center p-4 rounded-xl bg-indigo-50">
                 <User className="w-8 h-8 text-indigo-600 mx-auto mb-2" />
