@@ -33,11 +33,6 @@ export function ModernGenealogyBook({
   const coverRef = useRef<HTMLDivElement>(null)
   const tocRef = useRef<HTMLDivElement>(null)
 
-  const generationWords = useMemo(() => {
-    if (!familyGenerationWords) return []
-    return familyGenerationWords.split(',').map(w => w.trim()).filter(Boolean)
-  }, [familyGenerationWords])
-
   const isOwnFamily = (member: Member) => {
     if (!familySurname) return true
     if (!member.surname) return true
@@ -273,7 +268,7 @@ export function ModernGenealogyBook({
               ${allMembersSorted.map((m, i) => {
                 const page = i + 3
                 const genNum = parseInt(m.generation || '0', 10) || 0
-                const genWord = generationWords[genNum - 1] || ''
+                const genWord = m.generation_word || ''
                 return `<tr style="border-bottom: 1px dashed #ccc;">
                   <td style="padding: 8px 4px; color: #333;">第${page}页</td>
                   <td style="padding: 8px 4px; color: #333;">${genNum > 0 ? '第' + genNum + '代' : '-'}</td>
@@ -298,7 +293,7 @@ export function ModernGenealogyBook({
         const m = allMembersSorted[i]
         const rels = memberRelations.get(m.id)
         const genNum = parseInt(m.generation || '0', 10) || 0
-        const genWord = generationWords[genNum - 1] || ''
+        const genWord = m.generation_word || ''
         const memberMap = new Map(members.map(m => [m.id, m]))
         const fatherInfo = rels?.father ? memberMap.get(rels.father.id) : null
         const motherInfo = rels?.mother ? memberMap.get(rels.mother.id) : null
@@ -521,7 +516,7 @@ export function ModernGenealogyBook({
               <tbody>
                 {allMembersSorted.map((member, index) => {
                   const genNum = parseInt(member.generation || '0', 10) || 0
-                  const genWord = generationWords[genNum - 1] || ''
+                  const genWord = member.generation_word || ''
                   return (
                     <tr
                       key={member.id}
@@ -570,7 +565,7 @@ export function ModernGenealogyBook({
     const spouseInfo = rels?.spouses || []
     const childrenInfo = (rels?.children || []).map(c => memberMap.get(c.id)).filter((m): m is Member => m !== undefined) as Member[]
     const genNum = parseInt(selectedMember.generation || '0', 10) || 0
-    const genWord = generationWords[genNum - 1] || ''
+    const genWord = selectedMember.generation_word || ''
 
     return (
       <div className="h-full flex flex-col bg-white">

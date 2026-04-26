@@ -7,6 +7,7 @@ pub struct Member {
     pub surname: Option<String>,
     pub gender: String,
     pub generation: Option<String>,
+    pub generation_word: Option<String>,  // 字辈
     pub weight: i32,
     pub birth_date: Option<String>,
     pub death_date: Option<String>,
@@ -28,6 +29,7 @@ pub struct CreateMemberRequest {
     pub surname: Option<String>,
     pub gender: String,
     pub generation: Option<String>,
+    pub generation_word: Option<String>,  // 字辈
     pub weight: Option<i32>,
     pub birth_date: Option<String>,
     pub death_date: Option<String>,
@@ -47,6 +49,7 @@ pub struct UpdateMemberRequest {
     pub surname: Option<String>,
     pub gender: Option<String>,
     pub generation: Option<String>,
+    pub generation_word: Option<String>,  // 字辈
     pub weight: Option<i32>,
     pub birth_date: Option<String>,
     pub death_date: Option<String>,

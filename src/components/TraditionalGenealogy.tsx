@@ -35,12 +35,6 @@ export function TraditionalGenealogy({
   // 展开状态管理
   const [expandedIds, setExpandedIds] = useState<Set<number>>(new Set())
 
-  // 获取配置的字辈
-  const generationWords = useMemo(() => {
-    if (!familyGenerationWords) return []
-    return familyGenerationWords.split(',').map(w => w.trim()).filter(Boolean)
-  }, [familyGenerationWords])
-
   // 判断是否是本家族成员（同姓）
   const isOwnFamily = (member: Member) => {
     if (!familySurname) return true
@@ -202,11 +196,8 @@ export function TraditionalGenealogy({
 
   // 获取字辈标签
   const getGenerationLabel = (member: Member) => {
-    if (member.generation && generationWords.includes(member.generation)) {
-      return member.generation
-    }
-    if (member.generation) {
-      return member.generation
+    if (member.generation_word) {
+      return member.generation_word
     }
     return ''
   }

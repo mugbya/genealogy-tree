@@ -33,11 +33,6 @@ export function TraditionalGenealogyBook({
 }: TraditionalGenealogyBookProps) {
   const [currentPage, setCurrentPage] = useState(1)
 
-  const generationWords = useMemo(() => {
-    if (!familyGenerationWords) return []
-    return familyGenerationWords.split(',').map(w => w.trim()).filter(Boolean)
-  }, [familyGenerationWords])
-
   const isOwnFamily = (member: Member) => {
     if (!familySurname) return true
     if (!member.surname) return true
@@ -239,10 +234,8 @@ export function TraditionalGenealogyBook({
     return familyUnits.slice(start, start + ENTRIES_PER_PAGE)
   }, [familyUnits, currentPage])
 
-  const getGenerationLabel = (gen?: string) => {
-    if (!gen) return ''
-    if (generationWords.includes(gen)) return gen
-    return gen
+  const getGenerationLabel = (generation_word?: string) => {
+    return generation_word || ''
   }
 
   const prevPage = () => {
@@ -319,7 +312,7 @@ export function TraditionalGenealogyBook({
           {/* 家庭单元列表 */}
           <div className="space-y-4">
             {paginatedUnits.map((unit, idx) => {
-              const genLabel = getGenerationLabel(unit.father?.generation)
+              const genLabel = getGenerationLabel(unit.father?.generation_word)
 
               return (
                 <div

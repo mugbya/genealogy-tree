@@ -176,6 +176,7 @@ export interface Member {
   surname?: string
   gender: string
   generation?: string
+  generation_word?: string  // 字辈
   weight?: number
   birth_date?: string
   death_date?: string
@@ -196,6 +197,7 @@ export interface CreateMemberInput {
   surname?: string
   gender: string
   generation?: string
+  generation_word?: string  // 字辈
   weight?: number
   birth_date?: string
   death_date?: string
@@ -214,6 +216,7 @@ export interface UpdateMemberInput {
   surname?: string
   gender?: string
   generation?: string
+  generation_word?: string  // 字辈
   weight?: number
   birth_date?: string
   death_date?: string

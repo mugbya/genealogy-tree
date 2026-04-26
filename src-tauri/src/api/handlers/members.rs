@@ -491,9 +491,9 @@ pub async fn import_members(
             // Update existing
             let weight_val = row.排序.unwrap_or(0);
             let result = conn.execute(
-                "UPDATE family_members SET surname = ?, gender = ?, generation = ?, weight = ?, birth_date = ?, death_date = ?, is_deceased = ?,
+                "UPDATE family_members SET surname = ?, gender = ?, generation = ?, generation_word = ?, weight = ?, birth_date = ?, death_date = ?, is_deceased = ?,
                  birth_place = ?, occupation = ?, biography = ?, remarkable_deeds = ?, is_matrilocal = ?, is_adopted_son = ? WHERE id = ?",
-                params![row.姓氏, gender, row.字辈, weight_val, row.出生日期, row.逝世日期, is_deceased, row.籍贯, row.职业, row.生平简介, row.突出事迹, is_matrilocal, is_adopted_son, id],
+                params![row.姓氏, gender, row.字辈, row.字辈, weight_val, row.出生日期, row.逝世日期, is_deceased, row.籍贯, row.职业, row.生平简介, row.突出事迹, is_matrilocal, is_adopted_son, id],
             );
             match result {
                 Ok(_) => updated += 1,
@@ -503,9 +503,9 @@ pub async fn import_members(
             // Insert new
             let weight_val = row.排序.unwrap_or(0);
             let result = conn.execute(
-                "INSERT INTO family_members (name, surname, gender, generation, weight, birth_date, death_date, is_deceased,
-                 birth_place, occupation, biography, remarkable_deeds, is_matrilocal, is_adopted_son) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                params![name, row.姓氏, gender, row.字辈, weight_val, row.出生日期, row.逝世日期, is_deceased, row.籍贯, row.职业, row.生平简介, row.突出事迹, is_matrilocal, is_adopted_son],
+                "INSERT INTO family_members (name, surname, gender, generation, generation_word, weight, birth_date, death_date, is_deceased,
+                 birth_place, occupation, biography, remarkable_deeds, is_matrilocal, is_adopted_son) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                params![name, row.姓氏, gender, row.字辈, row.字辈, weight_val, row.出生日期, row.逝世日期, is_deceased, row.籍贯, row.职业, row.生平简介, row.突出事迹, is_matrilocal, is_adopted_son],
             );
             match result {
                 Ok(_) => {
@@ -774,7 +774,7 @@ pub async fn get_members(
     };
 
     let mut stmt = match conn.prepare(
-        "SELECT id, name, surname, gender, generation, weight, birth_date, death_date, is_deceased,
+        "SELECT id, name, surname, gender, generation, generation_word, weight, birth_date, death_date, is_deceased,
          birth_place, occupation, photo_path, biography, remarkable_deeds, is_matrilocal, is_adopted_son, created_at, updated_at
          FROM family_members ORDER BY weight DESC, generation, name"
     ) {
@@ -789,19 +789,20 @@ pub async fn get_members(
             surname: row.get(2)?,
             gender: row.get(3)?,
             generation: row.get(4)?,
-            weight: row.get(5)?,
-            birth_date: row.get(6)?,
-            death_date: row.get(7)?,
-            is_deceased: row.get::<_, i32>(8)? != 0,
-            birth_place: row.get(9)?,
-            occupation: row.get(10)?,
-            photo_path: row.get(11)?,
-            biography: row.get(12)?,
-            remarkable_deeds: row.get(13)?,
-            is_matrilocal: row.get::<_, i32>(14)? != 0,
-            is_adopted_son: row.get::<_, i32>(15)? != 0,
-            created_at: row.get(16)?,
-            updated_at: row.get(17)?,
+            generation_word: row.get(5)?,
+            weight: row.get(6)?,
+            birth_date: row.get(7)?,
+            death_date: row.get(8)?,
+            is_deceased: row.get::<_, i32>(9)? != 0,
+            birth_place: row.get(10)?,
+            occupation: row.get(11)?,
+            photo_path: row.get(12)?,
+            biography: row.get(13)?,
+            remarkable_deeds: row.get(14)?,
+            is_matrilocal: row.get::<_, i32>(15)? != 0,
+            is_adopted_son: row.get::<_, i32>(16)? != 0,
+            created_at: row.get(17)?,
+            updated_at: row.get(18)?,
         })
     });
 
@@ -824,7 +825,7 @@ pub async fn get_member(
     };
 
     let result = conn.query_row(
-        "SELECT id, name, surname, gender, generation, weight, birth_date, death_date, is_deceased,
+        "SELECT id, name, surname, gender, generation, generation_word, weight, birth_date, death_date, is_deceased,
          birth_place, occupation, photo_path, biography, remarkable_deeds, is_matrilocal, is_adopted_son, created_at, updated_at
          FROM family_members WHERE id = ?",
         params![id],
@@ -835,19 +836,20 @@ pub async fn get_member(
                 surname: row.get(2)?,
                 gender: row.get(3)?,
                 generation: row.get(4)?,
-                weight: row.get(5)?,
-                birth_date: row.get(6)?,
-                death_date: row.get(7)?,
-                is_deceased: row.get::<_, i32>(8)? != 0,
-                birth_place: row.get(9)?,
-                occupation: row.get(10)?,
-                photo_path: row.get(11)?,
-                biography: row.get(12)?,
-                remarkable_deeds: row.get(13)?,
-                is_matrilocal: row.get::<_, i32>(14)? != 0,
-                is_adopted_son: row.get::<_, i32>(15)? != 0,
-                created_at: row.get(16)?,
-                updated_at: row.get(17)?,
+                generation_word: row.get(5)?,
+                weight: row.get(6)?,
+                birth_date: row.get(7)?,
+                death_date: row.get(8)?,
+                is_deceased: row.get::<_, i32>(9)? != 0,
+                birth_place: row.get(10)?,
+                occupation: row.get(11)?,
+                photo_path: row.get(12)?,
+                biography: row.get(13)?,
+                remarkable_deeds: row.get(14)?,
+                is_matrilocal: row.get::<_, i32>(15)? != 0,
+                is_adopted_son: row.get::<_, i32>(16)? != 0,
+                created_at: row.get(17)?,
+                updated_at: row.get(18)?,
             })
         },
     );
@@ -868,13 +870,14 @@ pub async fn create_member(
     };
 
     let result = conn.execute(
-        "INSERT INTO family_members (name, surname, gender, generation, weight, birth_date, death_date, is_deceased,
-         birth_place, occupation, photo_path, biography, remarkable_deeds, is_matrilocal, is_adopted_son) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)",
+        "INSERT INTO family_members (name, surname, gender, generation, generation_word, weight, birth_date, death_date, is_deceased,
+         birth_place, occupation, photo_path, biography, remarkable_deeds, is_matrilocal, is_adopted_son) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)",
         params![
             req.name,
             req.surname,
             req.gender,
             req.generation,
+            req.generation_word,
             req.weight.unwrap_or(0),
             req.birth_date,
             req.death_date,
@@ -951,6 +954,10 @@ pub async fn update_member(
     if let Some(ref generation) = req.generation {
         updates.push("generation = ?");
         values.push(Box::new(generation.clone()));
+    }
+    if let Some(ref generation_word) = req.generation_word {
+        updates.push("generation_word = ?");
+        values.push(Box::new(generation_word.clone()));
     }
     if let Some(ref weight) = req.weight {
         updates.push("weight = ?");

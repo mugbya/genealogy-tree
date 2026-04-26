@@ -97,6 +97,7 @@ export function TreePage() {
   const [filterIsAdoptedSon, setFilterIsAdoptedSon] = useState<string>('')
   const [filterSurname, setFilterSurname] = useState<string>('')
   const [filterGeneration, setFilterGeneration] = useState<string>('')
+  const [filterGenerationWord, setFilterGenerationWord] = useState<string>('')
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [isEditOpen, setIsEditOpen] = useState(false)
   const [isDetailOpen, setIsDetailOpen] = useState(false)
@@ -366,14 +367,19 @@ export function TreePage() {
         return false
       }
 
-      // 字辈过滤
+      // 代数过滤
       if (filterGeneration && m.generation !== filterGeneration) {
+        return false
+      }
+
+      // 字辈过滤
+      if (filterGenerationWord && m.generation_word !== filterGenerationWord) {
         return false
       }
 
       return true
     })
-  }, [members, searchKeyword, filterGender, filterIsDeceased, filterHasFather, filterHasMother, filterHasSpouse, filterIsMatrilocal, filterIsAdoptedSon, filterSurname, filterGeneration, memberRelations])
+  }, [members, searchKeyword, filterGender, filterIsDeceased, filterHasFather, filterHasMother, filterHasSpouse, filterIsMatrilocal, filterIsAdoptedSon, filterSurname, filterGeneration, filterGenerationWord, memberRelations])
 
   // 分页成员
   const paginatedMembers = useMemo(() => {
@@ -389,16 +395,22 @@ export function TreePage() {
     return [...new Set(surnames)].sort()
   }, [members])
 
-  // 获取唯一的字辈列表
-  const uniqueGenerations = useMemo(() => {
+  // 获取唯一的代数列表
+  const uniqueGenerationNumbers = useMemo(() => {
     const generations = members.map(m => m.generation).filter(Boolean) as string[]
     return [...new Set(generations)].sort()
+  }, [members])
+
+  // 获取唯一的字辈列表
+  const uniqueGenerationWords = useMemo(() => {
+    const words = members.map(m => m.generation_word).filter(Boolean) as string[]
+    return [...new Set(words)].sort()
   }, [members])
 
   // 重置页码当筛选条件变化时
   useEffect(() => {
     setCurrentPage(1)
-  }, [searchKeyword, filterGender, filterIsDeceased, filterIsMatrilocal, filterIsAdoptedSon, filterSurname, filterGeneration])
+  }, [searchKeyword, filterGender, filterIsDeceased, filterIsMatrilocal, filterIsAdoptedSon, filterSurname, filterGeneration, filterGenerationWord])
 
   // 计算有子女的成员（用于祖谱树起始成员选择）
   const membersWithChildren = useMemo(() => {
@@ -514,6 +526,7 @@ export function TreePage() {
       surname: member.surname || '',
       gender: member.gender,
       generation: member.generation || undefined,
+      generation_word: member.generation_word || undefined,
       weight: member.weight,
       birth_date: member.birth_date,
       death_date: member.death_date,
@@ -1130,15 +1143,26 @@ export function TreePage() {
                         <option key={s} value={s}>{s}</option>
                       ))}
                     </select>
-                    {/* 字辈 */}
+                    {/* 代数 */}
                     <select
                       value={filterGeneration}
                       onChange={(e) => setFilterGeneration(e.target.value)}
                       className="h-9 px-3 text-sm border border-zinc-200 rounded-lg bg-white text-zinc-700 focus:outline-none focus:ring-2 focus:ring-zinc-400"
                     >
+                      <option value="">代数</option>
+                      {uniqueGenerationNumbers.map(g => (
+                        <option key={g} value={g}>第{g}代</option>
+                      ))}
+                    </select>
+                    {/* 字辈 */}
+                    <select
+                      value={filterGenerationWord}
+                      onChange={(e) => setFilterGenerationWord(e.target.value)}
+                      className="h-9 px-3 text-sm border border-zinc-200 rounded-lg bg-white text-zinc-700 focus:outline-none focus:ring-2 focus:ring-zinc-400"
+                    >
                       <option value="">字辈</option>
-                      {familyGenerationWords.split(',').filter(Boolean).map((word, index) => (
-                        <option key={index} value={String(index + 1)}>{word}</option>
+                      {uniqueGenerationWords.map(w => (
+                        <option key={w} value={w}>{w}</option>
                       ))}
                     </select>
                     {/* 性别 */}
@@ -2305,12 +2329,23 @@ function MemberFormDialog({
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium flex items-center gap-1">
-                字辈
+                代
               </label>
               <Input
                 value={form.generation != null ? String(form.generation) : ''}
                 onChange={(e) => handleChange('generation', e.target.value || undefined)}
-                placeholder={form.gender === 'male' ? '自动取名字中间字' : '仅男性适用'}
+                placeholder="代数"
+                className="h-11"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium flex items-center gap-1">
+                字辈
+              </label>
+              <Input
+                value={form.generation_word != null ? String(form.generation_word) : ''}
+                onChange={(e) => handleChange('generation_word', e.target.value || undefined)}
+                placeholder={form.gender === 'male' ? '名字中的辈分字' : '仅男性适用'}
                 disabled={form.gender !== 'male'}
                 className="h-11"
               />

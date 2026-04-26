@@ -28,11 +28,6 @@ export function MemberDirectory({
   const [searchKeyword, setSearchKeyword] = useState('')
   const [filterGender, setFilterGender] = useState<string>('')
 
-  const generationWords = useMemo(() => {
-    if (!familyGenerationWords) return []
-    return familyGenerationWords.split(',').map(w => w.trim()).filter(Boolean)
-  }, [familyGenerationWords])
-
   const isOwnFamily = (member: Member) => {
     if (!familySurname) return true
     if (!member.surname) return true
@@ -143,12 +138,17 @@ export function MemberDirectory({
     })
 
     const sortedGens = Array.from(byGen.keys()).sort((a, b) => a - b)
-    return sortedGens.map(gen => ({
-      generation: gen,
-      label: generationWords[gen - 1] || `第${gen}代`,
-      members: byGen.get(gen)!.sort((a, b) => (b.weight ?? 0) - (a.weight ?? 0))
-    }))
-  }, [members, relations, isOwnFamily, memberRelations, generationWords])
+    return sortedGens.map(gen => {
+      const membersInGen = byGen.get(gen)!
+      const firstMember = membersInGen[0]
+      const genWord = firstMember.generation_word
+      return {
+        generation: gen,
+        label: genWord || `第${gen}代`,
+        members: membersInGen.sort((a, b) => (b.weight ?? 0) - (a.weight ?? 0))
+      }
+    })
+  }, [members, relations, isOwnFamily, memberRelations])
 
   // 过滤和搜索
   const filteredMembers = useMemo(() => {

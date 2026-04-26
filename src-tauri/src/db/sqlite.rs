@@ -120,6 +120,17 @@ pub fn init_database(db_path: &Path) -> Result<Connection> {
         conn.execute("ALTER TABLE family_members ADD COLUMN death_date TEXT", [])?;
     }
 
+    // Migration: add generation_word column if it doesn't exist (for existing databases)
+    let has_generation_word: bool = conn.query_row(
+        "SELECT COUNT(*) FROM pragma_table_info('family_members') WHERE name = 'generation_word'",
+        [],
+        |row| Ok(row.get::<_, i32>(0)? > 0),
+    ).unwrap_or(false);
+
+    if !has_generation_word {
+        conn.execute("ALTER TABLE family_members ADD COLUMN generation_word TEXT", [])?;
+    }
+
     conn.execute(
         "CREATE TABLE IF NOT EXISTS relation_tags (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
