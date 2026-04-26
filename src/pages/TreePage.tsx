@@ -398,7 +398,7 @@ export function TreePage() {
   // 获取唯一的代数列表
   const uniqueGenerationNumbers = useMemo(() => {
     const generations = members.map(m => m.generation).filter(Boolean) as string[]
-    return [...new Set(generations)].sort()
+    return [...new Set(generations)].sort((a, b) => parseInt(a) - parseInt(b))
   }, [members])
 
   // 获取唯一的字辈列表
