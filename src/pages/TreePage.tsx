@@ -366,7 +366,7 @@ export function TreePage() {
         return false
       }
 
-      // 辈字过滤
+      // 字辈过滤
       if (filterGeneration && m.generation !== filterGeneration) {
         return false
       }
@@ -389,7 +389,7 @@ export function TreePage() {
     return [...new Set(surnames)].sort()
   }, [members])
 
-  // 获取唯一的辈字列表
+  // 获取唯一的字辈列表
   const uniqueGenerations = useMemo(() => {
     const generations = members.map(m => m.generation).filter(Boolean) as string[]
     return [...new Set(generations)].sort()
@@ -863,7 +863,7 @@ export function TreePage() {
                   </Card>
                 </div>
 
-                {/* 第二行：祖训 + 辈字列表 */}
+                {/* 第二行：祖训 + 字辈列表 */}
                 <div className="grid grid-cols-2 gap-6">
                   <Card className="border-0 shadow-sm">
                     <CardHeader className="pb-3">
@@ -890,7 +890,7 @@ export function TreePage() {
                         <span className="w-7 h-7 rounded-lg bg-violet-50 flex items-center justify-center">
                           <span className="text-violet-600 font-bold text-sm">辈</span>
                         </span>
-                        辈字列表
+                        字辈列表
                       </CardTitle>
                     </CardHeader>
                     <CardContent>
@@ -988,7 +988,7 @@ export function TreePage() {
                   </Card>
                 </div>
 
-                {/* 第二行：祖训 + 辈字列表 */}
+                {/* 第二行：祖训 + 字辈列表 */}
                 <div className="grid grid-cols-2 gap-6">
                   <Card className="border-0 shadow-sm">
                     <CardHeader className="pb-3">
@@ -1010,11 +1010,11 @@ export function TreePage() {
                         <span className="w-7 h-7 rounded-lg bg-violet-50 flex items-center justify-center">
                           <span className="text-violet-600 font-bold text-sm">辈</span>
                         </span>
-                        辈字列表
+                        字辈列表
                       </CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <p className="text-sm whitespace-pre-wrap">{familyGenerationWords || '暂无辈字列表'}</p>
+                      <p className="text-sm whitespace-pre-wrap">{familyGenerationWords || '暂无字辈列表'}</p>
                     </CardContent>
                   </Card>
                 </div>
@@ -1130,13 +1130,13 @@ export function TreePage() {
                         <option key={s} value={s}>{s}</option>
                       ))}
                     </select>
-                    {/* 辈字 */}
+                    {/* 字辈 */}
                     <select
                       value={filterGeneration}
                       onChange={(e) => setFilterGeneration(e.target.value)}
                       className="h-9 px-3 text-sm border border-zinc-200 rounded-lg bg-white text-zinc-700 focus:outline-none focus:ring-2 focus:ring-zinc-400"
                     >
-                      <option value="">辈字</option>
+                      <option value="">字辈</option>
                       {uniqueGenerations.map(g => (
                         <option key={g} value={g}>{g}</option>
                       ))}
@@ -2305,7 +2305,7 @@ function MemberFormDialog({
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium flex items-center gap-1">
-                辈字
+                字辈
               </label>
               <Input
                 value={form.generation != null ? String(form.generation) : ''}

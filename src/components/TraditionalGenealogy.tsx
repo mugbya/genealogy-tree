@@ -200,7 +200,7 @@ export function TraditionalGenealogy({
     })
   }
 
-  // 获取辈字标签
+  // 获取字辈标签
   const getGenerationLabel = (member: Member) => {
     if (member.generation && generationWords.includes(member.generation)) {
       return member.generation

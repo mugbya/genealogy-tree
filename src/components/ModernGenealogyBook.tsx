@@ -264,7 +264,7 @@ export function ModernGenealogyBook({
               <tr style="border-bottom: 1px solid #333;">
                 <th style="text-align: left; padding: 8px 4px; color: #333;">页码</th>
                 <th style="text-align: left; padding: 8px 4px; color: #333;">代数</th>
-                <th style="text-align: left; padding: 8px 4px; color: #333;">辈字</th>
+                <th style="text-align: left; padding: 8px 4px; color: #333;">字辈</th>
                 <th style="text-align: left; padding: 8px 4px; color: #333;">姓名</th>
                 <th style="text-align: left; padding: 8px 4px; color: #333;">生年</th>
               </tr>
@@ -513,7 +513,7 @@ export function ModernGenealogyBook({
                 <tr className="text-amber-800 border-b border-amber-200">
                   <th className="text-left py-2 w-16">页码</th>
                   <th className="text-left py-2 w-16">代数</th>
-                  <th className="text-left py-2 w-20">辈字</th>
+                  <th className="text-left py-2 w-20">字辈</th>
                   <th className="text-left py-2 w-24">姓名</th>
                   <th className="text-left py-2 w-20">生年</th>
                 </tr>
