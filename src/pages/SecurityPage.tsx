@@ -254,37 +254,33 @@ export function SecurityPage() {
             ) : loginHistory.length === 0 ? (
               <div className="p-8 text-center text-zinc-500">暂无登录历史</div>
             ) : (
-              <div className="space-y-3 max-h-80 overflow-y-auto">
-                {loginHistory.slice(0, 10).map((item) => (
-                  <div key={item.id} className="flex items-start gap-3 p-3 border rounded-lg">
-                    <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${
+              <div className="space-y-2 max-h-[480px] overflow-y-auto pr-1">
+                {loginHistory.slice(0, 20).map((item) => (
+                  <div key={item.id} className="flex items-center gap-3 p-2 border rounded-lg hover:bg-zinc-50">
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
                       item.login_status === 'success'
                         ? 'bg-green-100 text-green-600'
                         : 'bg-red-100 text-red-600'
                     }`}>
                       {item.login_status === 'success' ? (
-                        <Check className="w-5 h-5" />
+                        <Check className="w-4 h-4" />
                       ) : (
-                        <AlertTriangle className="w-5 h-5" />
+                        <AlertTriangle className="w-4 h-4" />
                       )}
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium text-zinc-900">{item.username}</span>
-                        <Badge variant={item.login_status === 'success' ? 'default' : 'outline'} className="text-xs">
-                          {item.login_status === 'success' ? '成功' : '失败'}
-                        </Badge>
-                      </div>
-                      <p className="text-sm text-zinc-500 mt-1">
-                        {item.ip_address} · {item.user_agent ? (
-                          item.user_agent.length > 50 ? item.user_agent.substring(0, 50) + '...' : item.user_agent
-                        ) : '未知设备'}
-                      </p>
-                      {item.fail_reason && (
-                        <p className="text-xs text-red-500 mt-1">失败原因: {item.fail_reason}</p>
-                      )}
-                      <p className="text-xs text-zinc-400 mt-1">{formatDate(item.created_at)}</p>
+                    <div className="flex-1 min-w-0 flex items-center gap-2">
+                      <span className="font-medium text-zinc-900 text-sm">{item.username}</span>
+                      <Badge variant={item.login_status === 'success' ? 'default' : 'outline'} className="text-xs px-1 py-0">
+                        {item.login_status === 'success' ? '成功' : '失败'}
+                      </Badge>
+                      <span className="text-xs text-zinc-500 truncate">
+                        {item.ip_address}
+                      </span>
+                      <span className="text-xs text-zinc-400 shrink-0">{formatDate(item.created_at)}</span>
                     </div>
+                    {item.fail_reason && (
+                      <p className="text-xs text-red-500 shrink-0">{item.fail_reason}</p>
+                    )}
                   </div>
                 ))}
               </div>
