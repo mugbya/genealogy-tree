@@ -805,7 +805,7 @@ export function TreePage() {
           </TabsTrigger>
           <TabsTrigger value="modern" className="gap-2 text-base py-3 px-4">
             <BookOpen className="w-5 h-5" />
-            现代族谱
+            现代祖谱
           </TabsTrigger>
           {/* <TabsTrigger value="book" className="gap-2 text-base py-3 px-4">
             <BookOpen className="w-5 h-5" />
@@ -1524,7 +1524,7 @@ export function TreePage() {
           />
         </TabsContent>
 
-        {/* 现代族谱 */}
+        {/* 现代祖谱*/}
         <TabsContent value="modern" className="flex-1 min-h-0 mt-4">
           <ModernGenealogyBook
             familyName={familyName}

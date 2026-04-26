@@ -239,7 +239,7 @@ export function ModernGenealogyBook({
             <tr>
               <td style="text-align: center; vertical-align: middle;">
                 <div style="font-size: 56px; color: #333; margin-top: 40px; font-weight: bold;">${familyName || '某某家族'}</div>
-                <div style="font-size: 32px; color: #333; margin-top: 10px;">族 谱</div>
+                <div style="font-size: 32px; color: #333; margin-top: 10px;">祖 谱</div>
                 <div style="font-size: 20px; color: #666; margin-top: 40px;">— 现代版 —</div>
                 <div style="font-size: 18px; color: #333; margin-top: 30px; font-style: italic;">"${familyMaxim || '传承家族文化  弘扬优良家风'}"</div>
                 <div style="font-size: 14px; color: #666; margin-top: 20px;">始祖源地：${familyOrigin || '源远流长'}</div>
@@ -326,7 +326,7 @@ export function ModernGenealogyBook({
 
             ${m.remarkable_deeds ? '<div style="margin-bottom: 30px;"><h4 style="font-size: 14px; font-weight: bold; color: #333; margin: 0 0 12px 0; padding-bottom: 8px; border-bottom: 1px solid #333;">主要成就</h4><p style="font-size: 14px; color: #333; margin: 0;">' + m.remarkable_deeds + '</p></div>' : ''}
 
-            <div style="margin-top: 40px; text-align: center; font-size: 12px; color: #999;">${familyName || '家族'}族谱 · 第${i + 3}页</div>
+            <div style="margin-top: 40px; text-align: center; font-size: 12px; color: #999;">${familyName || '家族'}祖谱 · 第${i + 3}页</div>
           </div>
         `
         console.log('Rendering member page:', m.name)
@@ -338,7 +338,7 @@ export function ModernGenealogyBook({
       document.body.removeChild(container)
 
       console.log('PDF exported with', pdf.getNumberOfPages(), 'pages')
-      pdf.save(`${familyName || '家族'}族谱.pdf`)
+      pdf.save(`${familyName || '家族'}祖谱.pdf`)
     } catch (error) {
       console.error('Export failed:', error)
       alert('导出失败，请重试')
@@ -418,7 +418,7 @@ export function ModernGenealogyBook({
           <h1 className="text-4xl font-bold text-amber-900 tracking-widest mb-2">
             {familyName || '某某家族'}
           </h1>
-          <p className="text-lg text-amber-700 tracking-wider">族谱</p>
+          <p className="text-lg text-amber-700 tracking-wider">祖谱</p>
 
           <div className="flex items-center justify-center gap-3 my-6">
             <div className="h-px w-16 bg-gradient-to-r from-transparent to-amber-500" />
@@ -462,7 +462,7 @@ export function ModernGenealogyBook({
             className="bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white px-8 py-2 rounded-full shadow-lg gap-2"
           >
             <BookOpen className="w-4 h-4" />
-            进入族谱
+            进入祖谱
           </Button>
         </div>
       </div>
@@ -578,7 +578,7 @@ export function ModernGenealogyBook({
             返回目录
           </Button>
           <div className="flex-1 text-center">
-            <h2 className="text-lg font-semibold text-zinc-800">{familyName || '家族'}族谱</h2>
+            <h2 className="text-lg font-semibold text-zinc-800">{familyName || '家族'}祖谱</h2>
           </div>
         </div>
 
