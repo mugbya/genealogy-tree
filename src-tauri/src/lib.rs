@@ -145,6 +145,19 @@ fn get_download_path() -> String {
         .unwrap_or_else(|| "下载文件夹".to_string())
 }
 
+// 下载模板文件
+#[tauri::command]
+async fn download_template(template_name: String, app: tauri::AppHandle) -> Result<Vec<u8>, String> {
+    // 模板文件路径 - 使用 resource_path 获取打包后的资源路径
+    let resource_path = app.path().resource_dir().map_err(|e| e.to_string())?;
+    let template_path = resource_path.join("templates").join(&template_name);
+
+    // 读取文件内容
+    tokio::fs::read(&template_path)
+        .await
+        .map_err(|e| format!("读取模板文件失败: {}", e))
+}
+
 // 数据库路径信息
 #[derive(Serialize)]
 pub struct DatabasePathInfo {
@@ -180,7 +193,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
-        .invoke_handler(tauri::generate_handler![get_system_info, get_network_interfaces, get_download_path, get_database_path])
+        .invoke_handler(tauri::generate_handler![get_system_info, get_network_interfaces, get_download_path, get_database_path, download_template])
         .setup(|app| {
             // 获取应用数据目录，使用绝对路径初始化数据库
             let app_data_dir = app.path().app_data_dir().expect("Failed to get app data dir");
@@ -216,11 +229,14 @@ pub fn run() {
             };
             eprintln!("[genealogy] Static files path: {:?}", dist_path);
 
+            // 获取 AppHandle 用于模板下载
+            let app_handle = app.handle().clone();
+
             eprintln!("[genealogy] Starting HTTP server on http://localhost:8080");
             std::thread::spawn(move || {
                 let rt = tokio::runtime::Runtime::new().expect("Failed to create runtime");
                 rt.block_on(async {
-                    let app = api::create_router(http_db, http_wechat_store, Some(dist_path));
+                    let app = api::create_router(http_db, http_wechat_store, Some(dist_path), Some(app_handle));
                     let listener = tokio::net::TcpListener::bind("0.0.0.0:8080").await.expect("Failed to bind port 8080");
                     eprintln!("[genealogy] HTTP server running on http://localhost:8080");
                     axum::serve(listener, app).await.expect("HTTP server error");
