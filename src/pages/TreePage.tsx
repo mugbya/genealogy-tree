@@ -13,7 +13,6 @@ import { GenealogyTree } from '@/components/TreeNode'
 import { TraditionalGenealogy } from '@/components/TraditionalGenealogy'
 import { TraditionalGenealogyBook } from '@/components/TraditionalGenealogyBook'
 import { ModernGenealogyBook } from '@/components/ModernGenealogyBook'
-import { MemberDirectory } from '@/components/MemberDirectory'
 import { membersApi, relationTagsApi, configApi, type Member, type RelationTag, type CreateMemberInput } from '@/api/client'
 import {
   Dialog,
@@ -804,10 +803,6 @@ export function TreePage() {
             <TreeDeciduous className="w-5 h-5" />
             祖谱树
           </TabsTrigger>
-          <TabsTrigger value="directory" className="gap-2 text-base py-3 px-4">
-            <Users className="w-5 h-5" />
-            成员目录
-          </TabsTrigger>
           <TabsTrigger value="tags" className="gap-2 text-base py-3 px-4">
             <TagIcon className="w-5 h-5" />
             标签管理
@@ -1571,20 +1566,6 @@ export function TreePage() {
             familyGenerationWords={familyGenerationWords}
             members={members}
             relations={relationsData?.data || []}
-          />
-        </TabsContent>
-
-        {/* 成员目录 */}
-        <TabsContent value="directory" className="flex-1 min-h-0 mt-4">
-          <MemberDirectory
-            familySurname={familySurname}
-            familyGenerationWords={familyGenerationWords}
-            members={members}
-            relations={relationsData?.data || []}
-            onViewDetail={(member) => {
-              setSelectedMember(member)
-              setIsDetailOpen(true)
-            }}
           />
         </TabsContent>
 
