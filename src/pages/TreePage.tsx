@@ -1882,7 +1882,7 @@ export function TreePage() {
                       {detailMember.gender === 'male' ? '男' : '女'}
                     </Badge>
                     {detailMember.surname && <span className="text-sm text-zinc-500">姓 {detailMember.surname}</span>}
-                    {detailMember.generation && <span className="text-sm text-zinc-500">辈 {detailMember.generation}</span>}
+                    {detailMember.generation_word && <span className="text-sm text-zinc-500">辈 {detailMember.generation_word}</span>}
                     {detailMember.is_deceased && (
                       <Badge variant="outline" className="text-xs text-zinc-500">
                         已离世
@@ -2190,6 +2190,7 @@ function MemberFormDialog({
       surname: initialData.surname || '',
       gender: initialData.gender || 'male',
       generation: initialData.generation || undefined,
+      generation_word: initialData.generation_word || undefined,
       weight: initialData.weight,
       birth_date: initialData.birth_date,
       death_date: initialData.death_date,
@@ -2208,6 +2209,7 @@ function MemberFormDialog({
     surname: '',
     gender: 'male',
     generation: undefined,
+    generation_word: undefined,
     weight: undefined,
     birth_date: undefined,
     death_date: undefined,
@@ -2324,17 +2326,6 @@ function MemberFormDialog({
                 value={form.surname || ''}
                 onChange={(e) => handleChange('surname', e.target.value || undefined)}
                 placeholder="自动取名字首字"
-                className="h-11"
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium flex items-center gap-1">
-                代
-              </label>
-              <Input
-                value={form.generation != null ? String(form.generation) : ''}
-                onChange={(e) => handleChange('generation', e.target.value || undefined)}
-                placeholder="代数"
                 className="h-11"
               />
             </div>
