@@ -149,7 +149,14 @@ export function ModernGenealogyBook({
   const allMembersSorted = useMemo(() => {
     return members
       .filter(m => isOwnFamily(m))
-      .sort((a, b) => (b.weight ?? 0) - (a.weight ?? 0))
+      .sort((a, b) => {
+        // 先按代数排序（从小到大，第一代在前）
+        const genA = parseInt(a.generation || '0', 10) || 0
+        const genB = parseInt(b.generation || '0', 10) || 0
+        if (genA !== genB) return genA - genB
+        // 同代数内按 weight 排序
+        return (b.weight ?? 0) - (a.weight ?? 0)
+      })
   }, [members, isOwnFamily])
 
   // 计算每个成员的页码
@@ -160,8 +167,6 @@ export function ModernGenealogyBook({
     })
     return map
   }, [allMembersSorted])
-
-  const totalMemberPages = Math.ceil(allMembersSorted.length / MEMBERS_PER_PAGE) || 1
 
   const handleViewDetail = (member: Member) => {
     setSelectedMember(member)
@@ -225,16 +230,17 @@ export function ModernGenealogyBook({
       // 2. 渲染索引页
       container.innerHTML = ''
       const indexHtml = `
-        <div style="width: 595px; height: 842px; background: #faf3e0; padding: 40px; box-sizing: border-box; position: relative;">
+        <div style="width: 595px; min-height: 842px; background: #faf3e0; padding: 40px; box-sizing: border-box; position: relative;">
           <div style="text-align: center; font-size: 28px; color: #5c3d2e; margin-bottom: 20px;">${familyName || '某某家族'} 成员索引</div>
           <div style="height: 2px; background: #d4a574; margin-bottom: 30px;"></div>
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; font-size: 14px;">
+          <div style="font-size: 14px;">
             ${allMembersSorted.map((m, i) => {
               const page = i + 3 // 第3页开始是成员页
-              return `<div style="display: flex; gap: 10px; padding: 8px 0; border-bottom: 1px dashed #ccc;">
-                <span style="width: 40px; color: #8b4513;">${page}</span>
-                <span style="flex: 1; color: #5c3d2e;">${m.name}</span>
-                <span style="width: 60px; color: #888;">${m.birth_date?.substring(0, 4) || '-'}</span>
+              return `<div style="display: flex; gap: 15px; padding: 10px 0; border-bottom: 1px dashed #ccc;">
+                <span style="width: 50px; color: #8b4513;">第${page}页</span>
+                <span style="width: 100px; color: #5c3d2e;">${m.name}</span>
+                <span style="width: 80px; color: #888;">${m.birth_date?.substring(0, 4) || '-'}</span>
+                <span style="flex: 1; color: #666;">${m.occupation || ''}</span>
               </div>`
             }).join('')}
           </div>
@@ -460,15 +466,6 @@ export function ModernGenealogyBook({
 
   // 目录页
   const renderToc = () => {
-    const indexedMembers = allMembersSorted.map((member, index) => ({
-      member,
-      page: Math.floor(index / MEMBERS_PER_PAGE) + 1
-    }))
-
-    const half = Math.ceil(indexedMembers.length / 2)
-    const leftColumn = indexedMembers.slice(0, half)
-    const rightColumn = indexedMembers.slice(half)
-
     return (
       <div className="h-full flex flex-col bg-gradient-to-br from-amber-50 to-orange-50">
         <div className="shrink-0 flex items-center justify-between gap-4 p-4 bg-white border-b">
@@ -504,66 +501,36 @@ export function ModernGenealogyBook({
               <p className="text-amber-700 text-lg mt-1">成员索引</p>
             </div>
 
-            <div className="flex gap-8">
-              <div className="flex-1">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="text-amber-800 border-b border-amber-200">
-                      <th className="text-left py-2 w-16">页码</th>
-                      <th className="text-left py-2">姓名</th>
-                      <th className="text-left py-2 w-20">生年</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {leftColumn.map(({ member, page }) => (
-                      <tr
-                        key={member.id}
-                        className="border-b border-dotted border-amber-100 hover:bg-amber-50 cursor-pointer"
-                        onClick={() => handleViewDetail(member)}
-                      >
-                        <td className="py-1.5 text-amber-600">{page + 1}</td>
-                        <td className="py-1.5 font-medium text-amber-900">{member.name}</td>
-                        <td className="py-1.5 text-zinc-500 text-xs">
-                          {member.birth_date?.substring(0, 4) || '-'}
-                          {member.is_deceased && <span className="ml-1">故</span>}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              <div className="flex-1">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="text-amber-800 border-b border-amber-200">
-                      <th className="text-left py-2 w-16">页码</th>
-                      <th className="text-left py-2">姓名</th>
-                      <th className="text-left py-2 w-20">生年</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {rightColumn.map(({ member, page }) => (
-                      <tr
-                        key={member.id}
-                        className="border-b border-dotted border-amber-100 hover:bg-amber-50 cursor-pointer"
-                        onClick={() => handleViewDetail(member)}
-                      >
-                        <td className="py-1.5 text-amber-600">{page + 1}</td>
-                        <td className="py-1.5 font-medium text-amber-900">{member.name}</td>
-                        <td className="py-1.5 text-zinc-500 text-xs">
-                          {member.birth_date?.substring(0, 4) || '-'}
-                          {member.is_deceased && <span className="ml-1">故</span>}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-amber-800 border-b border-amber-200">
+                  <th className="text-left py-2 w-20">页码</th>
+                  <th className="text-left py-2 w-28">姓名</th>
+                  <th className="text-left py-2 w-20">生年</th>
+                  <th className="text-left py-2">职业</th>
+                </tr>
+              </thead>
+              <tbody>
+                {allMembersSorted.map((member, index) => (
+                  <tr
+                    key={member.id}
+                    className="border-b border-dotted border-amber-100 hover:bg-amber-50 cursor-pointer"
+                    onClick={() => handleViewDetail(member)}
+                  >
+                    <td className="py-2 text-amber-600">第{index + 3}页</td>
+                    <td className="py-2 font-medium text-amber-900">{member.name}</td>
+                    <td className="py-2 text-zinc-500 text-xs">
+                      {member.birth_date?.substring(0, 4) || '-'}
+                      {member.is_deceased && <span className="ml-1">故</span>}
+                    </td>
+                    <td className="py-2 text-zinc-500">{member.occupation || ''}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
 
             <div className="mt-8 pt-4 border-t border-amber-200 text-center text-sm text-amber-700">
-              <p>共 {allMembersSorted.length} 名族人，分为 {totalMemberPages} 页记载</p>
+              <p>共 {allMembersSorted.length} 名族人，分为 {allMembersSorted.length + 2} 页记载</p>
               <p className="mt-1 text-zinc-500">编纂于 {new Date().toLocaleDateString('zh-CN')}</p>
             </div>
           </div>
