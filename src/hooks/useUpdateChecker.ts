@@ -3,6 +3,9 @@ import { check } from '@tauri-apps/plugin-updater'
 
 const DISMISSED_VERSION_KEY = 'dismissed_update_version'
 
+// 检测是否为 Tauri 桌面环境
+const isTauri = typeof window !== 'undefined' && window.__TAURI_INTERNALS__ !== undefined
+
 interface UpdateInfo {
   version: string
   notes?: string
@@ -16,6 +19,9 @@ export function useUpdateChecker() {
   const [error, setError] = useState<string | null>(null)
 
   const checkForUpdates = useCallback(async () => {
+    // 仅在 Tauri 桌面环境检查更新
+    if (!isTauri) return
+
     try {
       setError(null)
       const update = await check()
@@ -43,6 +49,8 @@ export function useUpdateChecker() {
 
   const startUpdate = useCallback(async () => {
     if (!updateInfo) return
+    // 仅在 Tauri 桌面环境支持更新
+    if (!isTauri) return
 
     try {
       setDownloading(true)
@@ -90,9 +98,11 @@ export function useUpdateChecker() {
     localStorage.removeItem(DISMISSED_VERSION_KEY)
   }, [])
 
-  // 应用启动时自动检查更新（只执行一次）
+  // 应用启动时自动检查更新（只执行一次）- 仅在 Tauri 环境
   useEffect(() => {
-    checkForUpdates()
+    if (isTauri) {
+      checkForUpdates()
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
