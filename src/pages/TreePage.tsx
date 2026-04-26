@@ -1137,8 +1137,8 @@ export function TreePage() {
                       className="h-9 px-3 text-sm border border-zinc-200 rounded-lg bg-white text-zinc-700 focus:outline-none focus:ring-2 focus:ring-zinc-400"
                     >
                       <option value="">字辈</option>
-                      {uniqueGenerations.map(g => (
-                        <option key={g} value={g}>{g}</option>
+                      {familyGenerationWords.split(',').filter(Boolean).map((word, index) => (
+                        <option key={index} value={String(index + 1)}>{word}</option>
                       ))}
                     </select>
                     {/* 性别 */}
