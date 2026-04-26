@@ -184,6 +184,129 @@ fn get_descendants(conn: &rusqlite::Connection, member_id: i64, generations: i32
     result
 }
 
+/// 根据父母关系重新计算所有成员的代数
+/// 算法：
+/// 1. 找出所有没有父母记录的成员（可能是始祖），标记为第1代
+/// 2. 迭代计算：对于每个成员，如果父母代数已知，则该成员代数 = max(父亲代数, 母亲代数) + 1
+/// 3. 重复直到所有成员都有代数，或达到最大迭代次数（防止循环引用）
+pub fn recalculate_generations(conn: &rusqlite::Connection) -> Result<(), String> {
+    // 获取所有成员ID
+    let all_member_ids: Vec<i64> = conn
+        .prepare("SELECT id FROM family_members")
+        .map_err(|e| e.to_string())?
+        .query_map([], |row| row.get(0))
+        .map_err(|e| e.to_string())?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    if all_member_ids.is_empty() {
+        return Ok(());
+    }
+
+    // 获取每个成员的父毋代数
+    let mut member_generation: HashMap<i64, i32> = HashMap::new();
+
+    // 找出第1代成员（没有父亲也没有母亲的成员）
+    for &member_id in &all_member_ids {
+        let has_father: bool = conn
+            .query_row(
+                "SELECT 1 FROM member_relations WHERE from_member_id = ? AND relation_type = 'father' LIMIT 1",
+                params![member_id],
+                |_| Ok(true),
+            )
+            .unwrap_or(false);
+
+        let has_mother: bool = conn
+            .query_row(
+                "SELECT 1 FROM member_relations WHERE from_member_id = ? AND relation_type = 'mother' LIMIT 1",
+                params![member_id],
+                |_| Ok(true),
+            )
+            .unwrap_or(false);
+
+        // 如果既没有父亲也没有母亲，则是第1代
+        if !has_father && !has_mother {
+            member_generation.insert(member_id, 1);
+        }
+    }
+
+    // 迭代计算其他成员的代数
+    // 最多迭代 all_member_ids.len() 次，如果还有没计算的说明有循环引用
+    for _ in 0..all_member_ids.len() {
+        let mut made_progress = false;
+
+        for &member_id in &all_member_ids {
+            if member_generation.contains_key(&member_id) {
+                continue; // 已经有代数了
+            }
+
+            // 获取父亲的代数
+            let father_generation: Option<i32> = conn
+                .query_row(
+                    "SELECT mr.to_member_id FROM member_relations mr
+                     WHERE mr.from_member_id = ? AND mr.relation_type = 'father'",
+                    params![member_id],
+                    |row| {
+                        let parent_id: i64 = row.get(0)?;
+                        Ok(member_generation.get(&parent_id).copied())
+                    },
+                )
+                .ok()
+                .flatten();
+
+            // 获取母亲的代数
+            let mother_generation: Option<i32> = conn
+                .query_row(
+                    "SELECT mr.to_member_id FROM member_relations mr
+                     WHERE mr.from_member_id = ? AND mr.relation_type = 'mother'",
+                    params![member_id],
+                    |row| {
+                        let parent_id: i64 = row.get(0)?;
+                        Ok(member_generation.get(&parent_id).copied())
+                    },
+                )
+                .ok()
+                .flatten();
+
+            // 如果至少有一个父母的代数已知，则计算该成员的代数
+            if let Some(parent_gen) = father_generation.or(mother_generation) {
+                member_generation.insert(member_id, parent_gen + 1);
+                made_progress = true;
+            }
+        }
+
+        if !made_progress {
+            break; // 没有进展，退出循环
+        }
+    }
+
+    // 更新数据库
+    for (member_id, generation) in member_generation {
+        conn.execute(
+            "UPDATE family_members SET generation = ? WHERE id = ?",
+            params![generation.to_string(), member_id],
+        )
+        .map_err(|e| e.to_string())?;
+    }
+
+    Ok(())
+}
+
+/// 手动触发代数重算的API
+pub async fn recalculate_all_generations(
+    State(state): State<AppState>,
+) -> (StatusCode, Json<Value>) {
+    let conn = match state.db.lock() {
+        Ok(conn) => conn,
+        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))),
+    };
+
+    match recalculate_generations(&conn) {
+        Ok(_) => (StatusCode::OK, Json(json!({ "success": true, "message": "代数已重新计算" }))),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))),
+    }
+}
+
 #[derive(Debug, Deserialize)]
 pub struct ImportMemberRow {
     pub 姓名: String,
@@ -414,6 +537,11 @@ pub async fn import_members(
                 }
             }
         }
+    }
+
+    // 重新计算所有成员的代数
+    if let Err(e) = recalculate_generations(&conn) {
+        eprintln!("[import] Warning: failed to recalculate generations: {}", e);
     }
 
     let result = ImportResult {

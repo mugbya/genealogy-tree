@@ -7,6 +7,7 @@ use rusqlite::params;
 use serde_json::{json, Value};
 
 use crate::api::router::AppState;
+use crate::api::handlers::members::recalculate_generations;
 use crate::auth::verify_token;
 use crate::models::{CreateMemberRelationRequest, MemberRelation, ROLE_ADMIN};
 
@@ -294,6 +295,14 @@ pub async fn create_member_relation(
     match result {
         Ok(_) => {
             let id = conn.last_insert_rowid();
+
+            // 如果是父母关系，重新计算代数
+            if req.relation_type == "father" || req.relation_type == "mother" {
+                if let Err(e) = recalculate_generations(&conn) {
+                    eprintln!("[create_relation] Warning: failed to recalculate generations: {}", e);
+                }
+            }
+
             (StatusCode::CREATED, Json(json!({ "data": { "id": id } })))
         }
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))),
@@ -318,12 +327,12 @@ pub async fn delete_member_relation(
 
     // 先获取关系信息，检查权限
     let relation = conn.query_row(
-        "SELECT from_member_id, to_member_id FROM member_relations WHERE id = ?",
+        "SELECT from_member_id, to_member_id, relation_type FROM member_relations WHERE id = ?",
         params![id],
-        |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?)),
+        |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?, row.get::<_, String>(2)?)),
     );
 
-    let (from_member_id, to_member_id) = match relation {
+    let (from_member_id, to_member_id, relation_type) = match relation {
         Ok(r) => r,
         Err(_) => return (StatusCode::NOT_FOUND, Json(json!({ "error": "Relation not found" }))),
     };
@@ -347,7 +356,15 @@ pub async fn delete_member_relation(
     let result = conn.execute("DELETE FROM member_relations WHERE id = ?", params![id]);
 
     match result {
-        Ok(rows) if rows > 0 => (StatusCode::OK, Json(json!({ "success": true }))),
+        Ok(rows) if rows > 0 => {
+            // 如果是父母关系，重新计算代数
+            if relation_type == "father" || relation_type == "mother" {
+                if let Err(e) = recalculate_generations(&conn) {
+                    eprintln!("[delete_relation] Warning: failed to recalculate generations: {}", e);
+                }
+            }
+            (StatusCode::OK, Json(json!({ "success": true })))
+        },
         Ok(_) => (StatusCode::NOT_FOUND, Json(json!({ "error": "Relation not found" }))),
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))),
     }
