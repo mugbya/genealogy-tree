@@ -474,7 +474,7 @@ export function ModernGenealogyBook({
   // 目录页
   const renderToc = () => {
     return (
-      <div className="h-full flex flex-col bg-gradient-to-br from-amber-50 to-orange-50">
+      <div className="h-full flex flex-col bg-white">
         <div className="shrink-0 flex items-center justify-between gap-4 p-4 bg-white border-b">
           <Button variant="ghost" onClick={() => setView('cover')} className="gap-1">
             <ArrowLeft className="w-4 h-4" />
