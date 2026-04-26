@@ -175,32 +175,32 @@ export function ModernGenealogyBook({
 
       // 创建隐藏的渲染容器
       const container = document.createElement('div')
-      container.style.cssText = 'position: absolute; left: -9999px; top: 0; width: 595px; background: #faf3e0; font-family: "Source Han Sans CN", "Noto Sans SC", sans-serif;'
+      container.style.cssText = 'position: absolute; left: -9999px; top: 0; width: 595px; background: white; font-family: "Source Han Sans CN", "Noto Sans SC", sans-serif;'
       document.body.appendChild(container)
 
       // 1. 渲染封面页
       const coverHtml = `
-        <div style="width: 595px; height: 842px; background: #faf3e0; border: 20px solid #8b4513; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative;">
-          <div style="width: 80px; height: 80px; border: 3px solid #8b4513; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: #d4a574;">
-            <span style="font-size: 48px; color: #5c3d2e;">谱</span>
+        <div style="width: 595px; height: 842px; background: white; border: 2px solid #333; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative;">
+          <div style="width: 80px; height: 80px; border: 3px solid #333; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: #f5f5f5;">
+            <span style="font-size: 48px; color: #333;">谱</span>
           </div>
           <div style="margin-top: 60px; text-align: center;">
-            <div style="font-size: 48px; color: #5c3d2e; font-weight: bold;">${familyName || '某某家族'}</div>
-            <div style="font-size: 28px; color: #5c3d2e; margin-top: 10px;">族谱</div>
+            <div style="font-size: 48px; color: #333; font-weight: bold;">${familyName || '某某家族'}</div>
+            <div style="font-size: 28px; color: #333; margin-top: 10px;">族谱</div>
           </div>
           <div style="margin-top: 40px; display: flex; align-items: center; gap: 10px;">
-            <div style="width: 80px; height: 2px; background: #d4a574;"></div>
-            <div style="width: 6px; height: 6px; border-radius: 50%; background: #d4a574;"></div>
-            <div style="width: 6px; height: 6px; border-radius: 50%; background: #d4a574;"></div>
-            <div style="width: 6px; height: 6px; border-radius: 50%; background: #d4a574;"></div>
-            <div style="width: 80px; height: 2px; background: #d4a574;"></div>
+            <div style="width: 80px; height: 2px; background: #999;"></div>
+            <div style="width: 6px; height: 6px; border-radius: 50%; background: #999;"></div>
+            <div style="width: 6px; height: 6px; border-radius: 50%; background: #999;"></div>
+            <div style="width: 6px; height: 6px; border-radius: 50%; background: #999;"></div>
+            <div style="width: 80px; height: 2px; background: #999;"></div>
           </div>
-          <div style="margin-top: 30px; padding: 15px 40px; border: 1px solid #8b4513; font-size: 18px; color: #5c3d2e;">现代版</div>
-          <div style="margin-top: 40px; font-size: 20px; color: #5c3d2e; font-style: italic;">"${familyMaxim || '传承家族文化  弘扬优良家风'}"</div>
-          <div style="margin-top: 20px; font-size: 14px; color: #8b4513;">始祖源地：${familyOrigin || '源远流长'}</div>
+          <div style="margin-top: 30px; padding: 15px 40px; border: 1px solid #333; font-size: 18px; color: #333;">现代版</div>
+          <div style="margin-top: 40px; font-size: 20px; color: #333; font-style: italic;">"${familyMaxim || '传承家族文化  弘扬优良家风'}"</div>
+          <div style="margin-top: 20px; font-size: 14px; color: #666;">始祖源地：${familyOrigin || '源远流长'}</div>
           <div style="position: absolute; bottom: 60px; text-align: center;">
-            <div style="font-size: 16px; color: #5c3d2e;">共录 ${allMembersSorted.length} 名族人</div>
-            <div style="font-size: 12px; color: #8b4513; margin-top: 5px;">传承 ${membersByGeneration.length} 代</div>
+            <div style="font-size: 16px; color: #333;">共录 ${allMembersSorted.length} 名族人</div>
+            <div style="font-size: 12px; color: #666; margin-top: 5px;">传承 ${membersByGeneration.length} 代</div>
           </div>
         </div>
       `
@@ -210,7 +210,7 @@ export function ModernGenealogyBook({
       const coverCanvas = await html2canvas(container.firstElementChild as HTMLElement, {
         scale: 2,
         useCORS: true,
-        backgroundColor: '#faf3e0'
+        backgroundColor: '#ffffff'
       })
       const coverImage = coverCanvas.toDataURL('image/png')
       pdf.addImage(coverImage, 'PNG', 0, 0, pageWidth, pageHeight)
@@ -218,21 +218,35 @@ export function ModernGenealogyBook({
       // 2. 渲染索引页
       container.innerHTML = ''
       const indexHtml = `
-        <div style="width: 595px; min-height: 842px; background: #faf3e0; padding: 40px; box-sizing: border-box; position: relative;">
-          <div style="text-align: center; font-size: 28px; color: #5c3d2e; margin-bottom: 20px;">${familyName || '某某家族'} 成员索引</div>
-          <div style="height: 2px; background: #d4a574; margin-bottom: 30px;"></div>
-          <div style="font-size: 14px;">
-            ${allMembersSorted.map((m, i) => {
-              const page = i + 3 // 第3页开始是成员页
-              return `<div style="display: flex; gap: 15px; padding: 10px 0; border-bottom: 1px dashed #ccc;">
-                <span style="width: 50px; color: #8b4513;">第${page}页</span>
-                <span style="width: 100px; color: #5c3d2e;">${m.name}</span>
-                <span style="width: 80px; color: #888;">${m.birth_date?.substring(0, 4) || '-'}</span>
-                <span style="flex: 1; color: #666;">${m.occupation || ''}</span>
-              </div>`
-            }).join('')}
-          </div>
-          <div style="position: absolute; bottom: 40px; left: 0; right: 0; text-align: center; font-size: 14px; color: #8b4513;">
+        <div style="width: 595px; min-height: 842px; background: white; padding: 40px; box-sizing: border-box; position: relative;">
+          <div style="text-align: center; font-size: 28px; color: #333; margin-bottom: 20px;">${familyName || '某某家族'} 成员索引</div>
+          <div style="height: 2px; background: #333; margin-bottom: 30px;"></div>
+          <table style="width: 100%; font-size: 14px; border-collapse: collapse;">
+            <thead>
+              <tr style="border-bottom: 1px solid #333;">
+                <th style="text-align: left; padding: 8px 4px; color: #333;">页码</th>
+                <th style="text-align: left; padding: 8px 4px; color: #333;">代数</th>
+                <th style="text-align: left; padding: 8px 4px; color: #333;">辈字</th>
+                <th style="text-align: left; padding: 8px 4px; color: #333;">姓名</th>
+                <th style="text-align: left; padding: 8px 4px; color: #333;">生年</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${allMembersSorted.map((m, i) => {
+                const page = i + 3
+                const genNum = parseInt(m.generation || '0', 10) || 0
+                const genWord = generationWords[genNum - 1] || ''
+                return `<tr style="border-bottom: 1px dashed #ccc;">
+                  <td style="padding: 8px 4px; color: #333;">第${page}页</td>
+                  <td style="padding: 8px 4px; color: #333;">${genNum > 0 ? '第' + genNum + '代' : '-'}</td>
+                  <td style="padding: 8px 4px; color: #666;">${genWord}</td>
+                  <td style="padding: 8px 4px; color: #333;">${m.name}</td>
+                  <td style="padding: 8px 4px; color: #666;">${m.birth_date?.substring(0, 4) || '-'}</td>
+                </tr>`
+              }).join('')}
+            </tbody>
+          </table>
+          <div style="position: absolute; bottom: 40px; left: 0; right: 0; text-align: center; font-size: 14px; color: #666;">
             共 ${allMembersSorted.length} 名族人，分为 ${allMembersSorted.length + 2} 页记载
           </div>
         </div>
@@ -243,16 +257,17 @@ export function ModernGenealogyBook({
       const indexCanvas = await html2canvas(container.firstElementChild as HTMLElement, {
         scale: 2,
         useCORS: true,
-        backgroundColor: '#faf3e0'
+        backgroundColor: '#ffffff'
       })
       const indexImage = indexCanvas.toDataURL('image/png')
       pdf.addImage(indexImage, 'PNG', 0, 0, pageWidth, pageHeight)
 
-      // 3. 渲染每个成员的详情页（每人单独一页）
+      // 3. 渲染每个成员的详情页（每人单独一页，白底打印友好）
       for (let i = 0; i < allMembersSorted.length; i++) {
         const m = allMembersSorted[i]
         const rels = memberRelations.get(m.id)
-        const genLabel = generationWords[parseInt(m.generation || '0') - 1] || ''
+        const genNum = parseInt(m.generation || '0', 10) || 0
+        const genWord = generationWords[genNum - 1] || ''
         const memberMap = new Map(members.map(m => [m.id, m]))
         const fatherInfo = rels?.father ? memberMap.get(rels.father.id) : null
         const motherInfo = rels?.mother ? memberMap.get(rels.mother.id) : null
@@ -261,42 +276,75 @@ export function ModernGenealogyBook({
 
         container.innerHTML = ''
         const memberHtml = `
-          <div style="width: 595px; height: 842px; background: #faf3e0; padding: 40px; box-sizing: border-box; position: relative;">
-            <div style="text-align: center; font-size: 16px; color: #8b4513; margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px solid #d4a574;">
-              ${familyName || '家族'}族谱 - 第${i + 3}页
-            </div>
-            <div style="display: flex; gap: 30px; margin-top: 40px;">
-              <div style="width: 120px; height: 120px; border-radius: 50%; background: #d4a574; display: flex; align-items: center; justify-content: center; border: 3px solid #8b4513; flex-shrink: 0;">
-                <span style="font-size: 48px; color: #5c3d2e;">${m.name.charAt(0)}</span>
+          <div style="width: 595px; min-height: 842px; background: white; padding: 40px; box-sizing: border-box; position: relative;">
+            <!-- 头部 -->
+            <div style="text-align: center; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid #333;">
+              <div style="font-size: 14px; color: #666; margin-bottom: 8px;">
+                ${genNum > 0 && genWord ? '第' + genNum + '代 · ' + genWord : genWord || '第' + genNum + '代'}
               </div>
-              <div style="flex: 1;">
-                <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 15px;">
-                  <span style="font-size: 36px; font-weight: bold; color: #5c3d2e;">${m.name}</span>
-                  ${genLabel ? `<span style="background: #d4a574; padding: 5px 15px; font-size: 14px; color: #5c3d2e;">${genLabel}</span>` : ''}
-                  ${m.is_deceased ? `<span style="background: #999; padding: 5px 15px; font-size: 14px; color: #fff;">故</span>` : ''}
-                </div>
-                <div style="font-size: 14px; color: #666; margin-bottom: 8px;">
-                  ${m.gender === 'male' ? '男' : '女'} | ${m.birth_date || '未知'}${m.death_date ? ' ～ ' + m.death_date : ''}
-                </div>
-                ${m.occupation ? `<div style="font-size: 14px; color: #666; margin-bottom: 8px;">职业：${m.occupation}</div>` : ''}
-                ${m.birth_place ? `<div style="font-size: 14px; color: #666; margin-bottom: 8px;">籍贯：${m.birth_place}</div>` : ''}
+              <h3 style="font-size: 36px; color: #333; margin: 0; letter-spacing: 4px;">
+                ${m.name}
+              </h3>
+              ${m.is_deceased ? '<span style="display: inline-block; margin-top: 8px; font-size: 14px; color: #999;">（故）</span>' : ''}
+            </div>
+
+            <!-- 基本信息表格 -->
+            <div style="margin-bottom: 30px;">
+              <table style="width: 100%; font-size: 14px; border-collapse: collapse;">
+                <tbody>
+                  <tr style="border-bottom: 1px solid #eee;">
+                    <td style="padding: 8px 4px; color: #999; width: 60px;">性别</td>
+                    <td style="padding: 8px 4px; color: #333;">${m.gender === 'male' ? '男' : '女'}</td>
+                  </tr>
+                  ${(m.birth_date || m.death_date) ? `
+                  <tr style="border-bottom: 1px solid #eee;">
+                    <td style="padding: 8px 4px; color: #999;">生卒</td>
+                    <td style="padding: 8px 4px; color: #333;">${m.birth_date || '未知'}${m.death_date ? ' ～ ' + m.death_date : ''}</td>
+                  </tr>` : ''}
+                  ${m.birth_place ? `
+                  <tr style="border-bottom: 1px solid #eee;">
+                    <td style="padding: 8px 4px; color: #999;">籍贯</td>
+                    <td style="padding: 8px 4px; color: #333;">${m.birth_place}</td>
+                  </tr>` : ''}
+                  ${m.occupation ? `
+                  <tr style="border-bottom: 1px solid #eee;">
+                    <td style="padding: 8px 4px; color: #999;">职业</td>
+                    <td style="padding: 8px 4px; color: #333;">${m.occupation}</td>
+                  </tr>` : ''}
+                </tbody>
+              </table>
+            </div>
+
+            <!-- 家族关系 -->
+            ${(fatherInfo || motherInfo || spouseInfo.length > 0 || childrenInfo.length > 0) ? `
+            <div style="margin-bottom: 30px;">
+              <h4 style="font-size: 14px; font-weight: bold; color: #333; margin: 0 0 12px 0; padding-bottom: 8px; border-bottom: 1px solid #333;">家族关系</h4>
+              <div style="font-size: 14px; line-height: 2; color: #333;">
+                ${fatherInfo ? '<div><span style="color: #666;">父亲</span> ' + fatherInfo.name + '</div>' : ''}
+                ${motherInfo ? '<div><span style="color: #666;">母亲</span> ' + motherInfo.name + '</div>' : ''}
+                ${spouseInfo.length > 0 ? '<div><span style="color: #666;">配偶</span> ' + spouseInfo.map(s => s.name).join('、') + '</div>' : ''}
+                ${childrenInfo.length > 0 ? '<div><span style="color: #666;">子女</span> ' + childrenInfo.map(c => c.name).join('、') + '</div>' : ''}
               </div>
+            </div>` : ''}
+
+            <!-- 生平简介 -->
+            ${m.biography ? `
+            <div style="margin-bottom: 30px;">
+              <h4 style="font-size: 14px; font-weight: bold; color: #333; margin: 0 0 12px 0; padding-bottom: 8px; border-bottom: 1px solid #333;">生平简介</h4>
+              <p style="font-size: 14px; line-height: 1.8; color: #333; margin: 0; white-space: pre-wrap;">${m.biography}</p>
+            </div>` : ''}
+
+            <!-- 主要成就 -->
+            ${m.remarkable_deeds ? `
+            <div style="margin-bottom: 30px;">
+              <h4 style="font-size: 14px; font-weight: bold; color: #333; margin: 0 0 12px 0; padding-bottom: 8px; border-bottom: 1px solid #333;">主要成就</h4>
+              <p style="font-size: 14px; line-height: 1.8; color: #333; margin: 0; white-space: pre-wrap;">${m.remarkable_deeds}</p>
+            </div>` : ''}
+
+            <!-- 页脚 -->
+            <div style="position: absolute; bottom: 40px; left: 0; right: 0; text-align: center; font-size: 12px; color: #999;">
+              ${familyName || '家族'}族谱 · 第${i + 3}页
             </div>
-            <div style="margin-top: 40px; padding: 20px; background: rgba(212, 165, 116, 0.2); border: 1px solid #d4a574;">
-              <div style="font-size: 16px; font-weight: bold; color: #8b4513; margin-bottom: 15px;">家族关系</div>
-              <div style="font-size: 14px; color: #5c3d2e; line-height: 2;">
-                ${fatherInfo ? `<div>父亲：${fatherInfo.name}</div>` : ''}
-                ${motherInfo ? `<div>母亲：${motherInfo.name}</div>` : ''}
-                ${spouseInfo.length ? `<div>配偶：${spouseInfo.map(s => s.name).join('、')}</div>` : ''}
-                ${childrenInfo.length ? `<div>子女：${childrenInfo.map(c => c.name).join('、')}</div>` : ''}
-              </div>
-            </div>
-            ${m.biography || m.remarkable_deeds ? `
-            <div style="margin-top: 30px; padding: 20px; background: rgba(212, 165, 116, 0.1); border: 1px solid #d4a574;">
-              ${m.biography ? `<div style="margin-bottom: 15px;"><div style="font-size: 16px; font-weight: bold; color: #8b4513; margin-bottom: 8px;">生平简介</div><div style="font-size: 14px; color: #5c3d2e; line-height: 1.8;">${m.biography}</div></div>` : ''}
-              ${m.remarkable_deeds ? `<div><div style="font-size: 16px; font-weight: bold; color: #8b4513; margin-bottom: 8px;">主要成就</div><div style="font-size: 14px; color: #5c3d2e; line-height: 1.8;">${m.remarkable_deeds}</div></div>` : ''}
-            </div>
-            ` : ''}
           </div>
         `
         container.innerHTML = memberHtml
@@ -305,7 +353,7 @@ export function ModernGenealogyBook({
         const memberCanvas = await html2canvas(container.firstElementChild as HTMLElement, {
           scale: 2,
           useCORS: true,
-          backgroundColor: '#faf3e0'
+          backgroundColor: '#ffffff'
         })
         const memberImage = memberCanvas.toDataURL('image/png')
         pdf.addPage()
