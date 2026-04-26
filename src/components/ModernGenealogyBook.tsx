@@ -306,27 +306,29 @@ export function ModernGenealogyBook({
         const childrenInfo = (rels?.children || []).map(c => memberMap.get(c.id)).filter((c): c is Member => c !== undefined)
 
         const memberHtml = `
-          <div style="width: 595px; min-height: 842px; background: white; padding: 40px;">
+          <div style="width: 595px; height: 842px; background: white; padding: 40px; box-sizing: border-box; position: relative;">
             <div style="text-align: center; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid #333;">
-              <div style="font-size: 14px; color: #666; margin-bottom: 8px;">${genNum > 0 && genWord ? '第' + genNum + '代 · ' + genWord : genWord || '第' + genNum + '代'}</div>
               <h3 style="font-size: 36px; color: #333; margin: 0; letter-spacing: 4px;">${m.name}</h3>
               ${m.is_deceased ? '<div style="font-size: 14px; color: #999; margin-top: 8px;">（故）</div>' : ''}
+              <div style="font-size: 14px; color: #666; margin-top: 8px;">${genNum > 0 && genWord ? '第' + genNum + '代 · ' + genWord : genWord || '第' + genNum + '代'}</div>
             </div>
 
-            <table style="width: 100%; font-size: 14px; border-collapse: collapse; margin-bottom: 30px;">
-              <tr><td style="padding: 8px 4px; color: #666; width: 60px;">性别</td><td style="padding: 8px 4px; color: #333;">${m.gender === 'male' ? '男' : '女'}</td></tr>
-              ${(m.birth_date || m.death_date) ? '<tr><td style="padding: 8px 4px; color: #666;">生卒</td><td style="padding: 8px 4px; color: #333;">' + (m.birth_date || '未知') + (m.death_date ? ' ～ ' + m.death_date : '') + '</td></tr>' : ''}
-              ${m.birth_place ? '<tr><td style="padding: 8px 4px; color: #666;">籍贯</td><td style="padding: 8px 4px; color: #333;">' + m.birth_place + '</td></tr>' : ''}
-              ${m.occupation ? '<tr><td style="padding: 8px 4px; color: #666;">职业</td><td style="padding: 8px 4px; color: #333;">' + m.occupation + '</td></tr>' : ''}
-            </table>
+            <div style="padding-bottom: 60px;">
+              <table style="width: 100%; font-size: 14px; border-collapse: collapse; margin-bottom: 30px;">
+                <tr><td style="padding: 8px 4px; color: #666; width: 60px;">性别</td><td style="padding: 8px 4px; color: #333;">${m.gender === 'male' ? '男' : '女'}</td></tr>
+                ${(m.birth_date || m.death_date) ? '<tr><td style="padding: 8px 4px; color: #666;">生卒</td><td style="padding: 8px 4px; color: #333;">' + (m.birth_date || '未知') + (m.death_date ? ' ～ ' + m.death_date : '') + '</td></tr>' : ''}
+                ${m.birth_place ? '<tr><td style="padding: 8px 4px; color: #666;">籍贯</td><td style="padding: 8px 4px; color: #333;">' + m.birth_place + '</td></tr>' : ''}
+                ${m.occupation ? '<tr><td style="padding: 8px 4px; color: #666;">职业</td><td style="padding: 8px 4px; color: #333;">' + m.occupation + '</td></tr>' : ''}
+              </table>
 
-            ${(fatherInfo || motherInfo || spouseInfo.length > 0 || childrenInfo.length > 0) ? '<div style="margin-bottom: 30px;"><h4 style="font-size: 14px; font-weight: bold; color: #333; margin: 0 0 12px 0; padding-bottom: 8px; border-bottom: 1px solid #333;">家族关系</h4><div style="font-size: 14px; color: #333;">' + (fatherInfo ? '<div>父亲: ' + fatherInfo.name + '</div>' : '') + (motherInfo ? '<div>母亲: ' + motherInfo.name + '</div>' : '') + (spouseInfo.length > 0 ? '<div>配偶: ' + spouseInfo.map(s => s.name).join('、') + '</div>' : '') + (childrenInfo.length > 0 ? '<div>子女: ' + childrenInfo.map(c => c.name).join('、') + '</div>' : '') + '</div></div>' : ''}
+              ${(fatherInfo || motherInfo || spouseInfo.length > 0 || childrenInfo.length > 0) ? '<div style="margin-bottom: 30px;"><h4 style="font-size: 14px; font-weight: bold; color: #333; margin: 0 0 12px 0; padding-bottom: 8px; border-bottom: 1px solid #333;">家族关系</h4><div style="font-size: 14px; color: #333;">' + (fatherInfo ? '<div>父亲: ' + fatherInfo.name + '</div>' : '') + (motherInfo ? '<div>母亲: ' + motherInfo.name + '</div>' : '') + (spouseInfo.length > 0 ? '<div>配偶: ' + spouseInfo.map(s => s.name).join('、') + '</div>' : '') + (childrenInfo.length > 0 ? '<div>子女: ' + childrenInfo.map(c => c.name).join('、') + '</div>' : '') + '</div></div>' : ''}
 
-            ${m.biography ? '<div style="margin-bottom: 30px;"><h4 style="font-size: 14px; font-weight: bold; color: #333; margin: 0 0 12px 0; padding-bottom: 8px; border-bottom: 1px solid #333;">生平简介</h4><p style="font-size: 14px; color: #333; margin: 0;">' + m.biography + '</p></div>' : ''}
+              ${m.biography ? '<div style="margin-bottom: 30px;"><h4 style="font-size: 14px; font-weight: bold; color: #333; margin: 0 0 12px 0; padding-bottom: 8px; border-bottom: 1px solid #333;">生平简介</h4><p style="font-size: 14px; color: #333; margin: 0;">' + m.biography + '</p></div>' : ''}
 
-            ${m.remarkable_deeds ? '<div style="margin-bottom: 30px;"><h4 style="font-size: 14px; font-weight: bold; color: #333; margin: 0 0 12px 0; padding-bottom: 8px; border-bottom: 1px solid #333;">主要成就</h4><p style="font-size: 14px; color: #333; margin: 0;">' + m.remarkable_deeds + '</p></div>' : ''}
+              ${m.remarkable_deeds ? '<div style="margin-bottom: 30px;"><h4 style="font-size: 14px; font-weight: bold; color: #333; margin: 0 0 12px 0; padding-bottom: 8px; border-bottom: 1px solid #333;">主要成就</h4><p style="font-size: 14px; color: #333; margin: 0;">' + m.remarkable_deeds + '</p></div>' : ''}
+            </div>
 
-            <div style="margin-top: 40px; text-align: center; font-size: 12px; color: #999;">${familyName || '家族'}祖谱 · 第${i + 3}页</div>
+            <div style="position: absolute; bottom: 40px; left: 0; right: 0; text-align: center; font-size: 12px; color: #999;">${familyName || '家族'}族谱 · 第${i + 3}页</div>
           </div>
         `
         console.log('Rendering member page:', m.name)
@@ -589,15 +591,15 @@ export function ModernGenealogyBook({
           >
             {/* 头部信息 */}
             <div className="text-center mb-8 pb-4 border-b border-zinc-300">
-              <div className="text-sm text-zinc-500 mb-1">
-                {genNum > 0 && genWord ? `第${genNum}代 · ${genWord}` : genWord || `第${genNum}代`}
-              </div>
               <h3 className="text-3xl font-bold text-zinc-900 tracking-widest">
                 {selectedMember.name}
               </h3>
               {selectedMember.is_deceased && (
                 <span className="inline-block mt-1 text-sm text-zinc-500">（故）</span>
               )}
+              <div className="text-sm text-zinc-500 mt-2">
+                {genNum > 0 && genWord ? `第${genNum}代 · ${genWord}` : genWord || `第${genNum}代`}
+              </div>
             </div>
 
             {/* 基本信息表格 */}
