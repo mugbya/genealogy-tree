@@ -169,57 +169,95 @@ export function ModernGenealogyBook({
   const handleExportPdf = async () => {
     setIsExporting(true)
     try {
+      // 确保字体加载
+      try {
+        await document.fonts.ready
+      } catch (e) {
+        console.warn('Font loading skipped:', e)
+      }
+
       const pdf = new jsPDF('p', 'mm', 'a4')
       const pageWidth = pdf.internal.pageSize.getWidth()
       const pageHeight = pdf.internal.pageSize.getHeight()
 
       // 创建隐藏的渲染容器
       const container = document.createElement('div')
-      container.style.cssText = 'position: absolute; left: -9999px; top: 0; width: 595px; background: white; font-family: "Source Han Sans CN", "Noto Sans SC", sans-serif;'
+      container.style.cssText = 'position: fixed; left: 0; top: 0; width: 595px; min-height: 842px; background: white; font-family: "Source Han Sans CN", "Noto Sans SC", sans-serif; z-index: -1; opacity: 0;'
       document.body.appendChild(container)
 
-      // 1. 渲染封面页
+      // 辅助函数：渲染HTML到canvas并添加到PDF
+      const renderToPdf = async (html: string, pageNum: number): Promise<boolean> => {
+        // 清除之前的内容
+        container.innerHTML = ''
+        container.innerHTML = html
+
+        // 等待DOM渲染完成
+        await new Promise(r => setTimeout(r, 800))
+
+        const element = container.firstElementChild as HTMLElement
+        if (!element) {
+          console.error('No element found in container')
+          return false
+        }
+
+        // 确保元素有实际内容
+        const rect = element.getBoundingClientRect()
+        console.log(`Page ${pageNum} - Element rect:`, rect.width, rect.height)
+
+        if (rect.width === 0 || rect.height === 0) {
+          console.error('Element has no dimensions')
+          return false
+        }
+
+        try {
+          const canvas = await html2canvas(element, {
+            scale: 2,
+            useCORS: true,
+            backgroundColor: '#ffffff'
+          })
+          const image = canvas.toDataURL('image/png')
+          console.log(`Page ${pageNum} - Canvas created, size:`, canvas.width, canvas.height)
+
+          // 第一页（封面）不需要addPage，jsPDF自动创建了第一页
+          // 从第二页开始，每次都需要addPage
+          if (pageNum > 1) {
+            pdf.addPage()
+          }
+          pdf.addImage(image, 'PNG', 0, 0, pageWidth, pageHeight)
+          console.log(`Page ${pageNum} added successfully`)
+          return true
+        } catch (err) {
+          console.error('html2canvas error:', err)
+          return false
+        }
+      }
+
+      // 1. 渲染封面页 - 简化设计，打印友好
       const coverHtml = `
-        <div style="width: 595px; height: 842px; background: white; border: 2px solid #333; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative;">
-          <div style="width: 80px; height: 80px; border: 3px solid #333; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: #f5f5f5;">
-            <span style="font-size: 48px; color: #333;">谱</span>
-          </div>
-          <div style="margin-top: 60px; text-align: center;">
-            <div style="font-size: 48px; color: #333; font-weight: bold;">${familyName || '某某家族'}</div>
-            <div style="font-size: 28px; color: #333; margin-top: 10px;">族谱</div>
-          </div>
-          <div style="margin-top: 40px; display: flex; align-items: center; gap: 10px;">
-            <div style="width: 80px; height: 2px; background: #999;"></div>
-            <div style="width: 6px; height: 6px; border-radius: 50%; background: #999;"></div>
-            <div style="width: 6px; height: 6px; border-radius: 50%; background: #999;"></div>
-            <div style="width: 6px; height: 6px; border-radius: 50%; background: #999;"></div>
-            <div style="width: 80px; height: 2px; background: #999;"></div>
-          </div>
-          <div style="margin-top: 30px; padding: 15px 40px; border: 1px solid #333; font-size: 18px; color: #333;">现代版</div>
-          <div style="margin-top: 40px; font-size: 20px; color: #333; font-style: italic;">"${familyMaxim || '传承家族文化  弘扬优良家风'}"</div>
-          <div style="margin-top: 20px; font-size: 14px; color: #666;">始祖源地：${familyOrigin || '源远流长'}</div>
-          <div style="position: absolute; bottom: 60px; text-align: center;">
-            <div style="font-size: 16px; color: #333;">共录 ${allMembersSorted.length} 名族人</div>
-            <div style="font-size: 12px; color: #666; margin-top: 5px;">传承 ${membersByGeneration.length} 代</div>
-          </div>
+        <div style="width: 595px; height: 842px; background: white;">
+          <table style="width: 100%; height: 100%; border-collapse: collapse;">
+            <tr>
+              <td style="text-align: center; vertical-align: middle;">
+                <div style="font-size: 56px; color: #333; margin-top: 40px; font-weight: bold;">${familyName || '某某家族'}</div>
+                <div style="font-size: 32px; color: #333; margin-top: 10px;">族 谱</div>
+                <div style="font-size: 20px; color: #666; margin-top: 40px;">— 现代版 —</div>
+                <div style="font-size: 18px; color: #333; margin-top: 30px; font-style: italic;">"${familyMaxim || '传承家族文化  弘扬优良家风'}"</div>
+                <div style="font-size: 14px; color: #666; margin-top: 20px;">始祖源地：${familyOrigin || '源远流长'}</div>
+                <div style="font-size: 16px; color: #333; margin-top: 60px;">共录 ${allMembersSorted.length} 名族人</div>
+                <div style="font-size: 14px; color: #666; margin-top: 5px;">传承 ${membersByGeneration.length} 代</div>
+              </td>
+            </tr>
+          </table>
         </div>
       `
-      container.innerHTML = coverHtml
-      await new Promise(r => setTimeout(r, 200))
+      console.log('Rendering cover page...')
+      const coverSuccess = await renderToPdf(coverHtml, 1)
+      console.log('Cover page result:', coverSuccess)
 
-      const coverCanvas = await html2canvas(container.firstElementChild as HTMLElement, {
-        scale: 2,
-        useCORS: true,
-        backgroundColor: '#ffffff'
-      })
-      const coverImage = coverCanvas.toDataURL('image/png')
-      pdf.addImage(coverImage, 'PNG', 0, 0, pageWidth, pageHeight)
-
-      // 2. 渲染索引页
-      container.innerHTML = ''
+      // 2. 渲染索引页 - 简化设计
       const indexHtml = `
-        <div style="width: 595px; min-height: 842px; background: white; padding: 40px; box-sizing: border-box; position: relative;">
-          <div style="text-align: center; font-size: 28px; color: #333; margin-bottom: 20px;">${familyName || '某某家族'} 成员索引</div>
+        <div style="width: 595px; min-height: 842px; background: white; padding: 40px;">
+          <h1 style="text-align: center; font-size: 28px; color: #333; margin-bottom: 20px;">${familyName || '某某家族'} 成员索引</h1>
           <div style="height: 2px; background: #333; margin-bottom: 30px;"></div>
           <table style="width: 100%; font-size: 14px; border-collapse: collapse;">
             <thead>
@@ -246,21 +284,14 @@ export function ModernGenealogyBook({
               }).join('')}
             </tbody>
           </table>
-          <div style="position: absolute; bottom: 40px; left: 0; right: 0; text-align: center; font-size: 14px; color: #666;">
+          <div style="margin-top: 40px; text-align: center; font-size: 14px; color: #666;">
             共 ${allMembersSorted.length} 名族人，分为 ${allMembersSorted.length + 2} 页记载
           </div>
         </div>
       `
-      container.innerHTML = indexHtml
-      await new Promise(r => setTimeout(r, 200))
-
-      const indexCanvas = await html2canvas(container.firstElementChild as HTMLElement, {
-        scale: 2,
-        useCORS: true,
-        backgroundColor: '#ffffff'
-      })
-      const indexImage = indexCanvas.toDataURL('image/png')
-      pdf.addImage(indexImage, 'PNG', 0, 0, pageWidth, pageHeight)
+      console.log('Rendering index page...')
+      const indexSuccess = await renderToPdf(indexHtml, 2)
+      console.log('Index page result:', indexSuccess)
 
       // 3. 渲染每个成员的详情页（每人单独一页，白底打印友好）
       for (let i = 0; i < allMembersSorted.length; i++) {
@@ -274,95 +305,39 @@ export function ModernGenealogyBook({
         const spouseInfo = rels?.spouses || []
         const childrenInfo = (rels?.children || []).map(c => memberMap.get(c.id)).filter((c): c is Member => c !== undefined)
 
-        container.innerHTML = ''
         const memberHtml = `
-          <div style="width: 595px; min-height: 842px; background: white; padding: 40px; box-sizing: border-box; position: relative;">
-            <!-- 头部 -->
+          <div style="width: 595px; min-height: 842px; background: white; padding: 40px;">
             <div style="text-align: center; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid #333;">
-              <div style="font-size: 14px; color: #666; margin-bottom: 8px;">
-                ${genNum > 0 && genWord ? '第' + genNum + '代 · ' + genWord : genWord || '第' + genNum + '代'}
-              </div>
-              <h3 style="font-size: 36px; color: #333; margin: 0; letter-spacing: 4px;">
-                ${m.name}
-              </h3>
-              ${m.is_deceased ? '<span style="display: inline-block; margin-top: 8px; font-size: 14px; color: #999;">（故）</span>' : ''}
+              <div style="font-size: 14px; color: #666; margin-bottom: 8px;">${genNum > 0 && genWord ? '第' + genNum + '代 · ' + genWord : genWord || '第' + genNum + '代'}</div>
+              <h3 style="font-size: 36px; color: #333; margin: 0; letter-spacing: 4px;">${m.name}</h3>
+              ${m.is_deceased ? '<div style="font-size: 14px; color: #999; margin-top: 8px;">（故）</div>' : ''}
             </div>
 
-            <!-- 基本信息表格 -->
-            <div style="margin-bottom: 30px;">
-              <table style="width: 100%; font-size: 14px; border-collapse: collapse;">
-                <tbody>
-                  <tr style="border-bottom: 1px solid #eee;">
-                    <td style="padding: 8px 4px; color: #999; width: 60px;">性别</td>
-                    <td style="padding: 8px 4px; color: #333;">${m.gender === 'male' ? '男' : '女'}</td>
-                  </tr>
-                  ${(m.birth_date || m.death_date) ? `
-                  <tr style="border-bottom: 1px solid #eee;">
-                    <td style="padding: 8px 4px; color: #999;">生卒</td>
-                    <td style="padding: 8px 4px; color: #333;">${m.birth_date || '未知'}${m.death_date ? ' ～ ' + m.death_date : ''}</td>
-                  </tr>` : ''}
-                  ${m.birth_place ? `
-                  <tr style="border-bottom: 1px solid #eee;">
-                    <td style="padding: 8px 4px; color: #999;">籍贯</td>
-                    <td style="padding: 8px 4px; color: #333;">${m.birth_place}</td>
-                  </tr>` : ''}
-                  ${m.occupation ? `
-                  <tr style="border-bottom: 1px solid #eee;">
-                    <td style="padding: 8px 4px; color: #999;">职业</td>
-                    <td style="padding: 8px 4px; color: #333;">${m.occupation}</td>
-                  </tr>` : ''}
-                </tbody>
-              </table>
-            </div>
+            <table style="width: 100%; font-size: 14px; border-collapse: collapse; margin-bottom: 30px;">
+              <tr><td style="padding: 8px 4px; color: #666; width: 60px;">性别</td><td style="padding: 8px 4px; color: #333;">${m.gender === 'male' ? '男' : '女'}</td></tr>
+              ${(m.birth_date || m.death_date) ? '<tr><td style="padding: 8px 4px; color: #666;">生卒</td><td style="padding: 8px 4px; color: #333;">' + (m.birth_date || '未知') + (m.death_date ? ' ～ ' + m.death_date : '') + '</td></tr>' : ''}
+              ${m.birth_place ? '<tr><td style="padding: 8px 4px; color: #666;">籍贯</td><td style="padding: 8px 4px; color: #333;">' + m.birth_place + '</td></tr>' : ''}
+              ${m.occupation ? '<tr><td style="padding: 8px 4px; color: #666;">职业</td><td style="padding: 8px 4px; color: #333;">' + m.occupation + '</td></tr>' : ''}
+            </table>
 
-            <!-- 家族关系 -->
-            ${(fatherInfo || motherInfo || spouseInfo.length > 0 || childrenInfo.length > 0) ? `
-            <div style="margin-bottom: 30px;">
-              <h4 style="font-size: 14px; font-weight: bold; color: #333; margin: 0 0 12px 0; padding-bottom: 8px; border-bottom: 1px solid #333;">家族关系</h4>
-              <div style="font-size: 14px; line-height: 2; color: #333;">
-                ${fatherInfo ? '<div><span style="color: #666;">父亲</span> ' + fatherInfo.name + '</div>' : ''}
-                ${motherInfo ? '<div><span style="color: #666;">母亲</span> ' + motherInfo.name + '</div>' : ''}
-                ${spouseInfo.length > 0 ? '<div><span style="color: #666;">配偶</span> ' + spouseInfo.map(s => s.name).join('、') + '</div>' : ''}
-                ${childrenInfo.length > 0 ? '<div><span style="color: #666;">子女</span> ' + childrenInfo.map(c => c.name).join('、') + '</div>' : ''}
-              </div>
-            </div>` : ''}
+            ${(fatherInfo || motherInfo || spouseInfo.length > 0 || childrenInfo.length > 0) ? '<div style="margin-bottom: 30px;"><h4 style="font-size: 14px; font-weight: bold; color: #333; margin: 0 0 12px 0; padding-bottom: 8px; border-bottom: 1px solid #333;">家族关系</h4><div style="font-size: 14px; color: #333;">' + (fatherInfo ? '<div>父亲: ' + fatherInfo.name + '</div>' : '') + (motherInfo ? '<div>母亲: ' + motherInfo.name + '</div>' : '') + (spouseInfo.length > 0 ? '<div>配偶: ' + spouseInfo.map(s => s.name).join('、') + '</div>' : '') + (childrenInfo.length > 0 ? '<div>子女: ' + childrenInfo.map(c => c.name).join('、') + '</div>' : '') + '</div></div>' : ''}
 
-            <!-- 生平简介 -->
-            ${m.biography ? `
-            <div style="margin-bottom: 30px;">
-              <h4 style="font-size: 14px; font-weight: bold; color: #333; margin: 0 0 12px 0; padding-bottom: 8px; border-bottom: 1px solid #333;">生平简介</h4>
-              <p style="font-size: 14px; line-height: 1.8; color: #333; margin: 0; white-space: pre-wrap;">${m.biography}</p>
-            </div>` : ''}
+            ${m.biography ? '<div style="margin-bottom: 30px;"><h4 style="font-size: 14px; font-weight: bold; color: #333; margin: 0 0 12px 0; padding-bottom: 8px; border-bottom: 1px solid #333;">生平简介</h4><p style="font-size: 14px; color: #333; margin: 0;">' + m.biography + '</p></div>' : ''}
 
-            <!-- 主要成就 -->
-            ${m.remarkable_deeds ? `
-            <div style="margin-bottom: 30px;">
-              <h4 style="font-size: 14px; font-weight: bold; color: #333; margin: 0 0 12px 0; padding-bottom: 8px; border-bottom: 1px solid #333;">主要成就</h4>
-              <p style="font-size: 14px; line-height: 1.8; color: #333; margin: 0; white-space: pre-wrap;">${m.remarkable_deeds}</p>
-            </div>` : ''}
+            ${m.remarkable_deeds ? '<div style="margin-bottom: 30px;"><h4 style="font-size: 14px; font-weight: bold; color: #333; margin: 0 0 12px 0; padding-bottom: 8px; border-bottom: 1px solid #333;">主要成就</h4><p style="font-size: 14px; color: #333; margin: 0;">' + m.remarkable_deeds + '</p></div>' : ''}
 
-            <!-- 页脚 -->
-            <div style="position: absolute; bottom: 40px; left: 0; right: 0; text-align: center; font-size: 12px; color: #999;">
-              ${familyName || '家族'}族谱 · 第${i + 3}页
-            </div>
+            <div style="margin-top: 40px; text-align: center; font-size: 12px; color: #999;">${familyName || '家族'}族谱 · 第${i + 3}页</div>
           </div>
         `
-        container.innerHTML = memberHtml
-        await new Promise(r => setTimeout(r, 200))
-
-        const memberCanvas = await html2canvas(container.firstElementChild as HTMLElement, {
-          scale: 2,
-          useCORS: true,
-          backgroundColor: '#ffffff'
-        })
-        const memberImage = memberCanvas.toDataURL('image/png')
-        pdf.addPage()
-        pdf.addImage(memberImage, 'PNG', 0, 0, pageWidth, pageHeight)
+        console.log('Rendering member page:', m.name)
+        const memberSuccess = await renderToPdf(memberHtml, i + 3)
+        console.log('Member page result:', memberSuccess)
       }
 
       // 清理
       document.body.removeChild(container)
 
+      console.log('PDF exported with', pdf.getNumberOfPages(), 'pages')
       pdf.save(`${familyName || '家族'}族谱.pdf`)
     } catch (error) {
       console.error('Export failed:', error)
