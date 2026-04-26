@@ -241,7 +241,7 @@ export function ModernGenealogyBook({
                 <div style="font-size: 56px; color: #333; margin-top: 40px; font-weight: bold;">${familyName || '某某家族'}</div>
                 <div style="font-size: 32px; color: #333; margin-top: 10px;">祖 谱</div>
                 <div style="font-size: 20px; color: #666; margin-top: 40px;">— 现代版 —</div>
-                <div style="font-size: 18px; color: #333; margin-top: 30px; font-style: italic;">"${familyMaxim || '传承家族文化  弘扬优良家风'}"</div>
+                <div style="font-size: 18px; color: #333; margin-top: 30px; font-style: italic;">${familyMaxim || '传承家族文化  弘扬优良家风'}</div>
                 <div style="font-size: 14px; color: #666; margin-top: 20px;">始祖源地：${familyOrigin || '源远流长'}</div>
                 <div style="font-size: 16px; color: #333; margin-top: 60px;">共录 ${allMembersSorted.length} 名族人</div>
                 <div style="font-size: 14px; color: #666; margin-top: 5px;">传承 ${membersByGeneration.length} 代</div>
@@ -349,9 +349,9 @@ export function ModernGenealogyBook({
     }
   }
 
-  // 封面页
+  // 封面页 - 大16开尺寸 (210mm x 285mm, 比例约 3:4)
   const renderCover = () => (
-    <div className="h-full flex items-center justify-center bg-gradient-to-br from-amber-100 to-orange-100 p-8 relative">
+    <div className="h-full flex items-center justify-center bg-white p-8 relative">
       {/* 顶部导出按钮 */}
       <div className="absolute top-4 right-4 z-10">
         <Button
@@ -368,7 +368,7 @@ export function ModernGenealogyBook({
 
       <div
         ref={coverRef}
-        className="w-[500px] aspect-[3/4] bg-gradient-to-b from-amber-50 to-orange-50 border-4 border-amber-800 rounded-lg shadow-2xl relative overflow-hidden"
+        className="w-[650px] aspect-[3/4] bg-gradient-to-b from-amber-50 to-orange-50 border-4 border-amber-800 rounded-lg shadow-2xl relative overflow-hidden"
       >
         {/* 装饰边框 */}
         <div className="absolute inset-1 border-2 border-amber-700 pointer-events-none" />
@@ -439,7 +439,7 @@ export function ModernGenealogyBook({
 
         <div className="mx-8 mt-6 p-4 bg-amber-100/50 border border-amber-300 rounded text-center">
           <p className="text-sm text-amber-800 italic">
-            "{familyMaxim || '传承家族文化  弘扬优良家风'}"
+            {familyMaxim || '传承家族文化  弘扬优良家风'}
           </p>
         </div>
 
