@@ -7,6 +7,7 @@ import {
   X,
   ChevronRight,
   LogOut,
+  HeadphonesIcon,
 } from 'lucide-react'
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
@@ -114,18 +115,37 @@ export function Layout() {
                 </Link>
               )}
 
-              {/* Settings */}
-              <Link
-                to="/config"
-                className={cn(
-                  "w-11 h-11 rounded-lg flex items-center justify-center transition-colors",
-                  location.pathname === '/config'
-                    ? "bg-zinc-100 text-zinc-900"
-                    : "text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100"
-                )}
+              {/* 售后联系 */}
+              <Dropdown
+                trigger={
+                  <button
+                    className="w-11 h-11 rounded-lg flex items-center justify-center transition-colors text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100"
+                  >
+                    <HeadphonesIcon className="w-5 h-5" />
+                  </button>
+                }
+                align="right"
               >
-                <Settings className="w-5 h-5" />
-              </Link>
+                <div className="p-4 min-w-[200px] text-center">
+                  <p className="text-sm font-medium text-zinc-700 mb-3">联系客服</p>
+                  <div className="bg-white p-2 rounded-lg border border-zinc-200 shadow-sm">
+                    {/* 微信二维码占位 - 请将图片放置在 public/images/wechat-qr.png */}
+                    <img
+                      src="/images/wechat-qr.png"
+                      alt="微信客服"
+                      className="w-40 h-40 object-contain mx-auto"
+                      onError={(e) => {
+                        e.currentTarget.style.display = 'none'
+                        e.currentTarget.nextElementSibling?.classList.remove('hidden')
+                      }}
+                    />
+                    <div className="hidden text-center py-8 text-zinc-400 text-sm">
+                      暂未设置二维码
+                    </div>
+                  </div>
+                  <p className="text-xs text-zinc-500 mt-2">扫码添加客服微信</p>
+                </div>
+              </Dropdown>
 
               {/* Mobile menu button */}
               <button
