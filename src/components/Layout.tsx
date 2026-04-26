@@ -48,7 +48,7 @@ export function Layout() {
                 </div>
                 <div className="hidden sm:block">
                   <h1 className="font-bold text-zinc-900 text-xl leading-none">祖谱</h1>
-                  <p className="text-sm text-zinc-500 mt-1">Family Tree</p>
+                  {/* <p className="text-sm text-zinc-500 mt-1">Family Tree</p> */}
                 </div>
               </Link>
 
