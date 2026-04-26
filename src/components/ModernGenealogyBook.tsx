@@ -1,9 +1,8 @@
-import { useMemo, useState, useRef } from 'react'
+import React, { useMemo, useState, useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Avatar } from '@/components/ui/avatar'
 import type { Member, MemberRelation } from '@/api/client'
-import { Users, BookOpen, Award, Briefcase, Home, Calendar, ArrowLeft, Download, Loader2 } from 'lucide-react'
+import { ArrowLeft, Download, Loader2, BookOpen } from 'lucide-react'
 import jsPDF from 'jspdf'
 import html2canvas from 'html2canvas'
 
@@ -18,8 +17,6 @@ interface ModernGenealogyBookProps {
 }
 
 type ViewState = 'cover' | 'toc' | 'detail'
-
-const MEMBERS_PER_PAGE = 6
 
 export function ModernGenealogyBook({
   familyName,
@@ -158,15 +155,6 @@ export function ModernGenealogyBook({
         return (b.weight ?? 0) - (a.weight ?? 0)
       })
   }, [members, isOwnFamily])
-
-  // 计算每个成员的页码
-  const memberPageMap = useMemo(() => {
-    const map = new Map<number, number>()
-    allMembersSorted.forEach((member, index) => {
-      map.set(member.id, Math.floor(index / MEMBERS_PER_PAGE) + 1)
-    })
-    return map
-  }, [allMembersSorted])
 
   const handleViewDetail = (member: Member) => {
     setSelectedMember(member)
@@ -334,12 +322,6 @@ export function ModernGenealogyBook({
     } finally {
       setIsExporting(false)
     }
-  }
-
-  const getGenerationLabel = (gen?: string) => {
-    if (!gen) return ''
-    if (generationWords.includes(gen)) return gen
-    return gen
   }
 
   // 封面页
@@ -562,183 +544,159 @@ export function ModernGenealogyBook({
     const motherInfo = rels?.mother ? memberMap.get(rels.mother.id) : null
     const spouseInfo = rels?.spouses || []
     const childrenInfo = (rels?.children || []).map(c => memberMap.get(c.id)).filter((m): m is Member => m !== undefined) as Member[]
-    const genLabel = getGenerationLabel(selectedMember.generation)
-    const memberPage = memberPageMap.get(selectedMember.id) || 1
+    const genNum = parseInt(selectedMember.generation || '0', 10) || 0
+    const genWord = generationWords[genNum - 1] || ''
 
     return (
-      <div className="h-full flex flex-col bg-gradient-to-br from-amber-50 to-orange-50">
+      <div className="h-full flex flex-col bg-white">
         <div className="shrink-0 flex items-center gap-4 p-4 bg-white border-b">
           <Button variant="ghost" onClick={() => setView('toc')} className="gap-1">
             <ArrowLeft className="w-4 h-4" />
             返回目录
           </Button>
           <div className="flex-1 text-center">
-            <h2 className="text-lg font-semibold text-amber-900">成员详情</h2>
-          </div>
-          <div className="flex items-center gap-2">
-            <Badge variant="outline" className="text-amber-700">
-              第 {memberPage + 1} 页
-            </Badge>
+            <h2 className="text-lg font-semibold text-zinc-800">{familyName || '家族'}族谱</h2>
           </div>
         </div>
 
         <div className="flex-1 overflow-auto p-6">
-          <div className="max-w-2xl mx-auto space-y-6">
-            <div className="border-amber-200 bg-gradient-to-br from-amber-50 to-orange-50 rounded-lg p-6 border-2">
-              <div className="flex items-start gap-6">
-                <div className="relative">
-                  <div className="w-32 h-32 rounded-full border-4 border-amber-700 bg-gradient-to-br from-amber-100 to-orange-100 overflow-hidden shadow-lg">
-                    <Avatar
-                      src={selectedMember.photo_path ? `/api/photos/${selectedMember.photo_path.split('/').pop()}` : undefined}
-                      fallback={selectedMember.name}
-                      size="xl"
-                      gender={selectedMember.gender as "male" | "female"}
-                    />
-                  </div>
-                  {selectedMember.is_deceased && (
-                    <div className="absolute -bottom-1 -right-1 w-8 h-8 bg-gray-500 rounded-full flex items-center justify-center text-white text-xs">
-                      故
+          <div
+            className="mx-auto bg-white border border-zinc-300 shadow-sm"
+            style={{ width: '190mm', minHeight: '276mm', padding: '15mm 20mm' }}
+          >
+            {/* 头部信息 */}
+            <div className="text-center mb-8 pb-4 border-b border-zinc-300">
+              <div className="text-sm text-zinc-500 mb-1">
+                {genNum > 0 && genWord ? `第${genNum}代 · ${genWord}` : genWord || `第${genNum}代`}
+              </div>
+              <h3 className="text-3xl font-bold text-zinc-900 tracking-widest">
+                {selectedMember.name}
+              </h3>
+              {selectedMember.is_deceased && (
+                <span className="inline-block mt-1 text-sm text-zinc-500">（故）</span>
+              )}
+            </div>
+
+            {/* 基本信息表格 */}
+            <div className="mb-6">
+              <table className="w-full text-sm">
+                <tbody>
+                  <tr className="border-b border-zinc-100">
+                    <td className="py-2 text-zinc-500 w-20">性别</td>
+                    <td className="py-2 text-zinc-800">{selectedMember.gender === 'male' ? '男' : '女'}</td>
+                  </tr>
+                  {(selectedMember.birth_date || selectedMember.death_date) && (
+                    <tr className="border-b border-zinc-100">
+                      <td className="py-2 text-zinc-500">生卒</td>
+                      <td className="py-2 text-zinc-800">
+                        {selectedMember.birth_date || '未知'}
+                        {selectedMember.death_date && ` ～ ${selectedMember.death_date}`}
+                      </td>
+                    </tr>
+                  )}
+                  {selectedMember.birth_place && (
+                    <tr className="border-b border-zinc-100">
+                      <td className="py-2 text-zinc-500">籍贯</td>
+                      <td className="py-2 text-zinc-800">{selectedMember.birth_place}</td>
+                    </tr>
+                  )}
+                  {selectedMember.occupation && (
+                    <tr className="border-b border-zinc-100">
+                      <td className="py-2 text-zinc-500">职业</td>
+                      <td className="py-2 text-zinc-800">{selectedMember.occupation}</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* 家族关系 */}
+            {(fatherInfo || motherInfo || spouseInfo.length > 0 || childrenInfo.length > 0) && (
+              <div className="mb-6">
+                <h4 className="text-sm font-semibold text-zinc-700 mb-2 border-b border-zinc-200 pb-1">家族关系</h4>
+                <div className="text-sm space-y-1">
+                  {fatherInfo && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-zinc-500 w-12">父亲</span>
+                      <span
+                        className="text-zinc-800 cursor-pointer hover:text-amber-600 underline"
+                        onClick={() => handleViewDetail(fatherInfo)}
+                      >
+                        {fatherInfo.name}
+                      </span>
+                    </div>
+                  )}
+                  {motherInfo && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-zinc-500 w-12">母亲</span>
+                      <span
+                        className="text-zinc-800 cursor-pointer hover:text-amber-600 underline"
+                        onClick={() => handleViewDetail(motherInfo)}
+                      >
+                        {motherInfo.name}
+                      </span>
+                    </div>
+                  )}
+                  {spouseInfo.length > 0 && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-zinc-500 w-12">配偶</span>
+                      <span className="text-zinc-800">
+                        {spouseInfo.map(s => {
+                          const spouseMember = memberMap.get(s.id)
+                          return spouseMember ? (
+                            <span
+                              key={s.id}
+                              className="cursor-pointer hover:text-amber-600 underline"
+                              onClick={() => handleViewDetail(spouseMember)}
+                            >
+                              {s.name}
+                            </span>
+                          ) : (
+                            <span key={s.id}>{s.name}</span>
+                          )
+                        }).reduce((acc: React.ReactNode[], el, i, arr) => {
+                          return acc.concat(el as React.ReactNode).concat(i < arr.length - 1 ? '、' : [])
+                        }, [])}
+                      </span>
+                    </div>
+                  )}
+                  {childrenInfo.length > 0 && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-zinc-500 w-12">子女</span>
+                      <span className="text-zinc-800">
+                        {childrenInfo.map(c => (
+                          <span
+                            key={c.id}
+                            className="cursor-pointer hover:text-amber-600 underline"
+                            onClick={() => handleViewDetail(c)}
+                          >
+                            {c.name}
+                          </span>
+                        )).reduce((acc: React.ReactNode[], el, i, arr) => {
+                          return acc.concat(el as React.ReactNode).concat(i < arr.length - 1 ? '、' : [])
+                        }, [])}
+                      </span>
                     </div>
                   )}
                 </div>
-
-                <div className="flex-1">
-                  <div className="flex items-center gap-3 mb-2">
-                    <h3 className="text-2xl font-bold text-amber-900">{selectedMember.name}</h3>
-                    {genLabel && (
-                      <Badge className="bg-amber-200 text-amber-800 border-amber-400">
-                        {genLabel}
-                      </Badge>
-                    )}
-                  </div>
-
-                  <div className="space-y-2 text-sm">
-                    <div className="flex items-center gap-2 text-amber-700">
-                      <span className="w-16">性别</span>
-                      <span className="text-amber-900">{selectedMember.gender === 'male' ? '男' : '女'}</span>
-                    </div>
-                    {(selectedMember.birth_date || selectedMember.death_date) && (
-                      <div className="flex items-center gap-2 text-amber-700">
-                        <Calendar className="w-4 h-4" />
-                        <span className="text-amber-900">
-                          {selectedMember.birth_date || '未知'}
-                          {selectedMember.death_date && ` ～ ${selectedMember.death_date}`}
-                        </span>
-                      </div>
-                    )}
-                    {selectedMember.birth_place && (
-                      <div className="flex items-center gap-2 text-amber-700">
-                        <Home className="w-4 h-4" />
-                        <span className="text-amber-900">{selectedMember.birth_place}</span>
-                      </div>
-                    )}
-                    {selectedMember.occupation && (
-                      <div className="flex items-center gap-2 text-amber-700">
-                        <Briefcase className="w-4 h-4" />
-                        <span className="text-amber-900">{selectedMember.occupation}</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
               </div>
-            </div>
+            )}
 
+            {/* 生平简介 */}
             {selectedMember.biography && (
-              <div className="border-amber-200 rounded-lg p-4 border">
-                <h4 className="text-sm font-semibold text-amber-800 mb-2 flex items-center gap-2">
-                  <BookOpen className="w-4 h-4" />
-                  生平事迹
-                </h4>
-                <p className="text-amber-900 text-sm leading-relaxed">{selectedMember.biography}</p>
+              <div className="mb-6">
+                <h4 className="text-sm font-semibold text-zinc-700 mb-2 border-b border-zinc-200 pb-1">生平简介</h4>
+                <p className="text-sm text-zinc-700 leading-relaxed whitespace-pre-wrap">{selectedMember.biography}</p>
               </div>
             )}
 
+            {/* 主要成就 */}
             {selectedMember.remarkable_deeds && (
-              <div className="border-amber-200 bg-gradient-to-br from-amber-50 to-orange-50 rounded-lg p-4 border">
-                <h4 className="text-sm font-semibold text-amber-800 mb-2 flex items-center gap-2">
-                  <Award className="w-4 h-4" />
-                  主要成就
-                </h4>
-                <p className="text-amber-900 text-sm leading-relaxed">{selectedMember.remarkable_deeds}</p>
+              <div className="mb-6">
+                <h4 className="text-sm font-semibold text-zinc-700 mb-2 border-b border-zinc-200 pb-1">主要成就</h4>
+                <p className="text-sm text-zinc-700 leading-relaxed whitespace-pre-wrap">{selectedMember.remarkable_deeds}</p>
               </div>
             )}
-
-            <div className="border-amber-200 rounded-lg p-4 border">
-              <h4 className="text-sm font-semibold text-amber-800 mb-3 flex items-center gap-2">
-                <Users className="w-4 h-4" />
-                家族关系
-              </h4>
-              <div className="space-y-3">
-                {(fatherInfo || motherInfo) && (
-                  <div className="flex items-center gap-2 text-sm">
-                    <span className="text-amber-600 w-12">父母</span>
-                    <div className="flex gap-2">
-                      {fatherInfo && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-7 text-xs border-amber-300 hover:border-amber-500"
-                          onClick={() => handleViewDetail(fatherInfo)}
-                        >
-                          {fatherInfo.name} <span className="text-amber-500 ml-1">父</span>
-                        </Button>
-                      )}
-                      {motherInfo && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-7 text-xs border-amber-300 hover:border-amber-500"
-                          onClick={() => handleViewDetail(motherInfo)}
-                        >
-                          {motherInfo.name} <span className="text-amber-500 ml-1">母</span>
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                )}
-                {spouseInfo.length > 0 && (
-                  <div className="flex items-center gap-2 text-sm">
-                    <span className="text-amber-600 w-12">配偶</span>
-                    <div className="flex flex-wrap gap-2">
-                      {spouseInfo.map(spouse => {
-                        const spouseMember = memberMap.get(spouse.id)
-                        return (
-                          <Button
-                            key={spouse.id}
-                            variant="outline"
-                            size="sm"
-                            className="h-7 text-xs border-amber-300 hover:border-amber-500"
-                            onClick={() => spouseMember && handleViewDetail(spouseMember)}
-                          >
-                            {spouse.name}
-                            {spouse.tag && <span className="text-amber-500 ml-1">（{spouse.tag}）</span>}
-                          </Button>
-                        )
-                      })}
-                    </div>
-                  </div>
-                )}
-                {childrenInfo.length > 0 && (
-                  <div className="flex items-center gap-2 text-sm">
-                    <span className="text-amber-600 w-12">子女</span>
-                    <div className="flex flex-wrap gap-2">
-                      {childrenInfo.map(child => (
-                        <Button
-                          key={child.id}
-                          variant="outline"
-                          size="sm"
-                          className="h-7 text-xs border-amber-300 hover:border-amber-500"
-                          onClick={() => handleViewDetail(child)}
-                        >
-                          {child.name}
-                          <span className="text-amber-500 ml-1">{child.gender === 'male' ? '子' : '女'}</span>
-                        </Button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
           </div>
         </div>
       </div>
