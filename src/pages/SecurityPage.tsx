@@ -293,47 +293,6 @@ export function SecurityPage() {
         </Card>
       </div>
 
-      {/* 强制登出（仅管理员） */}
-      {isAdmin && (
-        <Card className="border-0 shadow-sm">
-          <CardHeader>
-            <CardTitle className="text-lg font-semibold flex items-center gap-2">
-              <LogOut className="w-5 h-5" />
-              安全管理
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="p-4 border border-red-200 rounded-lg bg-red-50 max-w-xl">
-              <div className="flex items-start gap-3">
-                <AlertTriangle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
-                <div className="flex-1">
-                  <p className="font-medium text-red-900">全员强制登出</p>
-                  <p className="text-sm text-red-700 mt-1">
-                    强制所有用户退出登录，所有用户都需要重新输入账号密码登录。
-                  </p>
-                  {revokeMessage && (
-                    <p className="text-sm text-green-700 mt-2">{revokeMessage}</p>
-                  )}
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    onClick={handleRevokeAll}
-                    disabled={isRevoking}
-                    className="mt-3 gap-2"
-                  >
-                    {isRevoking ? (
-                      <RefreshCw className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <LogOut className="w-4 h-4" />
-                    )}
-                    强制所有用户登出
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
     </div>
   )
 }
