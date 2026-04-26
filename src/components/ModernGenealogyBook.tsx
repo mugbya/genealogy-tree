@@ -504,28 +504,34 @@ export function ModernGenealogyBook({
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-amber-800 border-b border-amber-200">
-                  <th className="text-left py-2 w-20">页码</th>
-                  <th className="text-left py-2 w-28">姓名</th>
+                  <th className="text-left py-2 w-16">页码</th>
+                  <th className="text-left py-2 w-16">代数</th>
+                  <th className="text-left py-2 w-20">辈字</th>
+                  <th className="text-left py-2 w-24">姓名</th>
                   <th className="text-left py-2 w-20">生年</th>
-                  <th className="text-left py-2">职业</th>
                 </tr>
               </thead>
               <tbody>
-                {allMembersSorted.map((member, index) => (
-                  <tr
-                    key={member.id}
-                    className="border-b border-dotted border-amber-100 hover:bg-amber-50 cursor-pointer"
-                    onClick={() => handleViewDetail(member)}
-                  >
-                    <td className="py-2 text-amber-600">第{index + 3}页</td>
-                    <td className="py-2 font-medium text-amber-900">{member.name}</td>
-                    <td className="py-2 text-zinc-500 text-xs">
-                      {member.birth_date?.substring(0, 4) || '-'}
-                      {member.is_deceased && <span className="ml-1">故</span>}
-                    </td>
-                    <td className="py-2 text-zinc-500">{member.occupation || ''}</td>
-                  </tr>
-                ))}
+                {allMembersSorted.map((member, index) => {
+                  const genNum = parseInt(member.generation || '0', 10) || 0
+                  const genWord = generationWords[genNum - 1] || ''
+                  return (
+                    <tr
+                      key={member.id}
+                      className="border-b border-dotted border-amber-100 hover:bg-amber-50 cursor-pointer"
+                      onClick={() => handleViewDetail(member)}
+                    >
+                      <td className="py-2 text-amber-600">第{index + 3}页</td>
+                      <td className="py-2 text-amber-700">{genNum > 0 ? `第${genNum}代` : '-'}</td>
+                      <td className="py-2 text-amber-600">{genWord}</td>
+                      <td className="py-2 font-medium text-amber-900">{member.name}</td>
+                      <td className="py-2 text-zinc-500 text-xs">
+                        {member.birth_date?.substring(0, 4) || '-'}
+                        {member.is_deceased && <span className="ml-1">故</span>}
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
 
