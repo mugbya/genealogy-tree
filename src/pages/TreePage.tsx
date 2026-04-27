@@ -755,10 +755,10 @@ export function TreePage() {
   return (
     <div className="h-[calc(100vh-8rem)] flex flex-col animate-fade-in">
       {/* 页面标题 */}
-      <div className="mb-4 shrink-0">
+      {/* <div className="mb-4 shrink-0">
         <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">祖谱管理</h1>
         <p className="text-muted-foreground mt-1">管理家族成员信息</p>
-      </div>
+      </div> */}
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0">
