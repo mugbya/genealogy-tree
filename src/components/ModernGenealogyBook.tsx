@@ -44,6 +44,10 @@ export function ModernGenealogyBook({
   const coverRef = useRef<HTMLDivElement>(null)
   const tocRef = useRef<HTMLDivElement>(null)
 
+  // 导出进度状态
+  const [exportingVolume, setExportingVolume] = useState<string | null>(null) // 当前正在导出的分册ID
+  const [exportingProgress, setExportingProgress] = useState({ current: 0, total: 0 }) // 导出进度
+
   // 分册配置状态
   const [volumeRanges, setVolumeRanges] = useState<VolumeRange[]>([])
 
@@ -431,6 +435,12 @@ export function ModernGenealogyBook({
 
   // 导出单册PDF
   const handleExportVolume = async (volume: VolumeRange) => {
+    // 防止并发导出
+    if (exportingVolume !== null) {
+      alert('正在导出中，请等待当前导出完成')
+      return
+    }
+
     const volumeMembers = getMembersForVolume(volume)
     if (volumeMembers.length === 0) {
       alert('该册没有成员，请调整代数范围')
@@ -438,6 +448,9 @@ export function ModernGenealogyBook({
     }
 
     setIsExporting(true)
+    setExportingVolume(volume.id)
+    setExportingProgress({ current: 0, total: volumeMembers.length + 2 })
+
     try {
       await document.fonts.ready
     } catch (e) {
@@ -505,6 +518,7 @@ export function ModernGenealogyBook({
         </div>
       `
       await renderToPdf(coverHtml, 1)
+      setExportingProgress(prev => ({ ...prev, current: 1 }))
 
       // 索引页
       const indexHtml = `
@@ -542,6 +556,7 @@ export function ModernGenealogyBook({
         </div>
       `
       await renderToPdf(indexHtml, 2)
+      setExportingProgress(prev => ({ ...prev, current: 2 }))
 
       // 成员详情页
       for (let i = 0; i < volumeMembers.length; i++) {
@@ -582,6 +597,7 @@ export function ModernGenealogyBook({
           </div>
         `
         await renderToPdf(memberHtml, i + 3)
+        setExportingProgress(prev => ({ ...prev, current: i + 3 }))
       }
 
       document.body.removeChild(container)
@@ -591,6 +607,8 @@ export function ModernGenealogyBook({
       alert('导出失败，请重试')
     } finally {
       setIsExporting(false)
+      setExportingVolume(null)
+      setExportingProgress({ current: 0, total: 0 })
     }
   }
 
@@ -1017,10 +1035,10 @@ export function ModernGenealogyBook({
               variant="outline"
               size="sm"
               onClick={handleExportAllVolumes}
-              disabled={isExporting || volumeRanges.length === 0}
+              disabled={exportingVolume !== null || volumeRanges.length === 0}
               className="gap-1"
             >
-              {isExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+              {exportingVolume ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
               导出全部
             </Button>
           </div>
@@ -1036,10 +1054,16 @@ export function ModernGenealogyBook({
                     共 <span className="font-bold">{allMembersSorted.length}</span> 名族人，
                     分为 <span className="font-bold">{allGenerations.length}</span> 代
                   </p>
+                  {exportingVolume && (
+                    <p className="text-sm text-emerald-600 mt-1">
+                      正在导出：第 {volumeRanges.findIndex(v => v.id === exportingVolume) + 1} 册 ({exportingProgress.current}/{exportingProgress.total})
+                    </p>
+                  )}
                 </div>
                 <Button
                   size="sm"
                   onClick={addVolume}
+                  disabled={exportingVolume !== null}
                   className="gap-1 bg-amber-600 hover:bg-amber-700"
                 >
                   <Plus className="w-4 h-4" />
@@ -1048,20 +1072,40 @@ export function ModernGenealogyBook({
               </div>
             </div>
 
+            {/* 进度条 */}
+            {exportingVolume && (
+              <div className="bg-white border border-amber-200 rounded-lg p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm text-amber-800">导出进度</span>
+                  <span className="text-sm text-amber-600">
+                    {exportingProgress.current} / {exportingProgress.total} 页
+                  </span>
+                </div>
+                <div className="w-full bg-amber-100 rounded-full h-2">
+                  <div
+                    className="bg-emerald-500 h-2 rounded-full transition-all duration-300"
+                    style={{ width: `${(exportingProgress.current / exportingProgress.total) * 100}%` }}
+                  />
+                </div>
+              </div>
+            )}
+
             {/* 分册列表 */}
             <div className="space-y-4">
               {volumeRanges.map((volume, index) => {
                 const volumeMembers = getMembersForVolume(volume)
+                const isCurrentExporting = exportingVolume === volume.id
                 return (
                   <div
                     key={volume.id}
-                    className="border border-amber-200 rounded-lg p-4 bg-white"
+                    className={`border rounded-lg p-4 bg-white ${isCurrentExporting ? 'border-emerald-400 ring-2 ring-emerald-100' : 'border-amber-200'}`}
                   >
                     <div className="flex items-center justify-between mb-3">
                       <div className="flex items-center gap-2">
-                        <FileText className="w-5 h-5 text-amber-600" />
-                        <span className="font-medium text-amber-900">
+                        <FileText className={`w-5 h-5 ${isCurrentExporting ? 'text-emerald-600' : 'text-amber-600'}`} />
+                        <span className={`font-medium ${isCurrentExporting ? 'text-emerald-900' : 'text-amber-900'}`}>
                           第 {index + 1} 册
+                          {isCurrentExporting && <span className="ml-1 text-xs text-emerald-600">(导出中...)</span>}
                         </span>
                         <Badge variant="outline" className="text-amber-700 border-amber-300">
                           {volumeMembers.length} 人
@@ -1072,16 +1116,17 @@ export function ModernGenealogyBook({
                           variant="outline"
                           size="sm"
                           onClick={() => handleExportVolume(volume)}
-                          disabled={isExporting || volumeMembers.length === 0}
+                          disabled={exportingVolume !== null || volumeMembers.length === 0}
                           className="gap-1 text-emerald-600 border-emerald-300 hover:bg-emerald-50"
                         >
-                          {isExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-                          导出
+                          {isCurrentExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                          {isCurrentExporting ? '导出中' : '导出'}
                         </Button>
                         <Button
                           variant="ghost"
                           size="sm"
                           onClick={() => removeVolume(volume.id)}
+                          disabled={exportingVolume !== null}
                           className="text-red-500 hover:text-red-700 hover:bg-red-50"
                         >
                           <Trash2 className="w-4 h-4" />
@@ -1097,6 +1142,7 @@ export function ModernGenealogyBook({
                           min={1}
                           value={volume.startGen}
                           onChange={(e) => updateVolume(volume.id, 'startGen', parseInt(e.target.value) || 1)}
+                          disabled={exportingVolume !== null}
                           className="w-20 h-8"
                         />
                       </div>
@@ -1107,6 +1153,7 @@ export function ModernGenealogyBook({
                           min={1}
                           value={volume.endGen}
                           onChange={(e) => updateVolume(volume.id, 'endGen', parseInt(e.target.value) || 1)}
+                          disabled={exportingVolume !== null}
                           className="w-20 h-8"
                         />
                       </div>
