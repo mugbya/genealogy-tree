@@ -829,17 +829,6 @@ ${membersHtml}
           <div className="flex-1 text-center">
             <h2 className="text-lg font-semibold text-amber-900">家族成员索引</h2>
           </div>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleExportFullWord}
-              className="gap-1"
-            >
-              <Printer className="w-4 h-4" />
-              导出Word
-            </Button>
-          </div>
         </div>
 
         <div className="flex-1 overflow-auto p-4">
