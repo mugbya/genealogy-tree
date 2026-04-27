@@ -341,23 +341,102 @@ export function ModernGenealogyBook({
 
   // 导出全部Word文档
   const handleExportFullWord = async () => {
-    const coverElement = coverRef.current
-    const tocElement = tocRef.current
-
-    if (!coverElement || !tocElement) {
-      window.alert('页面加载中，请稍后重试')
-      return
-    }
+    const memberMap = new Map(members.map(m => [m.id, m]))
 
     // 生成封面HTML
     const coverHtml = generateCoverHtml({
       memberCount: allMembersSorted.length
     })
 
-    // 生成目录HTML
-    const tocHtml = tocElement.outerHTML
+    // 生成目录HTML（带样式）
+    const tocHtml = `
+<div style="width: 210mm; min-height: 297mm; margin: 0 auto; background: white; padding: 15mm 20mm; font-family: 'Noto Sans SC', 'SimSun', sans-serif; box-sizing: border-box;">
+  <div style="text-align: center; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 2px solid #f59e0b;">
+    <h1 style="font-size: 24px; font-weight: bold; color: #78350f; letter-spacing: 4px; margin: 0;">${familyName || '某某家族'}</h1>
+    <p style="color: #b45309; font-size: 18px; margin: 4px 0 0 0;">成员索引</p>
+  </div>
+  <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+    <thead>
+      <tr style="color: #78350f; border-bottom: 1px solid #fde68a;">
+        <th style="text-align: left; padding: 8px 4px; font-weight: 500;">页码</th>
+        <th style="text-align: left; padding: 8px 4px; font-weight: 500;">代数</th>
+        <th style="text-align: left; padding: 8px 4px; font-weight: 500;">字辈</th>
+        <th style="text-align: left; padding: 8px 4px; font-weight: 500;">姓名</th>
+        <th style="text-align: left; padding: 8px 4px; font-weight: 500;">生年</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${allMembersSorted.map((m, i) => {
+        const genNum = parseInt(m.generation || '0', 10) || 0
+        const genWord = m.generation_word || ''
+        return `
+        <tr style="color: #3f3f46; border-bottom: 1px solid #fef3c7;">
+          <td style="padding: 8px 4px;">${i + 1}</td>
+          <td style="padding: 8px 4px;">${genNum > 0 ? `第${genNum}代` : '-'}</td>
+          <td style="padding: 8px 4px;">${genWord || '-'}</td>
+          <td style="padding: 8px 4px;">${m.name}</td>
+          <td style="padding: 8px 4px;">${m.birth_date?.substring(0, 4) || '-'}</td>
+        </tr>`
+      }).join('')}
+    </tbody>
+  </table>
+</div>`
 
-    // 生成完整HTML（Word可打开的格式）
+    // 生成成员详情HTML
+    let membersHtml = ''
+    allMembersSorted.forEach((m, index) => {
+      const rels = memberRelations.get(m.id)
+      const fatherInfo = rels?.father ? memberMap.get(rels.father.id) : null
+      const motherInfo = rels?.mother ? memberMap.get(rels.mother.id) : null
+      const spouseInfo = rels?.spouses || []
+      const childrenInfo = (rels?.children || []).map(c => memberMap.get(c.id)).filter((c): c is Member => c !== undefined)
+      const genNum = parseInt(m.generation || '0', 10) || 0
+      const genWord = m.generation_word || ''
+
+      membersHtml += `
+        <div style="width: 210mm; min-height: 285mm; margin: 0 auto; background: white; padding: 20mm; font-family: 'Noto Sans SC', 'SimSun', sans-serif; box-sizing: border-box; page-break-after: always; position: relative;">
+          <h1 style="font-size: 36px; text-align: center; color: #333; margin: 0 0 10px 0;">${m.name}${m.is_deceased ? '<span style="font-size: 14px; color: #999;">（故）</span>' : ''}</h1>
+          <p style="font-size: 14px; color: #666; text-align: center; margin: 0 0 30px 0;">
+            ${genNum > 0 && genWord ? `第${genNum}代 · ${genWord}` : (genWord || `第${genNum}代`)}
+          </p>
+          <hr style="border: none; border-top: 1px solid #333; margin: 20px 0;">
+          <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+            ${m.gender ? `<tr><td style="padding: 8px; color: #666; width: 80px;">性别</td><td style="padding: 8px;">${m.gender === 'male' ? '男' : '女'}</td></tr>` : ''}
+            ${m.birth_date || m.death_date ? `<tr><td style="padding: 8px; color: #666;">生卒</td><td style="padding: 8px;">${m.birth_date || '未知'}${m.death_date ? ` ～ ${m.death_date}` : ''}</td></tr>` : ''}
+            ${m.birth_place ? `<tr><td style="padding: 8px; color: #666;">籍贯</td><td style="padding: 8px;">${m.birth_place}</td></tr>` : ''}
+            ${m.occupation ? `<tr><td style="padding: 8px; color: #666;">职业</td><td style="padding: 8px;">${m.occupation}</td></tr>` : ''}
+          </table>
+          ${(fatherInfo || motherInfo || spouseInfo.length > 0 || childrenInfo.length > 0) ? `
+          <div style="margin-top: 20px;">
+            <h3 style="font-size: 16px; color: #333; margin: 0 0 10px 0;">家族关系</h3>
+            <hr style="border: none; border-top: 1px solid #333; width: 60px; margin: 0 0 10px 0;">
+            ${fatherInfo ? `<p style="font-size: 14px; margin: 5px 0;"><span style="color: #666;">父亲：</span>${fatherInfo.name}</p>` : ''}
+            ${motherInfo ? `<p style="font-size: 14px; margin: 5px 0;"><span style="color: #666;">母亲：</span>${motherInfo.name}</p>` : ''}
+            ${spouseInfo.length > 0 ? `<p style="font-size: 14px; margin: 5px 0;"><span style="color: #666;">配偶：</span>${spouseInfo.map(s => s.name).join('、')}</p>` : ''}
+            ${childrenInfo.length > 0 ? `<p style="font-size: 14px; margin: 5px 0;"><span style="color: #666;">子女：</span>${childrenInfo.map(c => c.name).join('、')}</p>` : ''}
+          </div>
+          ` : ''}
+          ${m.biography ? `
+          <div style="margin-top: 20px;">
+            <h3 style="font-size: 16px; color: #333; margin: 0 0 10px 0;">生平简介</h3>
+            <hr style="border: none; border-top: 1px solid #333; width: 60px; margin: 0 0 10px 0;">
+            <p style="font-size: 14px; line-height: 1.8; color: #333; margin: 0;">${m.biography}</p>
+          </div>
+          ` : ''}
+          ${m.remarkable_deeds ? `
+          <div style="margin-top: 20px;">
+            <h3 style="font-size: 16px; color: #333; margin: 0 0 10px 0;">主要成就</h3>
+            <hr style="border: none; border-top: 1px solid #333; width: 60px; margin: 0 0 10px 0;">
+            <p style="font-size: 14px; line-height: 1.8; color: #333; margin: 0;">${m.remarkable_deeds}</p>
+          </div>
+          ` : ''}
+          <p style="position: absolute; bottom: 20px; left: 0; right: 0; text-align: center; font-size: 12px; color: #999; margin: 0;">
+            ${familyName || '家族'}族谱 · 第${index + 1}页
+          </p>
+        </div>`
+    })
+
+    // 生成完整HTML
     const htmlContent = `<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -370,12 +449,12 @@ export function ModernGenealogyBook({
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { font-family: 'Noto Sans SC', 'SimSun', sans-serif; }
-    .page { width: 210mm; min-height: 285mm; margin: 0 auto; background: white; }
   </style>
 </head>
 <body>
 ${coverHtml}
 ${tocHtml}
+${membersHtml}
 </body>
 </html>`
 
@@ -395,21 +474,100 @@ ${tocHtml}
 
   // 导出全部HTML
   const handleExportFullHtml = async () => {
-    const coverElement = coverRef.current
-    const tocElement = tocRef.current
-
-    if (!coverElement || !tocElement) {
-      window.alert('页面加载中，请稍后重试')
-      return
-    }
+    const memberMap = new Map(members.map(m => [m.id, m]))
 
     // 生成封面HTML
     const coverHtml = generateCoverHtml({
       memberCount: allMembersSorted.length
     })
 
-    // 生成目录HTML
-    const tocHtml = tocElement.outerHTML
+    // 生成目录HTML（带样式）
+    const tocHtml = `
+<div style="width: 210mm; min-height: 297mm; margin: 0 auto; background: white; padding: 15mm 20mm; font-family: 'Noto Sans SC', 'SimSun', sans-serif; box-sizing: border-box;">
+  <div style="text-align: center; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 2px solid #f59e0b;">
+    <h1 style="font-size: 24px; font-weight: bold; color: #78350f; letter-spacing: 4px; margin: 0;">${familyName || '某某家族'}</h1>
+    <p style="color: #b45309; font-size: 18px; margin: 4px 0 0 0;">成员索引</p>
+  </div>
+  <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+    <thead>
+      <tr style="color: #78350f; border-bottom: 1px solid #fde68a;">
+        <th style="text-align: left; padding: 8px 4px; font-weight: 500;">页码</th>
+        <th style="text-align: left; padding: 8px 4px; font-weight: 500;">代数</th>
+        <th style="text-align: left; padding: 8px 4px; font-weight: 500;">字辈</th>
+        <th style="text-align: left; padding: 8px 4px; font-weight: 500;">姓名</th>
+        <th style="text-align: left; padding: 8px 4px; font-weight: 500;">生年</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${allMembersSorted.map((m, i) => {
+        const genNum = parseInt(m.generation || '0', 10) || 0
+        const genWord = m.generation_word || ''
+        return `
+        <tr style="color: #3f3f46; border-bottom: 1px solid #fef3c7;">
+          <td style="padding: 8px 4px;">${i + 1}</td>
+          <td style="padding: 8px 4px;">${genNum > 0 ? `第${genNum}代` : '-'}</td>
+          <td style="padding: 8px 4px;">${genWord || '-'}</td>
+          <td style="padding: 8px 4px;">${m.name}</td>
+          <td style="padding: 8px 4px;">${m.birth_date?.substring(0, 4) || '-'}</td>
+        </tr>`
+      }).join('')}
+    </tbody>
+  </table>
+</div>`
+
+    // 生成成员详情HTML
+    let membersHtml = ''
+    allMembersSorted.forEach((m, index) => {
+      const rels = memberRelations.get(m.id)
+      const fatherInfo = rels?.father ? memberMap.get(rels.father.id) : null
+      const motherInfo = rels?.mother ? memberMap.get(rels.mother.id) : null
+      const spouseInfo = rels?.spouses || []
+      const childrenInfo = (rels?.children || []).map(c => memberMap.get(c.id)).filter((c): c is Member => c !== undefined)
+      const genNum = parseInt(m.generation || '0', 10) || 0
+      const genWord = m.generation_word || ''
+
+      membersHtml += `
+        <div style="width: 210mm; min-height: 285mm; margin: 0 auto; background: white; padding: 20mm; font-family: 'Noto Sans SC', 'SimSun', sans-serif; box-sizing: border-box; page-break-after: always; position: relative;">
+          <h1 style="font-size: 36px; text-align: center; color: #333; margin: 0 0 10px 0;">${m.name}${m.is_deceased ? '<span style="font-size: 14px; color: #999;">（故）</span>' : ''}</h1>
+          <p style="font-size: 14px; color: #666; text-align: center; margin: 0 0 30px 0;">
+            ${genNum > 0 && genWord ? `第${genNum}代 · ${genWord}` : (genWord || `第${genNum}代`)}
+          </p>
+          <hr style="border: none; border-top: 1px solid #333; margin: 20px 0;">
+          <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+            ${m.gender ? `<tr><td style="padding: 8px; color: #666; width: 80px;">性别</td><td style="padding: 8px;">${m.gender === 'male' ? '男' : '女'}</td></tr>` : ''}
+            ${m.birth_date || m.death_date ? `<tr><td style="padding: 8px; color: #666;">生卒</td><td style="padding: 8px;">${m.birth_date || '未知'}${m.death_date ? ` ～ ${m.death_date}` : ''}</td></tr>` : ''}
+            ${m.birth_place ? `<tr><td style="padding: 8px; color: #666;">籍贯</td><td style="padding: 8px;">${m.birth_place}</td></tr>` : ''}
+            ${m.occupation ? `<tr><td style="padding: 8px; color: #666;">职业</td><td style="padding: 8px;">${m.occupation}</td></tr>` : ''}
+          </table>
+          ${(fatherInfo || motherInfo || spouseInfo.length > 0 || childrenInfo.length > 0) ? `
+          <div style="margin-top: 20px;">
+            <h3 style="font-size: 16px; color: #333; margin: 0 0 10px 0;">家族关系</h3>
+            <hr style="border: none; border-top: 1px solid #333; width: 60px; margin: 0 0 10px 0;">
+            ${fatherInfo ? `<p style="font-size: 14px; margin: 5px 0;"><span style="color: #666;">父亲：</span>${fatherInfo.name}</p>` : ''}
+            ${motherInfo ? `<p style="font-size: 14px; margin: 5px 0;"><span style="color: #666;">母亲：</span>${motherInfo.name}</p>` : ''}
+            ${spouseInfo.length > 0 ? `<p style="font-size: 14px; margin: 5px 0;"><span style="color: #666;">配偶：</span>${spouseInfo.map(s => s.name).join('、')}</p>` : ''}
+            ${childrenInfo.length > 0 ? `<p style="font-size: 14px; margin: 5px 0;"><span style="color: #666;">子女：</span>${childrenInfo.map(c => c.name).join('、')}</p>` : ''}
+          </div>
+          ` : ''}
+          ${m.biography ? `
+          <div style="margin-top: 20px;">
+            <h3 style="font-size: 16px; color: #333; margin: 0 0 10px 0;">生平简介</h3>
+            <hr style="border: none; border-top: 1px solid #333; width: 60px; margin: 0 0 10px 0;">
+            <p style="font-size: 14px; line-height: 1.8; color: #333; margin: 0;">${m.biography}</p>
+          </div>
+          ` : ''}
+          ${m.remarkable_deeds ? `
+          <div style="margin-top: 20px;">
+            <h3 style="font-size: 16px; color: #333; margin: 0 0 10px 0;">主要成就</h3>
+            <hr style="border: none; border-top: 1px solid #333; width: 60px; margin: 0 0 10px 0;">
+            <p style="font-size: 14px; line-height: 1.8; color: #333; margin: 0;">${m.remarkable_deeds}</p>
+          </div>
+          ` : ''}
+          <p style="position: absolute; bottom: 20px; left: 0; right: 0; text-align: center; font-size: 12px; color: #999; margin: 0;">
+            ${familyName || '家族'}族谱 · 第${index + 1}页
+          </p>
+        </div>`
+    })
 
     // 生成完整HTML
     const htmlContent = `<!DOCTYPE html>
@@ -424,12 +582,12 @@ ${tocHtml}
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { font-family: 'Noto Sans SC', 'SimSun', sans-serif; }
-    .page { width: 210mm; min-height: 285mm; margin: 0 auto; background: white; }
   </style>
 </head>
 <body>
 ${coverHtml}
 ${tocHtml}
+${membersHtml}
 </body>
 </html>`
 
@@ -691,7 +849,7 @@ ${membersHtml}
           <FileText className="w-4 h-4" />
           导出HTML
         </Button>
-        <Button
+        {/* <Button
           variant="default"
           size="sm"
           onClick={handleExportFullWord}
@@ -699,7 +857,7 @@ ${membersHtml}
         >
           <Printer className="w-4 h-4" />
           导出Word
-        </Button>
+        </Button> */}
       </div>
 
       <div className="flex-1 overflow-auto p-4">
@@ -1134,7 +1292,7 @@ ${membersHtml}
                           <FileText className="w-4 h-4" />
                           HTML
                         </Button>
-                        <Button
+                        {/* <Button
                           variant="outline"
                           size="sm"
                           onClick={() => handleExportVolumeWord(volume)}
@@ -1143,7 +1301,7 @@ ${membersHtml}
                         >
                           <Printer className="w-4 h-4" />
                           Word
-                        </Button>
+                        </Button> */}
                         <Button
                           variant="ghost"
                           size="sm"
@@ -1213,6 +1371,43 @@ ${membersHtml}
       {view === 'toc' && renderToc()}
       {view === 'detail' && renderDetail()}
       {view === 'volume' && renderVolume()}
+      {/* 隐藏的TOC用于导出 - 当不在TOC页时渲染 */}
+      {view !== 'toc' && (
+        <div className="absolute inset-0 -z-10 opacity-0 pointer-events-none">
+          <div ref={tocRef} className="bg-white" style={{ width: '210mm', minHeight: '297mm', padding: '15mm 20mm', fontFamily: 'serif' }}>
+            <div className="text-center mb-6 pb-4 border-b-2 border-amber-400">
+              <h1 className="text-2xl font-bold text-amber-900 tracking-widest">{familyName || '某某家族'}</h1>
+              <p className="text-amber-700 text-lg mt-1">成员索引</p>
+            </div>
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-amber-800 border-b border-amber-200">
+                  <th className="text-left py-2 px-1 font-medium">页码</th>
+                  <th className="text-left py-2 px-1 font-medium">代数</th>
+                  <th className="text-left py-2 px-1 font-medium">字辈</th>
+                  <th className="text-left py-2 px-1 font-medium">姓名</th>
+                  <th className="text-left py-2 px-1 font-medium">生年</th>
+                </tr>
+              </thead>
+              <tbody>
+                {allMembersSorted.map((m, i) => {
+                  const genNum = parseInt(m.generation || '0', 10) || 0
+                  const genWord = m.generation_word || ''
+                  return (
+                    <tr key={m.id} className="text-zinc-700 border-b border-amber-100 hover:bg-amber-50">
+                      <td className="py-2 px-1">{i + 1}</td>
+                      <td className="py-2 px-1">{genNum > 0 ? `第${genNum}代` : '-'}</td>
+                      <td className="py-2 px-1">{genWord || '-'}</td>
+                      <td className="py-2 px-1">{m.name}</td>
+                      <td className="py-2 px-1">{m.birth_date?.substring(0, 4) || '-'}</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
