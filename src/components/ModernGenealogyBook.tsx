@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import type { Member, MemberRelation } from '@/api/client'
-import { ArrowLeft, Download, BookOpen, Plus, Trash2, FileText, Printer } from 'lucide-react'
+import { ArrowLeft, BookOpen, Plus, Trash2, FileText, Printer } from 'lucide-react'
 
 interface ModernGenealogyBookProps {
   familyName: string
@@ -662,21 +662,6 @@ ${membersHtml}
     setExportSuccess(`导出成功！已保存为 "${familyName || '家族'}族谱（${volumeTitle}）.doc"`)
   }
 
-  // 导出全部（分册Word）
-  const handleExportAllVolumes = async () => {
-    if (volumeRanges.length === 0) {
-      window.alert('请先配置分册')
-      return
-    }
-
-    for (const volume of volumeRanges) {
-      const volumeMembers = getMembersForVolume(volume)
-      if (volumeMembers.length > 0) {
-        await handleExportVolumeWord(volume)
-      }
-    }
-  }
-
   // 封面页
   const renderCover = () => (
     <div className="h-full flex flex-col bg-white">
@@ -1106,18 +1091,6 @@ ${membersHtml}
               <button onClick={() => setExportSuccess(null)} className="hover:text-emerald-900">×</button>
             </div>
           )}
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleExportAllVolumes}
-              disabled={volumeRanges.length === 0}
-              className="gap-1"
-            >
-              <Download className="w-4 h-4" />
-              导出全部
-            </Button>
-          </div>
         </div>
 
         <div className="flex-1 overflow-auto p-4">
