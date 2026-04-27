@@ -3,8 +3,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import type { Member, MemberRelation } from '@/api/client'
-import { ArrowLeft, Download, Loader2, BookOpen, Plus, Trash2, FileText } from 'lucide-react'
-import jsPDF from 'jspdf'
+import { ArrowLeft, Download, BookOpen, Plus, Trash2, FileText, Printer } from 'lucide-react'
 
 interface ModernGenealogyBookProps {
   familyName: string
@@ -39,14 +38,11 @@ export function ModernGenealogyBook({
 
   const [view, setView] = useState<ViewState>('cover')
   const [selectedMember, setSelectedMember] = useState<Member | null>(null)
-  const [isExporting, setIsExporting] = useState(false)
   const coverRef = useRef<HTMLDivElement>(null)
   const tocRef = useRef<HTMLDivElement>(null)
 
-  // 导出进度状态
-  const [exportingVolume, setExportingVolume] = useState<string | null>(null) // 当前正在导出的分册ID
-  const [exportingProgress, setExportingProgress] = useState({ current: 0, total: 0 }) // 导出进度
-  const [exportSuccess, setExportSuccess] = useState<string | null>(null) // 导出成功提示
+  // 导出成功提示
+  const [exportSuccess, setExportSuccess] = useState<string | null>(null)
 
   // 分册配置状态
   const [volumeRanges, setVolumeRanges] = useState<VolumeRange[]>([])
@@ -249,616 +245,424 @@ export function ModernGenealogyBook({
     }))
   }
 
-  // 导出PDF
-  // 导出全部PDF（原生jsPDF快速渲染）
-  const handleExportPdf = async () => {
-    if (exportingVolume !== null) {
-      window.alert('正在导出中，请等待当前导出完成')
-      return
-    }
+  // 生成封面HTML
+  const generateCoverHtml = (options: { volumeTitle?: string; memberCount: number; startGen?: number; endGen?: number } = { memberCount: 0 }) => {
+    const { volumeTitle, memberCount, startGen, endGen } = options
+    const isVolume = !!volumeTitle
 
-    if (allMembersSorted.length === 0) {
-      window.alert('没有成员数据')
-      return
-    }
+    return `
+<div style="width: 210mm; min-height: 285mm; margin: 0 auto; background: linear-gradient(to bottom, #fffbeb, #fff7ed); border: 4px solid #92400e; position: relative; font-family: 'Noto Sans SC', 'SimSun', sans-serif; box-sizing: border-box;">
+  <!-- 装饰边框 -->
+  <div style="position: absolute; inset: 2mm; border: 2px solid #92400e; pointer-events: none;"></div>
+  <div style="position: absolute; inset: 8mm; border: 1px solid #d97706; pointer-events: none;"></div>
 
-    setIsExporting(true)
-    setExportingVolume('all')
-    setExportingProgress({ current: 0, total: allMembersSorted.length + 2 })
+  <!-- 四角装饰 -->
+  <div style="position: absolute; top: 4mm; left: 4mm; width: 8mm; height: 8mm;">
+    <svg viewBox="0 0 40 40" style="width: 100%; height: 100%; color: #92400e;">
+      <path d="M2 38 Q2 2 38 2" fill="none" stroke="currentColor" stroke-width="2"/>
+      <circle cx="8" cy="8" r="3" fill="currentColor"/>
+    </svg>
+  </div>
+  <div style="position: absolute; top: 4mm; right: 4mm; width: 8mm; height: 8mm; transform: rotate(90deg);">
+    <svg viewBox="0 0 40 40" style="width: 100%; height: 100%; color: #92400e;">
+      <path d="M2 38 Q2 2 38 2" fill="none" stroke="currentColor" stroke-width="2"/>
+      <circle cx="8" cy="8" r="3" fill="currentColor"/>
+    </svg>
+  </div>
+  <div style="position: absolute; bottom: 4mm; left: 4mm; width: 8mm; height: 8mm; transform: rotate(-90deg);">
+    <svg viewBox="0 0 40 40" style="width: 100%; height: 100%; color: #92400e;">
+      <path d="M2 38 Q2 2 38 2" fill="none" stroke="currentColor" stroke-width="2"/>
+      <circle cx="8" cy="8" r="3" fill="currentColor"/>
+    </svg>
+  </div>
+  <div style="position: absolute; bottom: 4mm; right: 4mm; width: 8mm; height: 8mm; transform: rotate(180deg);">
+    <svg viewBox="0 0 40 40" style="width: 100%; height: 100%; color: #92400e;">
+      <path d="M2 38 Q2 2 38 2" fill="none" stroke="currentColor" stroke-width="2"/>
+      <circle cx="8" cy="8" r="3" fill="currentColor"/>
+    </svg>
+  </div>
 
-    try {
-      const pdf = new jsPDF('p', 'mm', 'a4')
-      const pageWidth = pdf.internal.pageSize.getWidth()
-      const pageHeight = pdf.internal.pageSize.getHeight()
-      const margin = 20
-      const contentWidth = pageWidth - margin * 2
+  <!-- 徽章 -->
+  <div style="display: flex; justify-content: center; padding-top: 30mm;">
+    <div style="width: 50mm; height: 50mm; position: relative;">
+      <div style="position: absolute; inset: 0; border-radius: 50%; border: 4px solid #92400e; background: linear-gradient(135deg, #fef3c7, #fde68a); box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+        <div style="position: absolute; inset: 4mm; border-radius: 50%; border: 2px solid #b45309; display: flex; align-items: center; justify-content: center;">
+          <div style="font-size: 48px; color: #78350f; font-family: serif;">谱</div>
+        </div>
+      </div>
+    </div>
+  </div>
 
-      pdf.setFont('helvetica')
+  <!-- 家族名称 -->
+  <div style="text-align: center; padding: 0 15mm; margin-top: 10mm;">
+    <h1 style="font-size: 36px; font-weight: bold; color: #78350f; letter-spacing: 4px; margin: 0 0 4px 0;">
+      ${familyName || '某某家族'}
+    </h1>
+    <p style="font-size: 18px; color: #b45309; letter-spacing: 4px;">祖谱</p>
 
-      // ========== 封面页 ==========
-      const coverCenterX = pageWidth / 2
-      const coverCenterY = pageHeight / 2
+    <div style="display: flex; align-items: center; justify-content: center; gap: 5mm; margin: 8mm 0;">
+      <div style="height: 1px; width: 25mm; background: linear-gradient(to right, transparent, #d97706);"></div>
+      <div style="display: flex; gap: 2mm;">
+        <span style="color: #d97706; font-size: 10px;">◆</span>
+        <span style="color: #d97706;">◆</span>
+        <span style="color: #d97706; font-size: 10px;">◆</span>
+      </div>
+      <div style="height: 1px; width: 25mm; background: linear-gradient(to left, transparent, #d97706);"></div>
+    </div>
 
-      pdf.setFontSize(56)
-      pdf.setTextColor(51, 51, 51)
-      pdf.text(familyName || '某某家族', coverCenterX, coverCenterY - 80, { align: 'center' })
+    <div style="display: inline-block; padding: 2mm 6mm; border: 1px solid #b45309; border-radius: 4px; background: #fffbeb;">
+      <span style="font-size: 14px; color: #78350f;">现代版</span>
+    </div>
+  </div>
 
-      pdf.setFontSize(32)
-      pdf.text('祖 谱', coverCenterX, coverCenterY - 50, { align: 'center' })
+  <div style="margin: 8mm 15mm; padding: 4mm; background: rgba(254, 243, 199, 0.5); border: 1px solid #fcd34d; border-radius: 4px; text-align: center;">
+    <p style="font-size: 14px; color: #78350f; font-style: italic; margin: 0;">
+      ${familyMaxim || '传承家族文化  弘扬优良家风'}
+    </p>
+  </div>
 
-      pdf.setFontSize(24)
-      pdf.setTextColor(102, 102, 102)
-      pdf.text(`（共 ${membersByGeneration.length} 代）`, coverCenterX, coverCenterY - 25, { align: 'center' })
+  <div style="text-align: center; margin-top: 4mm; padding: 0 15mm;">
+    <p style="font-size: 12px; color: #b45309;">
+      始祖源地：${familyOrigin || '源远流长'}
+    </p>
+  </div>
 
-      pdf.setFontSize(20)
-      pdf.setTextColor(51, 51, 51)
-      pdf.text('— 现代版 —', coverCenterX, coverCenterY + 10, { align: 'center' })
-
-      pdf.setFontSize(18)
-      pdf.text(familyMaxim || '传承家族文化  弘扬优良家风', coverCenterX, coverCenterY + 45, { align: 'center' })
-
-      pdf.setFontSize(14)
-      pdf.setTextColor(102, 102, 102)
-      pdf.text(`始祖源地：${familyOrigin || '源远流长'}`, coverCenterX, coverCenterY + 75, { align: 'center' })
-
-      pdf.setFontSize(16)
-      pdf.setTextColor(51, 51, 51)
-      pdf.text(`共录 ${allMembersSorted.length} 名族人`, coverCenterX, coverCenterY + 110, { align: 'center' })
-
-      setExportingProgress(prev => ({ ...prev, current: 1 }))
-
-      // ========== 索引页 ==========
-      pdf.addPage()
-
-      let y = margin
-
-      pdf.setFontSize(28)
-      pdf.setTextColor(51, 51, 51)
-      pdf.text(`${familyName || '某某家族'} 成员索引`, pageWidth / 2, y, { align: 'center' })
-      y += 15
-
-      pdf.setDrawColor(51, 51, 51)
-      pdf.setLineWidth(0.5)
-      pdf.line(margin, y, pageWidth - margin, y)
-      y += 15
-
-      pdf.setFontSize(12)
-      pdf.setTextColor(51, 51, 51)
-      pdf.text('页码', margin, y)
-      pdf.text('代数', margin + 30, y)
-      pdf.text('字辈', margin + 60, y)
-      pdf.text('姓名', margin + 100, y)
-      pdf.text('生年', margin + 150, y)
-      y += 8
-
-      pdf.setDrawColor(200, 200, 200)
-      pdf.line(margin, y, pageWidth - margin, y)
-      y += 8
-
-      pdf.setTextColor(102, 102, 102)
-      allMembersSorted.forEach((m, i) => {
-        const page = i + 3
-        const genNum = parseInt(m.generation || '0', 10) || 0
-        const genWord = m.generation_word || ''
-
-        pdf.text(`第${page}页`, margin, y)
-        pdf.text(genNum > 0 ? `第${genNum}代` : '-', margin + 30, y)
-        pdf.text(genWord, margin + 60, y)
-        pdf.setTextColor(51, 51, 51)
-        pdf.text(m.name, margin + 100, y)
-        pdf.setTextColor(102, 102, 102)
-        pdf.text(m.birth_date?.substring(0, 4) || '-', margin + 150, y)
-
-        y += 7
-        if (y > pageHeight - margin) {
-          pdf.addPage()
-          y = margin
-        }
-      })
-
-      y += 20
-      pdf.setFontSize(14)
-      pdf.text(`共 ${allMembersSorted.length} 名族人，分为 ${allMembersSorted.length + 2} 页记载`, pageWidth / 2, y, { align: 'center' })
-
-      setExportingProgress(prev => ({ ...prev, current: 2 }))
-
-      // ========== 成员详情页 ==========
-      const memberMap = new Map(members.map(m => [m.id, m]))
-
-      for (let i = 0; i < allMembersSorted.length; i++) {
-        const m = allMembersSorted[i]
-        pdf.addPage()
-
-        const rels = memberRelations.get(m.id)
-        const genNum = parseInt(m.generation || '0', 10) || 0
-        const genWord = m.generation_word || ''
-        const fatherInfo = rels?.father ? memberMap.get(rels.father.id) : null
-        const motherInfo = rels?.mother ? memberMap.get(rels.mother.id) : null
-        const spouseInfo = rels?.spouses || []
-        const childrenInfo = (rels?.children || []).map(c => memberMap.get(c.id)).filter((c): c is Member => c !== undefined)
-
-        y = margin
-
-        pdf.setFontSize(36)
-        pdf.setTextColor(51, 51, 51)
-        pdf.text(m.name, pageWidth / 2, y + 15, { align: 'center' })
-
-        if (m.is_deceased) {
-          pdf.setFontSize(14)
-          pdf.setTextColor(153, 153, 153)
-          pdf.text('（故）', pageWidth / 2, y + 28, { align: 'center' })
-        }
-
-        pdf.setFontSize(14)
-        pdf.setTextColor(102, 102, 102)
-        const genLabel = genNum > 0 && genWord ? `第${genNum}代 · ${genWord}` : (genWord || `第${genNum}代`)
-        pdf.text(genLabel, pageWidth / 2, y + 42, { align: 'center' })
-
-        y += 55
-        pdf.setDrawColor(51, 51, 51)
-        pdf.setLineWidth(0.3)
-        pdf.line(margin, y, pageWidth - margin, y)
-        y += 15
-
-        pdf.setFontSize(12)
-        pdf.setTextColor(102, 102, 102)
-        pdf.text('性别', margin, y)
-        pdf.setTextColor(51, 51, 51)
-        pdf.text(m.gender === 'male' ? '男' : '女', margin + 50, y)
-        y += 8
-
-        if (m.birth_date || m.death_date) {
-          pdf.setTextColor(102, 102, 102)
-          pdf.text('生卒', margin, y)
-          pdf.setTextColor(51, 51, 51)
-          const deathLabel = m.death_date ? ` ～ ${m.death_date}` : ''
-          pdf.text(`${m.birth_date || '未知'}${deathLabel}`, margin + 50, y)
-          y += 8
-        }
-
-        if (m.birth_place) {
-          pdf.setTextColor(102, 102, 102)
-          pdf.text('籍贯', margin, y)
-          pdf.setTextColor(51, 51, 51)
-          pdf.text(m.birth_place, margin + 50, y)
-          y += 8
-        }
-
-        if (m.occupation) {
-          pdf.setTextColor(102, 102, 102)
-          pdf.text('职业', margin, y)
-          pdf.setTextColor(51, 51, 51)
-          pdf.text(m.occupation, margin + 50, y)
-          y += 8
-        }
-
-        if (fatherInfo || motherInfo || spouseInfo.length > 0 || childrenInfo.length > 0) {
-          y += 10
-          pdf.setFontSize(14)
-          pdf.setTextColor(51, 51, 51)
-          pdf.text('家族关系', margin, y)
-          y += 8
-          pdf.setDrawColor(51, 51, 51)
-          pdf.setLineWidth(0.2)
-          pdf.line(margin, y, margin + 30, y)
-          y += 8
-
-          pdf.setFontSize(12)
-          if (fatherInfo) {
-            pdf.setTextColor(102, 102, 102)
-            pdf.text('父亲', margin, y)
-            pdf.setTextColor(51, 51, 51)
-            pdf.text(fatherInfo.name, margin + 50, y)
-            y += 7
-          }
-          if (motherInfo) {
-            pdf.setTextColor(102, 102, 102)
-            pdf.text('母亲', margin, y)
-            pdf.setTextColor(51, 51, 51)
-            pdf.text(motherInfo.name, margin + 50, y)
-            y += 7
-          }
-          if (spouseInfo.length > 0) {
-            pdf.setTextColor(102, 102, 102)
-            pdf.text('配偶', margin, y)
-            pdf.setTextColor(51, 51, 51)
-            pdf.text(spouseInfo.map(s => s.name).join('、'), margin + 50, y)
-            y += 7
-          }
-          if (childrenInfo.length > 0) {
-            pdf.setTextColor(102, 102, 102)
-            pdf.text('子女', margin, y)
-            pdf.setTextColor(51, 51, 51)
-            pdf.text(childrenInfo.map(c => c.name).join('、'), margin + 50, y)
-            y += 7
-          }
-        }
-
-        if (m.biography) {
-          y += 10
-          pdf.setFontSize(14)
-          pdf.setTextColor(51, 51, 51)
-          pdf.text('生平简介', margin, y)
-          y += 8
-          pdf.setDrawColor(51, 51, 51)
-          pdf.setLineWidth(0.2)
-          pdf.line(margin, y, margin + 30, y)
-          y += 8
-
-          pdf.setFontSize(12)
-          pdf.setTextColor(51, 51, 51)
-          const bioLines = pdf.splitTextToSize(m.biography, contentWidth)
-          bioLines.forEach((line: string) => {
-            if (y > pageHeight - margin - 20) {
-              pdf.addPage()
-              y = margin
-            }
-            pdf.text(line, margin, y)
-            y += 6
-          })
-        }
-
-        if (m.remarkable_deeds) {
-          y += 10
-          pdf.setFontSize(14)
-          pdf.setTextColor(51, 51, 51)
-          pdf.text('主要成就', margin, y)
-          y += 8
-          pdf.setDrawColor(51, 51, 51)
-          pdf.setLineWidth(0.2)
-          pdf.line(margin, y, margin + 30, y)
-          y += 8
-
-          pdf.setFontSize(12)
-          pdf.setTextColor(51, 51, 51)
-          const deedLines = pdf.splitTextToSize(m.remarkable_deeds, contentWidth)
-          deedLines.forEach((line: string) => {
-            if (y > pageHeight - margin - 20) {
-              pdf.addPage()
-              y = margin
-            }
-            pdf.text(line, margin, y)
-            y += 6
-          })
-        }
-
-        pdf.setFontSize(10)
-        pdf.setTextColor(153, 153, 153)
-        pdf.text(`${familyName || '家族'}族谱 · 第${i + 3}页`, pageWidth / 2, pageHeight - 15, { align: 'center' })
-
-        setExportingProgress(prev => ({ ...prev, current: i + 3 }))
-      }
-
-      pdf.save(`${familyName || '家族'}祖谱.pdf`)
-
-      // 显示成功提示
-      setExportSuccess(`导出成功！已保存为 "${familyName || '家族'}祖谱.pdf"`)
-    } catch (error) {
-      console.error('Export failed:', error)
-      window.alert('导出失败，请重试')
-    } finally {
-      setIsExporting(false)
-      setExportingVolume(null)
-    }
+  <div style="position: absolute; bottom: 25mm; left: 0; right: 0; text-align: center;">
+    ${isVolume ? `<p style="font-size: 16px; color: #92400e; margin: 0 0 2mm 0;">（第 ${startGen} 代 ~ 第 ${endGen} 代）</p>` : ''}
+    <p style="font-size: 14px; color: #b45309; margin: 0;">
+      共录 <span style="font-weight: bold; color: #78350f;">${memberCount}</span> 名族人
+    </p>
+    <p style="font-size: 12px; color: #d97706; margin: 2mm 0 0 0;">
+      ${isVolume ? `本册记载 ${volumeTitle}` : `传承 ${membersByGeneration.length} 代`}
+    </p>
+  </div>
+</div>`
   }
 
-  // 导出单册PDF
-  const handleExportVolume = async (volume: VolumeRange) => {
-    // 防止并发导出
-    if (exportingVolume !== null) {
-      window.alert('正在导出中，请等待当前导出完成')
+  // 导出全部Word文档
+  const handleExportFullWord = async () => {
+    const coverElement = coverRef.current
+    const tocElement = tocRef.current
+
+    if (!coverElement || !tocElement) {
+      window.alert('页面加载中，请稍后重试')
       return
     }
 
+    // 生成封面HTML
+    const coverHtml = generateCoverHtml({
+      memberCount: allMembersSorted.length
+    })
+
+    // 生成目录HTML
+    const tocHtml = tocElement.outerHTML
+
+    // 生成完整HTML（Word可打开的格式）
+    const htmlContent = `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${familyName || '家族'}族谱</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Noto Sans SC', 'SimSun', sans-serif; }
+    .page { width: 210mm; min-height: 285mm; margin: 0 auto; background: white; }
+  </style>
+</head>
+<body>
+${coverHtml}
+${tocHtml}
+</body>
+</html>`
+
+    // 创建Blob并下载为Word格式
+    const blob = new Blob([htmlContent], { type: 'application/msword' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${familyName || '家族'}族谱.doc`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+
+    setExportSuccess('导出成功！已保存为 Word 文档')
+  }
+
+  // 导出全部HTML
+  const handleExportFullHtml = async () => {
+    const coverElement = coverRef.current
+    const tocElement = tocRef.current
+
+    if (!coverElement || !tocElement) {
+      window.alert('页面加载中，请稍后重试')
+      return
+    }
+
+    // 生成封面HTML
+    const coverHtml = generateCoverHtml({
+      memberCount: allMembersSorted.length
+    })
+
+    // 生成目录HTML
+    const tocHtml = tocElement.outerHTML
+
+    // 生成完整HTML
+    const htmlContent = `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${familyName || '家族'}族谱</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Noto Sans SC', 'SimSun', sans-serif; }
+    .page { width: 210mm; min-height: 285mm; margin: 0 auto; background: white; }
+  </style>
+</head>
+<body>
+${coverHtml}
+${tocHtml}
+</body>
+</html>`
+
+    const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${familyName || '家族'}族谱.html`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+
+    setExportSuccess('导出成功！已保存为 HTML 文件')
+  }
+
+  // 导出单册HTML
+  const handleExportVolumeHtml = async (volume: VolumeRange) => {
     const volumeMembers = getMembersForVolume(volume)
     if (volumeMembers.length === 0) {
       window.alert('该册没有成员，请调整代数范围')
       return
     }
 
-    setIsExporting(true)
-    setExportingVolume(volume.id)
-    setExportingProgress({ current: 0, total: volumeMembers.length + 2 })
+    const volumeTitle = `第${volume.startGen}至${volume.endGen}代`
+    const memberMap = new Map(members.map(m => [m.id, m]))
 
-    try {
-      const pdf = new jsPDF('p', 'mm', 'a4')
-      const pageWidth = pdf.internal.pageSize.getWidth()
-      const pageHeight = pdf.internal.pageSize.getHeight()
-      const margin = 20
-      const contentWidth = pageWidth - margin * 2
+    // 生成封面HTML（带分册信息）
+    const coverHtml = generateCoverHtml({
+      volumeTitle,
+      memberCount: volumeMembers.length,
+      startGen: volume.startGen,
+      endGen: volume.endGen
+    })
 
-      // 设置中文字体支持
-      pdf.setFont('helvetica')
+    // 生成成员详情HTML
+    let membersHtml = ''
+    volumeMembers.forEach((m, index) => {
+      const rels = memberRelations.get(m.id)
+      const fatherInfo = rels?.father ? memberMap.get(rels.father.id) : null
+      const motherInfo = rels?.mother ? memberMap.get(rels.mother.id) : null
+      const spouseInfo = rels?.spouses || []
+      const childrenInfo = (rels?.children || []).map(c => memberMap.get(c.id)).filter((c): c is Member => c !== undefined)
+      const genNum = parseInt(m.generation || '0', 10) || 0
+      const genWord = m.generation_word || ''
 
-      const volumeTitle = `第${volume.startGen}至${volume.endGen}代`
+      membersHtml += `
+        <div class="member-card" style="page-break-after: always; padding: 20mm; font-family: 'Noto Sans SC', sans-serif;">
+          <h1 style="font-size: 36px; text-align: center; color: #333; margin-bottom: 10px;">${m.name}${m.is_deceased ? '<span style="font-size: 14px; color: #999;">（故）</span>' : ''}</h1>
+          <p style="font-size: 14px; color: #666; text-align: center; margin-bottom: 30px;">
+            ${genNum > 0 && genWord ? `第${genNum}代 · ${genWord}` : (genWord || `第${genNum}代`)}
+          </p>
+          <hr style="border: none; border-top: 1px solid #333; margin: 20px 0;">
+          <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+            ${m.gender ? `<tr><td style="padding: 8px; color: #666; width: 80px;">性别</td><td style="padding: 8px;">${m.gender === 'male' ? '男' : '女'}</td></tr>` : ''}
+            ${m.birth_date || m.death_date ? `<tr><td style="padding: 8px; color: #666;">生卒</td><td style="padding: 8px;">${m.birth_date || '未知'}${m.death_date ? ` ～ ${m.death_date}` : ''}</td></tr>` : ''}
+            ${m.birth_place ? `<tr><td style="padding: 8px; color: #666;">籍贯</td><td style="padding: 8px;">${m.birth_place}</td></tr>` : ''}
+            ${m.occupation ? `<tr><td style="padding: 8px; color: #666;">职业</td><td style="padding: 8px;">${m.occupation}</td></tr>` : ''}
+          </table>
+          ${(fatherInfo || motherInfo || spouseInfo.length > 0 || childrenInfo.length > 0) ? `
+          <div style="margin-top: 20px;">
+            <h3 style="font-size: 16px; color: #333; margin-bottom: 10px;">家族关系</h3>
+            <hr style="border: none; border-top: 1px solid #333; width: 60px; margin-bottom: 10px;">
+            ${fatherInfo ? `<p style="font-size: 14px; margin: 5px 0;"><span style="color: #666;">父亲：</span>${fatherInfo.name}</p>` : ''}
+            ${motherInfo ? `<p style="font-size: 14px; margin: 5px 0;"><span style="color: #666;">母亲：</span>${motherInfo.name}</p>` : ''}
+            ${spouseInfo.length > 0 ? `<p style="font-size: 14px; margin: 5px 0;"><span style="color: #666;">配偶：</span>${spouseInfo.map(s => s.name).join('、')}</p>` : ''}
+            ${childrenInfo.length > 0 ? `<p style="font-size: 14px; margin: 5px 0;"><span style="color: #666;">子女：</span>${childrenInfo.map(c => c.name).join('、')}</p>` : ''}
+          </div>
+          ` : ''}
+          ${m.biography ? `
+          <div style="margin-top: 20px;">
+            <h3 style="font-size: 16px; color: #333; margin-bottom: 10px;">生平简介</h3>
+            <hr style="border: none; border-top: 1px solid #333; width: 60px; margin-bottom: 10px;">
+            <p style="font-size: 14px; line-height: 1.8; color: #333;">${m.biography}</p>
+          </div>
+          ` : ''}
+          ${m.remarkable_deeds ? `
+          <div style="margin-top: 20px;">
+            <h3 style="font-size: 16px; color: #333; margin-bottom: 10px;">主要成就</h3>
+            <hr style="border: none; border-top: 1px solid #333; width: 60px; margin-bottom: 10px;">
+            <p style="font-size: 14px; line-height: 1.8; color: #333;">${m.remarkable_deeds}</p>
+          </div>
+          ` : ''}
+          <p style="position: absolute; bottom: 20px; left: 0; right: 0; text-align: center; font-size: 12px; color: #999;">
+            ${familyName || '家族'}族谱 · ${volumeTitle} · 第${index + 1}页
+          </p>
+        </div>
+      `
+    })
 
-      // ========== 封面页 ==========
-      const coverCenterX = pageWidth / 2
-      const coverCenterY = pageHeight / 2
+    const htmlContent = `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${familyName || '家族'}族谱（${volumeTitle}）</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Noto Sans SC', 'SimSun', sans-serif; }
+    .member-card { width: 210mm; min-height: 285mm; margin: 0 auto; background: white; position: relative; padding: 20mm; }
+  </style>
+</head>
+<body>
+${coverHtml}
+${membersHtml}
+</body>
+</html>`
 
-      pdf.setFontSize(56)
-      pdf.setTextColor(51, 51, 51)
-      pdf.text(familyName || '某某家族', coverCenterX, coverCenterY - 80, { align: 'center' })
+    const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${familyName || '家族'}族谱（${volumeTitle}）.html`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
 
-      pdf.setFontSize(32)
-      pdf.text('祖 谱', coverCenterX, coverCenterY - 50, { align: 'center' })
-
-      pdf.setFontSize(24)
-      pdf.setTextColor(102, 102, 102)
-      pdf.text(`（${volumeTitle}）`, coverCenterX, coverCenterY - 25, { align: 'center' })
-
-      pdf.setFontSize(20)
-      pdf.setTextColor(51, 51, 51)
-      pdf.text('— 现代版 —', coverCenterX, coverCenterY + 10, { align: 'center' })
-
-      pdf.setFontSize(18)
-      pdf.text(familyMaxim || '传承家族文化  弘扬优良家风', coverCenterX, coverCenterY + 45, { align: 'center' })
-
-      pdf.setFontSize(14)
-      pdf.setTextColor(102, 102, 102)
-      pdf.text(`始祖源地：${familyOrigin || '源远流长'}`, coverCenterX, coverCenterY + 75, { align: 'center' })
-
-      pdf.setFontSize(16)
-      pdf.setTextColor(51, 51, 51)
-      pdf.text(`共录 ${volumeMembers.length} 名族人`, coverCenterX, coverCenterY + 110, { align: 'center' })
-
-      pdf.setFontSize(14)
-      pdf.setTextColor(102, 102, 102)
-      pdf.text(`本册记载 ${volume.startGen}-${volume.endGen} 代`, coverCenterX, coverCenterY + 125, { align: 'center' })
-
-      setExportingProgress(prev => ({ ...prev, current: 1 }))
-
-      // ========== 索引页 ==========
-      pdf.addPage()
-
-      let y = margin
-
-      // 标题
-      pdf.setFontSize(28)
-      pdf.setTextColor(51, 51, 51)
-      pdf.text(`${familyName || '某某家族'} 成员索引（${volumeTitle}）`, pageWidth / 2, y, { align: 'center' })
-      y += 15
-
-      // 分隔线
-      pdf.setDrawColor(51, 51, 51)
-      pdf.setLineWidth(0.5)
-      pdf.line(margin, y, pageWidth - margin, y)
-      y += 15
-
-      // 表头
-      pdf.setFontSize(12)
-      pdf.setTextColor(51, 51, 51)
-      pdf.text('页码', margin, y)
-      pdf.text('代数', margin + 30, y)
-      pdf.text('字辈', margin + 60, y)
-      pdf.text('姓名', margin + 100, y)
-      pdf.text('生年', margin + 150, y)
-      y += 8
-
-      // 分隔线
-      pdf.setDrawColor(200, 200, 200)
-      pdf.line(margin, y, pageWidth - margin, y)
-      y += 8
-
-      // 成员列表
-      pdf.setTextColor(102, 102, 102)
-      volumeMembers.forEach((m, i) => {
-        const page = i + 3
-        const genNum = parseInt(m.generation || '0', 10) || 0
-        const genWord = m.generation_word || ''
-
-        pdf.text(`第${page}页`, margin, y)
-        pdf.text(genNum > 0 ? `第${genNum}代` : '-', margin + 30, y)
-        pdf.text(genWord, margin + 60, y)
-        pdf.setTextColor(51, 51, 51)
-        pdf.text(m.name, margin + 100, y)
-        pdf.setTextColor(102, 102, 102)
-        pdf.text(m.birth_date?.substring(0, 4) || '-', margin + 150, y)
-        pdf.setTextColor(102, 102, 102)
-
-        y += 7
-        if (y > pageHeight - margin) {
-          pdf.addPage()
-          y = margin
-        }
-      })
-
-      y += 20
-      pdf.setFontSize(14)
-      pdf.text(`共 ${volumeMembers.length} 名族人，分为 ${volumeMembers.length + 2} 页记载`, pageWidth / 2, y, { align: 'center' })
-
-      setExportingProgress(prev => ({ ...prev, current: 2 }))
-
-      // ========== 成员详情页 ==========
-      for (let i = 0; i < volumeMembers.length; i++) {
-        const m = volumeMembers[i]
-        pdf.addPage()
-
-        const rels = memberRelations.get(m.id)
-        const genNum = parseInt(m.generation || '0', 10) || 0
-        const genWord = m.generation_word || ''
-        const memberMap = new Map(members.map(m => [m.id, m]))
-        const fatherInfo = rels?.father ? memberMap.get(rels.father.id) : null
-        const motherInfo = rels?.mother ? memberMap.get(rels.mother.id) : null
-        const spouseInfo = rels?.spouses || []
-        const childrenInfo = (rels?.children || []).map(c => memberMap.get(c.id)).filter((c): c is Member => c !== undefined)
-
-        y = margin
-
-        // 姓名（居中，大字）
-        pdf.setFontSize(36)
-        pdf.setTextColor(51, 51, 51)
-        pdf.text(m.name, pageWidth / 2, y + 15, { align: 'center' })
-
-        // 逝世标记
-        if (m.is_deceased) {
-          pdf.setFontSize(14)
-          pdf.setTextColor(153, 153, 153)
-          pdf.text('（故）', pageWidth / 2, y + 28, { align: 'center' })
-        }
-
-        // 代数和字辈
-        pdf.setFontSize(14)
-        pdf.setTextColor(102, 102, 102)
-        const genLabel = genNum > 0 && genWord ? `第${genNum}代 · ${genWord}` : (genWord || `第${genNum}代`)
-        pdf.text(genLabel, pageWidth / 2, y + 42, { align: 'center' })
-
-        // 分隔线
-        y += 55
-        pdf.setDrawColor(51, 51, 51)
-        pdf.setLineWidth(0.3)
-        pdf.line(margin, y, pageWidth - margin, y)
-        y += 15
-
-        // 基本信息
-        pdf.setFontSize(12)
-        pdf.setTextColor(102, 102, 102)
-        pdf.text('性别', margin, y)
-        pdf.setTextColor(51, 51, 51)
-        pdf.text(m.gender === 'male' ? '男' : '女', margin + 50, y)
-        y += 8
-
-        if (m.birth_date || m.death_date) {
-          pdf.setTextColor(102, 102, 102)
-          pdf.text('生卒', margin, y)
-          pdf.setTextColor(51, 51, 51)
-          const deathLabel = m.death_date ? ` ～ ${m.death_date}` : ''
-          pdf.text(`${m.birth_date || '未知'}${deathLabel}`, margin + 50, y)
-          y += 8
-        }
-
-        if (m.birth_place) {
-          pdf.setTextColor(102, 102, 102)
-          pdf.text('籍贯', margin, y)
-          pdf.setTextColor(51, 51, 51)
-          pdf.text(m.birth_place, margin + 50, y)
-          y += 8
-        }
-
-        if (m.occupation) {
-          pdf.setTextColor(102, 102, 102)
-          pdf.text('职业', margin, y)
-          pdf.setTextColor(51, 51, 51)
-          pdf.text(m.occupation, margin + 50, y)
-          y += 8
-        }
-
-        // 家族关系
-        if (fatherInfo || motherInfo || spouseInfo.length > 0 || childrenInfo.length > 0) {
-          y += 10
-          pdf.setFontSize(14)
-          pdf.setTextColor(51, 51, 51)
-          pdf.text('家族关系', margin, y)
-          y += 8
-          pdf.setDrawColor(51, 51, 51)
-          pdf.setLineWidth(0.2)
-          pdf.line(margin, y, margin + 30, y)
-          y += 8
-
-          pdf.setFontSize(12)
-          if (fatherInfo) {
-            pdf.setTextColor(102, 102, 102)
-            pdf.text('父亲', margin, y)
-            pdf.setTextColor(51, 51, 51)
-            pdf.text(fatherInfo.name, margin + 50, y)
-            y += 7
-          }
-          if (motherInfo) {
-            pdf.setTextColor(102, 102, 102)
-            pdf.text('母亲', margin, y)
-            pdf.setTextColor(51, 51, 51)
-            pdf.text(motherInfo.name, margin + 50, y)
-            y += 7
-          }
-          if (spouseInfo.length > 0) {
-            pdf.setTextColor(102, 102, 102)
-            pdf.text('配偶', margin, y)
-            pdf.setTextColor(51, 51, 51)
-            pdf.text(spouseInfo.map(s => s.name).join('、'), margin + 50, y)
-            y += 7
-          }
-          if (childrenInfo.length > 0) {
-            pdf.setTextColor(102, 102, 102)
-            pdf.text('子女', margin, y)
-            pdf.setTextColor(51, 51, 51)
-            pdf.text(childrenInfo.map(c => c.name).join('、'), margin + 50, y)
-            y += 7
-          }
-        }
-
-        // 生平简介
-        if (m.biography) {
-          y += 10
-          pdf.setFontSize(14)
-          pdf.setTextColor(51, 51, 51)
-          pdf.text('生平简介', margin, y)
-          y += 8
-          pdf.setDrawColor(51, 51, 51)
-          pdf.setLineWidth(0.2)
-          pdf.line(margin, y, margin + 30, y)
-          y += 8
-
-          pdf.setFontSize(12)
-          pdf.setTextColor(51, 51, 51)
-          const bioLines = pdf.splitTextToSize(m.biography, contentWidth)
-          bioLines.forEach((line: string) => {
-            if (y > pageHeight - margin - 20) {
-              pdf.addPage()
-              y = margin
-            }
-            pdf.text(line, margin, y)
-            y += 6
-          })
-        }
-
-        // 主要成就
-        if (m.remarkable_deeds) {
-          y += 10
-          pdf.setFontSize(14)
-          pdf.setTextColor(51, 51, 51)
-          pdf.text('主要成就', margin, y)
-          y += 8
-          pdf.setDrawColor(51, 51, 51)
-          pdf.setLineWidth(0.2)
-          pdf.line(margin, y, margin + 30, y)
-          y += 8
-
-          pdf.setFontSize(12)
-          pdf.setTextColor(51, 51, 51)
-          const deedLines = pdf.splitTextToSize(m.remarkable_deeds, contentWidth)
-          deedLines.forEach((line: string) => {
-            if (y > pageHeight - margin - 20) {
-              pdf.addPage()
-              y = margin
-            }
-            pdf.text(line, margin, y)
-            y += 6
-          })
-        }
-
-        // 页脚
-        pdf.setFontSize(10)
-        pdf.setTextColor(153, 153, 153)
-        pdf.text(`${familyName || '家族'}族谱 · ${volumeTitle} · 第${i + 3}页`, pageWidth / 2, pageHeight - 15, { align: 'center' })
-
-        setExportingProgress(prev => ({ ...prev, current: i + 3 }))
-      }
-
-      pdf.save(`${familyName || '家族'}祖谱（${volumeTitle}）.pdf`)
-
-      // 显示成功提示
-      setExportSuccess(`导出成功！已保存为 "${familyName || '家族'}祖谱（${volumeTitle}）.pdf"`)
-    } catch (error) {
-      console.error('Export failed:', error)
-      window.alert('导出失败，请重试')
-    } finally {
-      setIsExporting(false)
-      setExportingVolume(null)
-      setExportingProgress({ current: 0, total: 0 })
-    }
+    setExportSuccess(`导出成功！已保存为 "${familyName || '家族'}族谱（${volumeTitle}）.html"`)
   }
 
-  // 导出全部（分册）
+  // 导出单册Word
+  const handleExportVolumeWord = async (volume: VolumeRange) => {
+    const volumeMembers = getMembersForVolume(volume)
+    if (volumeMembers.length === 0) {
+      window.alert('该册没有成员，请调整代数范围')
+      return
+    }
+
+    const volumeTitle = `第${volume.startGen}至${volume.endGen}代`
+    const memberMap = new Map(members.map(m => [m.id, m]))
+
+    // 生成封面HTML（带分册信息）
+    const coverHtml = generateCoverHtml({
+      volumeTitle,
+      memberCount: volumeMembers.length,
+      startGen: volume.startGen,
+      endGen: volume.endGen
+    })
+
+    // 生成成员详情HTML
+    let membersHtml = ''
+    volumeMembers.forEach((m, index) => {
+      const rels = memberRelations.get(m.id)
+      const fatherInfo = rels?.father ? memberMap.get(rels.father.id) : null
+      const motherInfo = rels?.mother ? memberMap.get(rels.mother.id) : null
+      const spouseInfo = rels?.spouses || []
+      const childrenInfo = (rels?.children || []).map(c => memberMap.get(c.id)).filter((c): c is Member => c !== undefined)
+      const genNum = parseInt(m.generation || '0', 10) || 0
+      const genWord = m.generation_word || ''
+
+      membersHtml += `
+        <div class="member-card" style="page-break-after: always; padding: 20mm; font-family: 'Noto Sans SC', sans-serif;">
+          <h1 style="font-size: 36px; text-align: center; color: #333; margin-bottom: 10px;">${m.name}${m.is_deceased ? '<span style="font-size: 14px; color: #999;">（故）</span>' : ''}</h1>
+          <p style="font-size: 14px; color: #666; text-align: center; margin-bottom: 30px;">
+            ${genNum > 0 && genWord ? `第${genNum}代 · ${genWord}` : (genWord || `第${genNum}代`)}
+          </p>
+          <hr style="border: none; border-top: 1px solid #333; margin: 20px 0;">
+          <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+            ${m.gender ? `<tr><td style="padding: 8px; color: #666; width: 80px;">性别</td><td style="padding: 8px;">${m.gender === 'male' ? '男' : '女'}</td></tr>` : ''}
+            ${m.birth_date || m.death_date ? `<tr><td style="padding: 8px; color: #666;">生卒</td><td style="padding: 8px;">${m.birth_date || '未知'}${m.death_date ? ` ～ ${m.death_date}` : ''}</td></tr>` : ''}
+            ${m.birth_place ? `<tr><td style="padding: 8px; color: #666;">籍贯</td><td style="padding: 8px;">${m.birth_place}</td></tr>` : ''}
+            ${m.occupation ? `<tr><td style="padding: 8px; color: #666;">职业</td><td style="padding: 8px;">${m.occupation}</td></tr>` : ''}
+          </table>
+          ${(fatherInfo || motherInfo || spouseInfo.length > 0 || childrenInfo.length > 0) ? `
+          <div style="margin-top: 20px;">
+            <h3 style="font-size: 16px; color: #333; margin-bottom: 10px;">家族关系</h3>
+            <hr style="border: none; border-top: 1px solid #333; width: 60px; margin-bottom: 10px;">
+            ${fatherInfo ? `<p style="font-size: 14px; margin: 5px 0;"><span style="color: #666;">父亲：</span>${fatherInfo.name}</p>` : ''}
+            ${motherInfo ? `<p style="font-size: 14px; margin: 5px 0;"><span style="color: #666;">母亲：</span>${motherInfo.name}</p>` : ''}
+            ${spouseInfo.length > 0 ? `<p style="font-size: 14px; margin: 5px 0;"><span style="color: #666;">配偶：</span>${spouseInfo.map(s => s.name).join('、')}</p>` : ''}
+            ${childrenInfo.length > 0 ? `<p style="font-size: 14px; margin: 5px 0;"><span style="color: #666;">子女：</span>${childrenInfo.map(c => c.name).join('、')}</p>` : ''}
+          </div>
+          ` : ''}
+          ${m.biography ? `
+          <div style="margin-top: 20px;">
+            <h3 style="font-size: 16px; color: #333; margin-bottom: 10px;">生平简介</h3>
+            <hr style="border: none; border-top: 1px solid #333; width: 60px; margin-bottom: 10px;">
+            <p style="font-size: 14px; line-height: 1.8; color: #333;">${m.biography}</p>
+          </div>
+          ` : ''}
+          ${m.remarkable_deeds ? `
+          <div style="margin-top: 20px;">
+            <h3 style="font-size: 16px; color: #333; margin-bottom: 10px;">主要成就</h3>
+            <hr style="border: none; border-top: 1px solid #333; width: 60px; margin-bottom: 10px;">
+            <p style="font-size: 14px; line-height: 1.8; color: #333;">${m.remarkable_deeds}</p>
+          </div>
+          ` : ''}
+          <p style="position: absolute; bottom: 20px; left: 0; right: 0; text-align: center; font-size: 12px; color: #999;">
+            ${familyName || '家族'}族谱 · ${volumeTitle} · 第${index + 1}页
+          </p>
+        </div>
+      `
+    })
+
+    const htmlContent = `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${familyName || '家族'}族谱（${volumeTitle}）</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Noto Sans SC', 'SimSun', sans-serif; }
+    .member-card { width: 210mm; min-height: 285mm; margin: 0 auto; background: white; position: relative; padding: 20mm; }
+  </style>
+</head>
+<body>
+${coverHtml}
+${membersHtml}
+</body>
+</html>`
+
+    const blob = new Blob([htmlContent], { type: 'application/msword' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${familyName || '家族'}族谱（${volumeTitle}）.doc`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+
+    setExportSuccess(`导出成功！已保存为 "${familyName || '家族'}族谱（${volumeTitle}）.doc"`)
+  }
+
+  // 导出全部（分册Word）
   const handleExportAllVolumes = async () => {
     if (volumeRanges.length === 0) {
       window.alert('请先配置分册')
@@ -868,7 +672,7 @@ export function ModernGenealogyBook({
     for (const volume of volumeRanges) {
       const volumeMembers = getMembersForVolume(volume)
       if (volumeMembers.length > 0) {
-        await handleExportVolume(volume)
+        await handleExportVolumeWord(volume)
       }
     }
   }
@@ -894,14 +698,22 @@ export function ModernGenealogyBook({
           分册导出
         </Button>
         <Button
+          variant="outline"
+          size="sm"
+          onClick={handleExportFullHtml}
+          className="gap-2"
+        >
+          <FileText className="w-4 h-4" />
+          导出HTML
+        </Button>
+        <Button
           variant="default"
           size="sm"
-          onClick={handleExportPdf}
-          disabled={isExporting}
+          onClick={handleExportFullWord}
           className="gap-2 shadow-lg bg-emerald-600 hover:bg-emerald-700"
         >
-          {isExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-          导出PDF
+          <Printer className="w-4 h-4" />
+          导出Word
         </Button>
       </div>
 
@@ -991,6 +803,13 @@ export function ModernGenealogyBook({
           </div>
 
           <div className="absolute bottom-20 left-0 right-0 text-center">
+            {membersByGeneration.length > 10 && (
+              <div className="mb-2 px-3 py-1 bg-amber-100 border border-amber-400 rounded-lg inline-block">
+                <p className="text-xs text-amber-800">
+                  代数较多，建议使用"分册导出"功能分开导出
+                </p>
+              </div>
+            )}
             <p className="text-sm text-amber-700">
               共录 <span className="font-bold text-amber-900">{allMembersSorted.length}</span> 名族人
             </p>
@@ -1029,12 +848,11 @@ export function ModernGenealogyBook({
             <Button
               variant="outline"
               size="sm"
-              onClick={handleExportPdf}
-              disabled={isExporting}
+              onClick={handleExportFullWord}
               className="gap-1"
             >
-              {isExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-              导出PDF
+              <Printer className="w-4 h-4" />
+              导出Word
             </Button>
           </div>
         </div>
@@ -1293,10 +1111,10 @@ export function ModernGenealogyBook({
               variant="outline"
               size="sm"
               onClick={handleExportAllVolumes}
-              disabled={exportingVolume !== null || volumeRanges.length === 0}
+              disabled={volumeRanges.length === 0}
               className="gap-1"
             >
-              {exportingVolume ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+              <Download className="w-4 h-4" />
               导出全部
             </Button>
           </div>
@@ -1312,16 +1130,10 @@ export function ModernGenealogyBook({
                     共 <span className="font-bold">{allMembersSorted.length}</span> 名族人，
                     分为 <span className="font-bold">{allGenerations.length}</span> 代
                   </p>
-                  {exportingVolume && (
-                    <p className="text-sm text-emerald-600 mt-1">
-                      正在导出：第 {volumeRanges.findIndex(v => v.id === exportingVolume) + 1} 册 ({exportingProgress.current}/{exportingProgress.total})
-                    </p>
-                  )}
                 </div>
                 <Button
                   size="sm"
                   onClick={addVolume}
-                  disabled={exportingVolume !== null}
                   className="gap-1 bg-amber-600 hover:bg-amber-700"
                 >
                   <Plus className="w-4 h-4" />
@@ -1330,40 +1142,20 @@ export function ModernGenealogyBook({
               </div>
             </div>
 
-            {/* 进度条 */}
-            {exportingVolume && (
-              <div className="bg-white border border-amber-200 rounded-lg p-4">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm text-amber-800">导出进度</span>
-                  <span className="text-sm text-amber-600">
-                    {exportingProgress.current} / {exportingProgress.total} 页
-                  </span>
-                </div>
-                <div className="w-full bg-amber-100 rounded-full h-2">
-                  <div
-                    className="bg-emerald-500 h-2 rounded-full transition-all duration-300"
-                    style={{ width: `${(exportingProgress.current / exportingProgress.total) * 100}%` }}
-                  />
-                </div>
-              </div>
-            )}
-
             {/* 分册列表 */}
             <div className="space-y-4">
               {volumeRanges.map((volume, index) => {
                 const volumeMembers = getMembersForVolume(volume)
-                const isCurrentExporting = exportingVolume === volume.id
                 return (
                   <div
                     key={volume.id}
-                    className={`border rounded-lg p-4 bg-white ${isCurrentExporting ? 'border-emerald-400 ring-2 ring-emerald-100' : 'border-amber-200'}`}
+                    className="border border-amber-200 rounded-lg p-4 bg-white"
                   >
                     <div className="flex items-center justify-between mb-3">
                       <div className="flex items-center gap-2">
-                        <FileText className={`w-5 h-5 ${isCurrentExporting ? 'text-emerald-600' : 'text-amber-600'}`} />
-                        <span className={`font-medium ${isCurrentExporting ? 'text-emerald-900' : 'text-amber-900'}`}>
+                        <FileText className="w-5 h-5 text-amber-600" />
+                        <span className="font-medium text-amber-900">
                           第 {index + 1} 册
-                          {isCurrentExporting && <span className="ml-1 text-xs text-emerald-600">(导出中...)</span>}
                         </span>
                         <Badge variant="outline" className="text-amber-700 border-amber-300">
                           {volumeMembers.length} 人
@@ -1373,20 +1165,28 @@ export function ModernGenealogyBook({
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => {
-                            handleExportVolume(volume)
-                          }}
-                          disabled={exportingVolume !== null || volumeMembers.length === 0}
+                          onClick={() => handleExportVolumeHtml(volume)}
+                          disabled={volumeMembers.length === 0}
+                          className="gap-1 text-blue-600 border-blue-300 hover:bg-blue-50"
+                        >
+                          <FileText className="w-4 h-4" />
+                          HTML
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleExportVolumeWord(volume)}
+                          disabled={volumeMembers.length === 0}
                           className="gap-1 text-emerald-600 border-emerald-300 hover:bg-emerald-50"
                         >
-                          {isCurrentExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-                          {isCurrentExporting ? '导出中' : '导出'}
+                          <Printer className="w-4 h-4" />
+                          Word
                         </Button>
                         <Button
                           variant="ghost"
                           size="sm"
                           onClick={() => removeVolume(volume.id)}
-                          disabled={exportingVolume !== null}
+                          disabled={false}
                           className="text-red-500 hover:text-red-700 hover:bg-red-50"
                         >
                           <Trash2 className="w-4 h-4" />
@@ -1402,7 +1202,7 @@ export function ModernGenealogyBook({
                           min={1}
                           value={volume.startGen}
                           onChange={(e) => updateVolume(volume.id, 'startGen', parseInt(e.target.value) || 1)}
-                          disabled={exportingVolume !== null}
+                          disabled={false}
                           className="w-20 h-8"
                         />
                       </div>
@@ -1413,7 +1213,7 @@ export function ModernGenealogyBook({
                           min={1}
                           value={volume.endGen}
                           onChange={(e) => updateVolume(volume.id, 'endGen', parseInt(e.target.value) || 1)}
-                          disabled={exportingVolume !== null}
+                          disabled={false}
                           className="w-20 h-8"
                         />
                       </div>
