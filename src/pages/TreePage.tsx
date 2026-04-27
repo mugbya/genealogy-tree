@@ -779,10 +779,10 @@ export function TreePage() {
             <TagIcon className="w-5 h-5" />
             标签管理
           </TabsTrigger>
-          <TabsTrigger value="traditional" className="gap-2 text-base py-3 px-4">
+          {/* <TabsTrigger value="traditional" className="gap-2 text-base py-3 px-4">
             <BookOpen className="w-5 h-5" />
             祖谱导航
-          </TabsTrigger>
+          </TabsTrigger> */}
           <TabsTrigger value="modern" className="gap-2 text-base py-3 px-4">
             <BookOpen className="w-5 h-5" />
             现代祖谱
