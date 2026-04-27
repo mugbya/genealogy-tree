@@ -36,7 +36,8 @@
       "icons/icon.ico"
     ],
     "resources": {
-      "../dist": "dist"
+      "../dist": "dist",
+      "templates": "templates"
     }
   },
   "plugins": {

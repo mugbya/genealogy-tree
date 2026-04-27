@@ -5,6 +5,7 @@ pub mod members;
 pub mod member_relations;
 pub mod relation_tags;
 pub mod system;
+pub mod template;
 pub mod usage_report;
 pub mod wechat;
 
@@ -13,5 +14,6 @@ pub use members::*;
 pub use member_relations::*;
 pub use relation_tags::*;
 pub use system::*;
+pub use template::*;
 pub use usage_report::*;
 pub use wechat::*;

@@ -197,6 +197,7 @@ export function TreePage() {
   const [isImportResultOpen, setIsImportResultOpen] = useState(false)
   const [downloadSuccess, setDownloadSuccess] = useState(false)
   const [downloadPath, setDownloadPath] = useState<string>('')
+  const [templateType, setTemplateType] = useState<'honglou' | 'kongzi'>('honglou')
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
   // 切换标签选择
@@ -699,86 +700,57 @@ export function TreePage() {
 
   // 下载模板
   const handleDownloadTemplate = async () => {
-    // 完整的模板列名（按用户要求的顺序）
-    const headers = [
-      '姓名', '姓氏', '字辈', '性别', '排序', '出生日期', '逝世日期', '是否离世',
-      '籍贯', '职业', '父亲', '母亲', '配偶', '是否入赘', '是否招夫养子', '生平简介', '突出事迹'
-    ];
+    setDownloadSuccess(false);
 
-    // 红楼梦贾家模拟数据（与列名顺序对应）
-    const sampleData = [
-      // 宁国公
-      ['贾演', '贾', '演', '男', '1', '1675-03-15', '1738-09-20', '是', '京城', '宁国公', '', '', '', '', '', '宁国公，贾家宁国府始祖。凭军功起家，袭封宁国公，地位显赫。', '开府宁国，荫蔽子孙，为贾家奠定基业。'],
-      // 贾演之子
-      ['贾代化', '贾', '代', '男', '2', '1698-07-22', '1765-12-01', '是', '京城', '京营节度使', '贾演', '', '', '', '', '贾代化，宁国府第二代主人，袭封一等将军。', '镇守京畿，军务繁忙。'],
-      // 贾代化之子
-      ['贾敬', '贾', '敬', '男', '3', '1720-02-10', '1789-04-15', '是', '京城', '进士/道士', '贾代化', '', '', '', '', '贾敬，贾家宁国府第三代主人。年轻时中进士，后弃官修道。', '科举出身，才华出众，后悟道修仙。'],
-      // 贾珍（贾敬之子）
-      ['贾珍', '贾', '珍', '男', '4', '1745-06-18', '1802-11-25', '是', '京城', '三品威烈将军', '贾敬', '', '尤氏', '', '', '', '贾珍，宁国府第四代主人，袭封三品威烈将军。', '挥霍无度，行为不检。'],
-      // 贾蓉（贾珍之子）
-      ['贾蓉', '贾', '蓉', '男', '5', '1768-01-30', '1820-08-14', '是', '京城', '轻车都尉', '贾珍', '', '秦可卿', '', '', '', '贾蓉，贾珍之子，袭封轻车都尉。', '平庸无才，依附权贵。'],
-      // 尤氏（贾珍配偶）
-      ['尤氏', '尤', '', '女', '', '1750-03-25', '1815-07-20', '是', '京城', '诰命夫人', '', '', '贾珍', '', '', '尤氏身世一般，为人温和。', '相夫教子，贤良淑德。'],
-      // 秦可卿（贾蓉配偶）
-      ['秦可卿', '秦', '', '女', '', '1770-09-12', '1789-03-15', '是', '京城', '', '', '', '贾蓉', '', '', '', '秦可卿，容貌绝世，性格温柔。', '德才兼备，可惜早逝。'],
-      // 荣国公
-      ['贾源', '贾', '源', '男', '1', '1670-11-08', '1735-06-30', '是', '京城', '荣国公', '', '', '', '', '', '荣国公，贾家荣国府始祖。与宁国公并称"二公"。', '功成名就，荣封国公，泽被子孙。'],
-      // 贾源之子
-      ['贾代善', '贾', '代', '男', '2', '1693-04-16', '1762-10-08', '是', '京城', '京营节度使', '贾源', '', '', '', '', '贾代善，荣国府第二代主人，袭封京营节度使。', '延续祖业，维持家族荣耀。'],
-      // 贾代善之子（贾赦）
-      ['贾赦', '贾', '赦', '男', '3', '1715-08-22', '1785-02-14', '是', '京城', '一等将军', '贾代善', '', '邢氏', '', '', '', '贾赦，荣国府第三代主人，袭封一等将军。为人贪婪好色。', '官居高位，却贪婪成性。'],
-      // 贾代善之子（贾政）
-      ['贾政', '贾', '政', '男', '3', '1720-05-30', '1790-12-20', '是', '京城', '工部员外郎', '贾代善', '', '王氏', '', '', '', '贾政，荣国府第三代主人。任工部员外郎，为人正直却迂腐。', '为官清正，教子无方。'],
-      // 贾赦之子（贾琏）
-      ['贾琏', '贾', '琏', '男', '4', '1740-10-05', '1805-03-28', '是', '京城', '同知', '贾赦', '', '王熙凤', '', '', '', '贾琏，贾赦之子，任同知。为人机智却好色。', '精明能干，善于交际。'],
-      // 贾政之子（贾珠）
-      ['贾珠', '贾', '珠', '男', '4', '1745-01-18', '1770-09-10', '是', '京城', '举人', '贾政', '', '李纨', '', '', '', '贾珠，贾政长子，自幼聪慧，十四岁中举，后英年早逝。', '天资聪颖，科举有望。'],
-      // 贾政之子（贾宝玉）
-      ['贾宝玉', '贾', '玉', '男', '5', '1790-04-22', '', '否', '京城', '读书/翰林', '贾政', '王氏', '薛宝钗', '', '', '贾宝玉，荣国府贾政次子，含玉而生。厌恶仕途，独爱诗词戏曲。', '叛逆多情，才华横溢，著《红楼梦》。'],
-      // 贾政之子（贾环）
-      ['贾环', '贾', '环', '男', '5', '1795-07-14', '', '否', '京城', '读书', '贾政', '赵姨娘', '', '', '', '', '贾环，贾政三子，庶出。为人阴微。', '虽非嫡出，亦有才学。'],
-      // 贾珠配偶
-      ['李纨', '李', '', '女', '', '1748-02-28', '1820-11-30', '是', '京城', '诰命夫人', '', '', '贾珠', '', '', '李纨，贾珠之妻，出身名门。守寡后抚养幼子。', '温良恭俭，贤妻良母。'],
-      // 贾宝玉配偶
-      ['薛宝钗', '薛', '', '女', '', '1792-12-08', '1870-05-15', '是', '金陵', '诰命夫人', '', '', '贾宝玉', '', '', '薛宝钗，出身金陵薛家，容貌丰美，举止娴雅。', '德容言工，样样俱全。'],
-      // 贾琏配偶
-      ['王熙凤', '王', '', '女', '', '1742-09-02', '1798-10-20', '是', '京城', '管家', '', '', '贾琏', '', '', '', '王熙凤，贾琏之妻，王夫人侄女。精明强干，有"凤辣子"之称。', '手腕高明，管家有方。'],
-      // 邢氏（贾赦配偶）
-      ['邢氏', '邢', '', '女', '', '1718-06-18', '1790-04-12', '是', '京城', '诰命夫人', '', '', '贾赦', '', '', '邢氏，贾赦正妻，出身一般，为人忠厚。', '为人善良，顺从丈夫。'],
-      // 王氏（贾政配偶）
-      ['王氏', '王', '', '女', '', '1725-03-08', '1805-08-25', '是', '京城', '诰命夫人', '', '', '贾政', '', '', '王氏，贾政正妻，出身四大家族之王家。性格端庄。', '出身名门，相夫教子。'],
-    ];
+    const templateFileName = templateType === 'kongzi'
+      ? 'kongzishi_template.csv'
+      : 'hongloujia_template.csv';
 
-    const csvContent = [
-      headers.join(','),
-      ...sampleData.map(row => row.map(cell => {
-        // 如果单元格包含逗号或换行符，需要用引号包裹
-        if (typeof cell === 'string' && (cell.includes(',') || cell.includes('\n'))) {
-          return `"${cell.replace(/"/g, '""')}"`;
+    const filename = templateType === 'kongzi'
+      ? '孔子世家导入模板.csv'
+      : '红楼梦贾家导入模板.csv';
+
+    try {
+      let blob: Blob;
+
+      if (isDesktop && typeof invoke !== 'undefined') {
+        // 桌面端：使用Tauri命令获取模板文件内容
+        const fileBytes = await invoke<number[]>('download_template', { templateName: templateFileName });
+        const uint8Array = new Uint8Array(fileBytes);
+        blob = new Blob([uint8Array], { type: 'text/csv;charset=utf-8;' });
+      } else {
+        // 浏览器端：使用HTTP API获取模板文件
+        const response = await fetch(`/api/templates/${templateFileName}`);
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
         }
-        return cell;
-      }).join(','))
-    ].join('\n');
-
-    const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = '家族成员导入模板.csv';
-    link.click();
-    URL.revokeObjectURL(url);
-    setDownloadSuccess(true);
-    // 获取下载目录路径
-    if (isDesktop) {
-      try {
-        const path = await invoke<string>('get_download_path');
-        setDownloadPath(path);
-      } catch {
-        setDownloadPath('');
+        blob = await response.blob();
       }
+
+      // 创建下载链接
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      link.click();
+      URL.revokeObjectURL(url);
+      setDownloadSuccess(true);
+
+      if (isDesktop && typeof invoke !== 'undefined') {
+        try {
+          const path = await invoke<string>('get_download_path');
+          setDownloadPath(path);
+        } catch {
+          setDownloadPath('');
+        }
+      }
+    } catch (err) {
+      console.error('下载模板失败:', err);
+      alert('下载模板失败: ' + err);
     }
+
     setTimeout(() => setDownloadSuccess(false), 5000);
-  }
+  };
 
   return (
     <div className="h-[calc(100vh-8rem)] flex flex-col animate-fade-in">
@@ -1079,7 +1051,21 @@ export function TreePage() {
                           <Upload className="w-3 h-3" />
                           {isImporting ? '导入中...' : '导入'}
                         </Button>
-                        <Button
+                        <div className="flex items-center gap-1">
+                          <select
+                            value={templateType}
+                            onChange={(e) => setTemplateType(e.target.value as 'honglou' | 'kongzi')}
+                            className="h-8 px-2 pr-6 rounded border border-zinc-200 bg-white text-sm text-zinc-700 appearance-none cursor-pointer focus:outline-none focus:border-indigo-500"
+                            style={{
+                              backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2371717a' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`,
+                              backgroundRepeat: 'no-repeat',
+                              backgroundPosition: 'right 0.5rem center',
+                            }}
+                          >
+                            <option value="honglou">红楼梦贾家</option>
+                            <option value="kongzi">孔子世家</option>
+                          </select>
+                          <Button
                             size="sm"
                             variant="outline"
                             onClick={handleDownloadTemplate}
@@ -1094,7 +1080,8 @@ export function TreePage() {
                                 )}
                               </span>
                             ) : '模板'}
-                        </Button>
+                          </Button>
+                        </div>
                       </>
                     )}
                     

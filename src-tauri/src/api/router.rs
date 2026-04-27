@@ -1,4 +1,5 @@
 use axum::{
+    extract::Extension,
     routing::{delete, get, post, put},
     Router,
 };
@@ -7,6 +8,7 @@ use tower_http::cors::{Any, CorsLayer};
 use tower_http::services::fs::ServeDir;
 use axum::routing::get_service;
 use rusqlite::Connection;
+use tauri::AppHandle;
 
 use crate::api::handlers;
 use crate::api::handlers::wechat::SharedWechatStore;
@@ -21,7 +23,8 @@ pub struct AppState {
 pub fn create_router(
     db: Arc<Mutex<Connection>>,
     wechat_store: SharedWechatStore,
-    dist_path: Option<PathBuf>
+    dist_path: Option<PathBuf>,
+    app_handle: Option<AppHandle>,
 ) -> Router {
     let state = AppState { db, wechat_store };
 
@@ -30,7 +33,7 @@ pub fn create_router(
         .allow_methods(Any)
         .allow_headers(Any);
 
-    let api_router = Router::new()
+    let mut api_router = Router::new()
         // Health check
         .route("/api/health", get(handlers::health_check))
         // Auth (public)
@@ -82,6 +85,13 @@ pub fn create_router(
         .route("/api/system/network-interfaces", get(handlers::get_network_interfaces))
         .layer(cors)
         .with_state(state);
+
+    // 如果有 AppHandle，注入到 Extension 中用于模板下载
+    if let Some(app) = app_handle {
+        api_router = api_router.layer(Extension(app));
+        // Templates 需要 AppHandle
+        api_router = api_router.route("/api/templates/:name", get(handlers::download_template));
+    }
 
     if let Some(dist_path) = dist_path {
         let static_service = get_service(ServeDir::new(dist_path));
