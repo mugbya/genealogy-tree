@@ -14,9 +14,9 @@ interface TraditionalGenealogyBookProps {
 }
 
 interface FamilyUnit {
-  father?: { id: number; name: string; generation?: string; gender?: string; birth_date?: string; death_date?: string; biography?: string; remarkable_deeds?: string }
+  father?: { id: number; name: string; generation?: string; generation_word?: string; gender?: string; birth_date?: string; death_date?: string; biography?: string; remarkable_deeds?: string }
   mother?: { id: number; name: string; tag?: string }
-  children: { id: number; name: string; generation?: string; gender?: string; birth_date?: string; death_date?: string; is_deceased?: boolean }[]
+  children: { id: number; name: string; generation?: string; generation_word?: string; gender?: string; birth_date?: string; death_date?: string; is_deceased?: boolean }[]
   generation: number
 }
 
@@ -185,6 +185,7 @@ export function TraditionalGenealogyBook({
             id: male.id,
             name: male.name,
             generation: male.generation ?? undefined,
+            generation_word: male.generation_word ?? undefined,
             gender: male.gender,
             birth_date: male.birth_date ?? undefined,
             death_date: male.death_date ?? undefined,
@@ -197,6 +198,7 @@ export function TraditionalGenealogyBook({
               id: c.id,
               name: c.name,
               generation: cm.generation ?? undefined,
+              generation_word: cm.generation_word ?? undefined,
               gender: cm.gender,
               birth_date: cm.birth_date ?? undefined,
               death_date: cm.death_date ?? undefined,

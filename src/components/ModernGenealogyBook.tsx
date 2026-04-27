@@ -1,8 +1,9 @@
 import React, { useMemo, useState, useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { Input } from '@/components/ui/input'
 import type { Member, MemberRelation } from '@/api/client'
-import { ArrowLeft, Download, Loader2, BookOpen } from 'lucide-react'
+import { ArrowLeft, Download, Loader2, BookOpen, Plus, Trash2, FileText } from 'lucide-react'
 import jsPDF from 'jspdf'
 import html2canvas from 'html2canvas'
 
@@ -16,7 +17,14 @@ interface ModernGenealogyBookProps {
   relations: MemberRelation[]
 }
 
-type ViewState = 'cover' | 'toc' | 'detail'
+type ViewState = 'cover' | 'toc' | 'detail' | 'volume'
+
+// 分册配置
+interface VolumeRange {
+  id: string
+  startGen: number
+  endGen: number
+}
 
 export function ModernGenealogyBook({
   familyName,
@@ -27,11 +35,17 @@ export function ModernGenealogyBook({
   members,
   relations,
 }: ModernGenealogyBookProps) {
+  // 注意: familyGenerationWords 已弃用,现在使用存储在成员表中的 generation_word 字段
+  void familyGenerationWords
+
   const [view, setView] = useState<ViewState>('cover')
   const [selectedMember, setSelectedMember] = useState<Member | null>(null)
   const [isExporting, setIsExporting] = useState(false)
   const coverRef = useRef<HTMLDivElement>(null)
   const tocRef = useRef<HTMLDivElement>(null)
+
+  // 分册配置状态
+  const [volumeRanges, setVolumeRanges] = useState<VolumeRange[]>([])
 
   const isOwnFamily = (member: Member) => {
     if (!familySurname) return true
@@ -158,6 +172,77 @@ export function ModernGenealogyBook({
 
   const handleEnterToc = () => {
     setView('toc')
+  }
+
+  // ========== 分册相关 ==========
+
+  // 获取所有代数
+  const allGenerations = useMemo(() => {
+    const gens = new Set<number>()
+    allMembersSorted.forEach(m => {
+      if (m.generation) {
+        gens.add(parseInt(m.generation, 10))
+      }
+    })
+    return Array.from(gens).sort((a, b) => a - b)
+  }, [allMembersSorted])
+
+  // 初始化分册配置
+  React.useEffect(() => {
+    if (allGenerations.length > 0 && volumeRanges.length === 0) {
+      const defaultRanges: VolumeRange[] = []
+      let currentStart = allGenerations[0]
+      for (let i = 0; i < allGenerations.length; i++) {
+        if (i > 0 && allGenerations[i] - allGenerations[i - 1] > 5) {
+          defaultRanges.push({
+            id: crypto.randomUUID(),
+            startGen: currentStart,
+            endGen: allGenerations[i - 1]
+          })
+          currentStart = allGenerations[i]
+        }
+        if (i === allGenerations.length - 1) {
+          defaultRanges.push({
+            id: crypto.randomUUID(),
+            startGen: currentStart,
+            endGen: allGenerations[i]
+          })
+        }
+      }
+      setVolumeRanges(defaultRanges)
+    }
+  }, [allGenerations])
+
+  // 获取某册的成员
+  const getMembersForVolume = (volume: VolumeRange): Member[] => {
+    return allMembersSorted.filter(m => {
+      if (!m.generation) return false
+      const gen = parseInt(m.generation, 10)
+      return gen >= volume.startGen && gen <= volume.endGen
+    })
+  }
+
+  // 添加分册
+  const addVolume = () => {
+    const lastGen = allGenerations[allGenerations.length - 1] || 1
+    setVolumeRanges([...volumeRanges, {
+      id: crypto.randomUUID(),
+      startGen: lastGen + 1,
+      endGen: lastGen + 5
+    }])
+  }
+
+  // 删除分册
+  const removeVolume = (id: string) => {
+    setVolumeRanges(volumeRanges.filter(v => v.id !== id))
+  }
+
+  // 更新分册
+  const updateVolume = (id: string, field: 'startGen' | 'endGen', value: number) => {
+    setVolumeRanges(volumeRanges.map(v => {
+      if (v.id !== id) return v
+      return { ...v, [field]: value }
+    }))
   }
 
   // 导出PDF
@@ -344,11 +429,200 @@ export function ModernGenealogyBook({
     }
   }
 
+  // 导出单册PDF
+  const handleExportVolume = async (volume: VolumeRange) => {
+    const volumeMembers = getMembersForVolume(volume)
+    if (volumeMembers.length === 0) {
+      alert('该册没有成员，请调整代数范围')
+      return
+    }
+
+    setIsExporting(true)
+    try {
+      await document.fonts.ready
+    } catch (e) {
+      console.warn('Font loading skipped:', e)
+    }
+
+    try {
+      const pdf = new jsPDF('p', 'mm', 'a4')
+      const pageWidth = pdf.internal.pageSize.getWidth()
+      const pageHeight = pdf.internal.pageSize.getHeight()
+
+      const container = document.createElement('div')
+      container.style.cssText = 'position: fixed; left: 0; top: 0; width: 595px; min-height: 842px; background: white; font-family: "Source Han Sans CN", "Noto Sans SC", sans-serif; z-index: -1; opacity: 0;'
+      document.body.appendChild(container)
+
+      const renderToPdf = async (html: string, pageNum: number): Promise<boolean> => {
+        container.innerHTML = ''
+        container.innerHTML = html
+        await new Promise(r => setTimeout(r, 800))
+
+        const element = container.firstElementChild as HTMLElement
+        if (!element) return false
+
+        const rect = element.getBoundingClientRect()
+        if (rect.width === 0 || rect.height === 0) return false
+
+        try {
+          const canvas = await html2canvas(element, {
+            scale: 2,
+            useCORS: true,
+            backgroundColor: '#ffffff'
+          })
+          const image = canvas.toDataURL('image/png')
+
+          if (pageNum > 1) {
+            pdf.addPage()
+          }
+          pdf.addImage(image, 'PNG', 0, 0, pageWidth, pageHeight)
+          return true
+        } catch (err) {
+          console.error('html2canvas error:', err)
+          return false
+        }
+      }
+
+      const volumeTitle = `第${volume.startGen}至${volume.endGen}代`
+
+      // 封面
+      const coverHtml = `
+        <div style="width: 595px; height: 842px; background: white;">
+          <table style="width: 100%; height: 100%; border-collapse: collapse;">
+            <tr>
+              <td style="text-align: center; vertical-align: middle;">
+                <div style="font-size: 56px; color: #333; margin-top: 40px; font-weight: bold;">${familyName || '某某家族'}</div>
+                <div style="font-size: 32px; color: #333; margin-top: 10px;">祖 谱</div>
+                <div style="font-size: 24px; color: #666; margin-top: 20px;">（${volumeTitle}）</div>
+                <div style="font-size: 20px; color: #333; margin-top: 30px;">— 现代版 —</div>
+                <div style="font-size: 18px; color: #333; margin-top: 30px; font-style: italic;">${familyMaxim || '传承家族文化  弘扬优良家风'}</div>
+                <div style="font-size: 14px; color: #666; margin-top: 20px;">始祖源地：${familyOrigin || '源远流长'}</div>
+                <div style="font-size: 16px; color: #333; margin-top: 60px;">共录 ${volumeMembers.length} 名族人</div>
+                <div style="font-size: 14px; color: #666; margin-top: 5px;">本册记载 ${volume.startGen}-${volume.endGen} 代</div>
+              </td>
+            </tr>
+          </table>
+        </div>
+      `
+      await renderToPdf(coverHtml, 1)
+
+      // 索引页
+      const indexHtml = `
+        <div style="width: 595px; min-height: 842px; background: white; padding: 40px;">
+          <h1 style="text-align: center; font-size: 28px; color: #333; margin-bottom: 20px;">${familyName || '某某家族'} 成员索引（${volumeTitle}）</h1>
+          <div style="height: 2px; background: #333; margin-bottom: 30px;"></div>
+          <table style="width: 100%; font-size: 14px; border-collapse: collapse;">
+            <thead>
+              <tr style="border-bottom: 1px solid #333;">
+                <th style="text-align: left; padding: 8px 4px; color: #333;">页码</th>
+                <th style="text-align: left; padding: 8px 4px; color: #333;">代数</th>
+                <th style="text-align: left; padding: 8px 4px; color: #333;">字辈</th>
+                <th style="text-align: left; padding: 8px 4px; color: #333;">姓名</th>
+                <th style="text-align: left; padding: 8px 4px; color: #333;">生年</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${volumeMembers.map((m, i) => {
+                const page = i + 3
+                const genNum = parseInt(m.generation || '0', 10) || 0
+                const genWord = m.generation_word || ''
+                return `<tr style="border-bottom: 1px dashed #ccc;">
+                  <td style="padding: 8px 4px; color: #333;">第${page}页</td>
+                  <td style="padding: 8px 4px; color: #333;">${genNum > 0 ? '第' + genNum + '代' : '-'}</td>
+                  <td style="padding: 8px 4px; color: #666;">${genWord}</td>
+                  <td style="padding: 8px 4px; color: #333;">${m.name}</td>
+                  <td style="padding: 8px 4px; color: #666;">${m.birth_date?.substring(0, 4) || '-'}</td>
+                </tr>`
+              }).join('')}
+            </tbody>
+          </table>
+          <div style="margin-top: 40px; text-align: center; font-size: 14px; color: #666;">
+            共 ${volumeMembers.length} 名族人，分为 ${volumeMembers.length + 2} 页记载
+          </div>
+        </div>
+      `
+      await renderToPdf(indexHtml, 2)
+
+      // 成员详情页
+      for (let i = 0; i < volumeMembers.length; i++) {
+        const m = volumeMembers[i]
+        const rels = memberRelations.get(m.id)
+        const genNum = parseInt(m.generation || '0', 10) || 0
+        const genWord = m.generation_word || ''
+        const memberMap = new Map(members.map(m => [m.id, m]))
+        const fatherInfo = rels?.father ? memberMap.get(rels.father.id) : null
+        const motherInfo = rels?.mother ? memberMap.get(rels.mother.id) : null
+        const spouseInfo = rels?.spouses || []
+        const childrenInfo = (rels?.children || []).map(c => memberMap.get(c.id)).filter((c): c is Member => c !== undefined)
+
+        const memberHtml = `
+          <div style="width: 595px; height: 842px; background: white; padding: 40px; box-sizing: border-box; position: relative;">
+            <div style="text-align: center; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid #333;">
+              <h3 style="font-size: 36px; color: #333; margin: 0; letter-spacing: 4px;">${m.name}</h3>
+              ${m.is_deceased ? '<div style="font-size: 14px; color: #999; margin-top: 8px;">（故）</div>' : ''}
+              <div style="font-size: 14px; color: #666; margin-top: 8px;">${genNum > 0 && genWord ? '第' + genNum + '代 · ' + genWord : genWord || '第' + genNum + '代'}</div>
+            </div>
+
+            <div style="padding-bottom: 60px;">
+              <table style="width: 100%; font-size: 14px; border-collapse: collapse; margin-bottom: 30px;">
+                <tr><td style="padding: 8px 4px; color: #666; width: 60px;">性别</td><td style="padding: 8px 4px; color: #333;">${m.gender === 'male' ? '男' : '女'}</td></tr>
+                ${(m.birth_date || m.death_date) ? '<tr><td style="padding: 8px 4px; color: #666;">生卒</td><td style="padding: 8px 4px; color: #333;">' + (m.birth_date || '未知') + (m.death_date ? ' ～ ' + m.death_date : '') + '</td></tr>' : ''}
+                ${m.birth_place ? '<tr><td style="padding: 8px 4px; color: #666;">籍贯</td><td style="padding: 8px 4px; color: #333;">' + m.birth_place + '</td></tr>' : ''}
+                ${m.occupation ? '<tr><td style="padding: 8px 4px; color: #666;">职业</td><td style="padding: 8px 4px; color: #333;">' + m.occupation + '</td></tr>' : ''}
+              </table>
+
+              ${(fatherInfo || motherInfo || spouseInfo.length > 0 || childrenInfo.length > 0) ? '<div style="margin-bottom: 30px;"><h4 style="font-size: 14px; font-weight: bold; color: #333; margin: 0 0 12px 0; padding-bottom: 8px; border-bottom: 1px solid #333;">家族关系</h4><div style="font-size: 14px; color: #333;">' + (fatherInfo ? '<div>父亲: ' + fatherInfo.name + '</div>' : '') + (motherInfo ? '<div>母亲: ' + motherInfo.name + '</div>' : '') + (spouseInfo.length > 0 ? '<div>配偶: ' + spouseInfo.map(s => s.name).join('、') + '</div>' : '') + (childrenInfo.length > 0 ? '<div>子女: ' + childrenInfo.map(c => c.name).join('、') + '</div>' : '') + '</div></div>' : ''}
+
+              ${m.biography ? '<div style="margin-bottom: 30px;"><h4 style="font-size: 14px; font-weight: bold; color: #333; margin: 0 0 12px 0; padding-bottom: 8px; border-bottom: 1px solid #333;">生平简介</h4><p style="font-size: 14px; color: #333; margin: 0;">' + m.biography + '</p></div>' : ''}
+
+              ${m.remarkable_deeds ? '<div style="margin-bottom: 30px;"><h4 style="font-size: 14px; font-weight: bold; color: #333; margin: 0 0 12px 0; padding-bottom: 8px; border-bottom: 1px solid #333;">主要成就</h4><p style="font-size: 14px; color: #333; margin: 0;">' + m.remarkable_deeds + '</p></div>' : ''}
+            </div>
+
+            <div style="position: absolute; bottom: 40px; left: 0; right: 0; text-align: center; font-size: 12px; color: #999;">${familyName || '家族'}族谱 · ${volumeTitle} · 第${i + 3}页</div>
+          </div>
+        `
+        await renderToPdf(memberHtml, i + 3)
+      }
+
+      document.body.removeChild(container)
+      pdf.save(`${familyName || '家族'}祖谱（${volumeTitle}）.pdf`)
+    } catch (error) {
+      console.error('Export failed:', error)
+      alert('导出失败，请重试')
+    } finally {
+      setIsExporting(false)
+    }
+  }
+
+  // 导出全部（分册）
+  const handleExportAllVolumes = async () => {
+    if (volumeRanges.length === 0) {
+      alert('请先配置分册')
+      return
+    }
+
+    for (const volume of volumeRanges) {
+      const volumeMembers = getMembersForVolume(volume)
+      if (volumeMembers.length > 0) {
+        await handleExportVolume(volume)
+      }
+    }
+  }
+
   // 封面页
   const renderCover = () => (
     <div className="h-full flex flex-col bg-white">
       {/* 顶部导出按钮 */}
       <div className="shrink-0 flex items-center justify-end gap-2 p-4 border-b">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setView('volume')}
+          className="gap-2"
+        >
+          <FileText className="w-4 h-4" />
+          分册导出
+        </Button>
         <Button
           variant="default"
           size="sm"
@@ -726,11 +1000,150 @@ export function ModernGenealogyBook({
     )
   }
 
+  // 分册管理页
+  const renderVolume = () => {
+    return (
+      <div className="h-full flex flex-col bg-white">
+        <div className="shrink-0 flex items-center justify-between gap-4 p-4 bg-white border-b">
+          <Button variant="ghost" onClick={() => setView('cover')} className="gap-1">
+            <ArrowLeft className="w-4 h-4" />
+            返回封面
+          </Button>
+          <div className="flex-1 text-center">
+            <h2 className="text-lg font-semibold text-amber-900">分册导出</h2>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleExportAllVolumes}
+              disabled={isExporting || volumeRanges.length === 0}
+              className="gap-1"
+            >
+              {isExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+              导出全部
+            </Button>
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-auto p-4">
+          <div className="max-w-2xl mx-auto space-y-6">
+            {/* 统计信息 */}
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-amber-800">
+                    共 <span className="font-bold">{allMembersSorted.length}</span> 名族人，
+                    分为 <span className="font-bold">{allGenerations.length}</span> 代
+                  </p>
+                </div>
+                <Button
+                  size="sm"
+                  onClick={addVolume}
+                  className="gap-1 bg-amber-600 hover:bg-amber-700"
+                >
+                  <Plus className="w-4 h-4" />
+                  添加分册
+                </Button>
+              </div>
+            </div>
+
+            {/* 分册列表 */}
+            <div className="space-y-4">
+              {volumeRanges.map((volume, index) => {
+                const volumeMembers = getMembersForVolume(volume)
+                return (
+                  <div
+                    key={volume.id}
+                    className="border border-amber-200 rounded-lg p-4 bg-white"
+                  >
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2">
+                        <FileText className="w-5 h-5 text-amber-600" />
+                        <span className="font-medium text-amber-900">
+                          第 {index + 1} 册
+                        </span>
+                        <Badge variant="outline" className="text-amber-700 border-amber-300">
+                          {volumeMembers.length} 人
+                        </Badge>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleExportVolume(volume)}
+                          disabled={isExporting || volumeMembers.length === 0}
+                          className="gap-1 text-emerald-600 border-emerald-300 hover:bg-emerald-50"
+                        >
+                          {isExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                          导出
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => removeVolume(volume.id)}
+                          className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-4">
+                      <div className="flex items-center gap-2">
+                        <label className="text-sm text-zinc-600">起始代数：</label>
+                        <Input
+                          type="number"
+                          min={1}
+                          value={volume.startGen}
+                          onChange={(e) => updateVolume(volume.id, 'startGen', parseInt(e.target.value) || 1)}
+                          className="w-20 h-8"
+                        />
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <label className="text-sm text-zinc-600">结束代数：</label>
+                        <Input
+                          type="number"
+                          min={1}
+                          value={volume.endGen}
+                          onChange={(e) => updateVolume(volume.id, 'endGen', parseInt(e.target.value) || 1)}
+                          className="w-20 h-8"
+                        />
+                      </div>
+                      <span className="text-sm text-zinc-500">
+                        （第 {volume.startGen} 代 ~ 第 {volume.endGen} 代）
+                      </span>
+                    </div>
+
+                    {volumeMembers.length > 0 && (
+                      <div className="mt-3 text-xs text-zinc-500">
+                        包含成员：{volumeMembers.slice(0, 5).map(m => m.name).join('、')}
+                        {volumeMembers.length > 5 && `...等${volumeMembers.length}人`}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+
+              {volumeRanges.length === 0 && (
+                <div className="text-center py-12 text-zinc-500">
+                  <p>暂无分册配置</p>
+                  <p className="text-sm mt-1">点击「添加分册」开始配置</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="h-full relative">
       {view === 'cover' && renderCover()}
       {view === 'toc' && renderToc()}
       {view === 'detail' && renderDetail()}
+      {view === 'volume' && renderVolume()}
     </div>
   )
 }
