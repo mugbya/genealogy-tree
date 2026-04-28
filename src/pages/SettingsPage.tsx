@@ -948,7 +948,9 @@ function LicenseSettings() {
     setError(null)
     try {
       const result = await licenseApi.getInfo()
+      console.log('[Settings] fetchLicenseInfo result:', result)
       if (result.data) {
+        console.log('[Settings] Setting licenseInfo:', result.data)
         setLicenseInfo(result.data)
       } else if (result.error) {
         setError(result.error)
@@ -982,9 +984,20 @@ function LicenseSettings() {
     }
   }
 
-  const handleActivationSuccess = () => {
+  const handleActivationSuccess = (activatedData: {
+    license_key: string
+    license_type: string
+    expires_at?: string
+  }) => {
     setShowActivateDialog(false)
-    fetchLicenseInfo()
+    // 直接更新状态
+    setLicenseInfo({
+      license_key: activatedData.license_key,
+      license_type: activatedData.license_type,
+      activated_at: new Date().toLocaleString(),
+      expires_at: activatedData.expires_at,
+      is_valid: true
+    })
   }
 
   const getLicenseTypeDisplay = (licenseType?: string, isValid?: boolean) => {

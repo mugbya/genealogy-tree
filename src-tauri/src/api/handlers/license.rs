@@ -15,11 +15,13 @@ pub async fn get_license_info(
 
     match result {
         Ok(info) => (StatusCode::OK, Json(json!({
-            "license_key": info.license_key,
-            "license_type": info.license_type,
-            "activated_at": info.activated_at,
-            "expires_at": info.expires_at,
-            "is_valid": info.is_valid
+            "data": {
+                "license_key": info.license_key,
+                "license_type": info.license_type,
+                "activated_at": info.activated_at,
+                "expires_at": info.expires_at,
+                "is_valid": info.is_valid
+            }
         }))),
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e }))),
     }

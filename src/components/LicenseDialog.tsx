@@ -16,7 +16,11 @@ import { licenseApi, LicenseStatus } from '@/api/client'
 interface LicenseDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  onSuccess: () => void
+  onSuccess: (data: {
+    license_key: string
+    license_type: string
+    expires_at?: string
+  }) => void
 }
 
 // 验证授权码格式（简单验证：不能为空，不能包含中文）
@@ -53,13 +57,23 @@ export function LicenseDialog({ open, onOpenChange, onSuccess }: LicenseDialogPr
 
     try {
       const response = await licenseApi.activate(licenseKey)
-      if (response.data?.valid) {
+      console.log('激活响应:', response)
+
+      // 直接检查 response 对象的结构
+      if (response.data && 'valid' in response.data && response.data.valid) {
         setResult(response.data)
+        // 传递完整的激活数据给 onSuccess
         setTimeout(() => {
-          onSuccess()
+          onSuccess({
+            license_key: licenseKey,
+            license_type: response.data?.license_type || 'year',
+            expires_at: response.data?.expires_at
+          })
         }, 1500)
-      } else {
+      } else if (response.error) {
         setError('您输入的授权码无效，请检查后重新输入')
+      } else {
+        setError('激活失败，请稍后重试')
       }
     } catch (err) {
       // 网络错误不显示具体信息

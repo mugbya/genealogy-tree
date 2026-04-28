@@ -83,6 +83,9 @@ pub fn get_license_info(db: &Mutex<Connection>) -> Result<LicenseInfo, String> {
     let activated_at = get_config(CONFIG_LICENSE_ACTIVATED_AT);
     let expires_at = get_config(CONFIG_LICENSE_EXPIRES_AT);
 
+    println!("[License] get_license_info: key={:?}, type={:?}, activated={:?}, expires={:?}",
+        license_key, license_type, activated_at, expires_at);
+
     // Check if license is valid locally
     let is_valid = check_local_license_validity(license_type.as_deref(), expires_at.as_deref());
 
@@ -182,19 +185,27 @@ pub async fn activate_license(
         ];
 
         for (key, value) in updates {
-            conn.execute(
+            if let Err(e) = conn.execute(
                 "INSERT INTO family_config (key, value) VALUES (?1, ?2)
                  ON CONFLICT(key) DO UPDATE SET value = excluded.value",
                 [key, value]
-            ).map_err(|e| e.to_string())?;
+            ) {
+                eprintln!("Failed to save {}: {}", key, e);
+            } else {
+                println!("[License] Saved {} = {}", key, value);
+            }
         }
 
         let expires_at_str = if let Some(ref expires) = data.expires_at {
-            conn.execute(
+            if let Err(e) = conn.execute(
                 "INSERT INTO family_config (key, value) VALUES (?1, ?2)
                  ON CONFLICT(key) DO UPDATE SET value = excluded.value",
                 [CONFIG_LICENSE_EXPIRES_AT, expires]
-            ).map_err(|e| e.to_string())?;
+            ) {
+                eprintln!("Failed to save expires_at: {}", e);
+            } else {
+                println!("[License] Saved expires_at = {}", expires);
+            }
             Some(expires.clone())
         } else {
             None
