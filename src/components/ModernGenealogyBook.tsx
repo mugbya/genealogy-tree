@@ -860,113 +860,125 @@ ${membersHtml}
         </Button> */}
       </div>
 
-      <div className="flex-1 overflow-auto p-4">
+      <div className="flex-1 overflow-auto p-6">
         <div
           ref={coverRef}
-          className="mx-auto bg-gradient-to-b from-amber-50 to-orange-50 border-4 border-amber-800 shadow-2xl relative overflow-hidden"
-          style={{ width: '210mm', minHeight: '285mm' }}
+          className="mx-auto bg-gradient-to-b from-amber-50 to-orange-50 border-4 border-amber-800 shadow-2xl relative"
+          style={{ maxWidth: '600px', minHeight: '800px' }}
         >
           {/* 装饰边框 */}
-          <div className="absolute inset-1 border-2 border-amber-700 pointer-events-none" />
-          <div className="absolute inset-4 border border-amber-500 pointer-events-none" />
+          <div className="absolute inset-2 border-2 border-amber-700 pointer-events-none" />
+          <div className="absolute inset-6 border border-amber-500 pointer-events-none" />
 
           {/* 四角装饰 */}
-          <div className="absolute top-2 left-2 w-8 h-8">
+          <div className="absolute top-3 left-3 w-6 h-6">
             <svg viewBox="0 0 40 40" className="w-full h-full text-amber-700">
-              <path d="M2 38 Q2 2 38 2" fill="none" stroke="currentColor" strokeWidth="2"/>
-              <circle cx="8" cy="8" r="3" fill="currentColor"/>
+              <path d="M2 38 Q2 2 38 2" fill="none" stroke="currentColor" strokeWidth="3"/>
+              <circle cx="8" cy="8" r="4" fill="currentColor"/>
             </svg>
           </div>
-          <div className="absolute top-2 right-2 w-8 h-8 rotate-90">
+          <div className="absolute top-3 right-3 w-6 h-6 rotate-90">
             <svg viewBox="0 0 40 40" className="w-full h-full text-amber-700">
-              <path d="M2 38 Q2 2 38 2" fill="none" stroke="currentColor" strokeWidth="2"/>
-              <circle cx="8" cy="8" r="3" fill="currentColor"/>
+              <path d="M2 38 Q2 2 38 2" fill="none" stroke="currentColor" strokeWidth="3"/>
+              <circle cx="8" cy="8" r="4" fill="currentColor"/>
             </svg>
           </div>
-          <div className="absolute bottom-2 left-2 w-8 h-8 -rotate-90">
+          <div className="absolute bottom-3 left-3 w-6 h-6 -rotate-90">
             <svg viewBox="0 0 40 40" className="w-full h-full text-amber-700">
-              <path d="M2 38 Q2 2 38 2" fill="none" stroke="currentColor" strokeWidth="2"/>
-              <circle cx="8" cy="8" r="3" fill="currentColor"/>
+              <path d="M2 38 Q2 2 38 2" fill="none" stroke="currentColor" strokeWidth="3"/>
+              <circle cx="8" cy="8" r="4" fill="currentColor"/>
             </svg>
           </div>
-          <div className="absolute bottom-2 right-2 w-8 h-8 rotate-180">
+          <div className="absolute bottom-3 right-3 w-6 h-6 rotate-180">
             <svg viewBox="0 0 40 40" className="w-full h-full text-amber-700">
-              <path d="M2 38 Q2 2 38 2" fill="none" stroke="currentColor" strokeWidth="2"/>
-              <circle cx="8" cy="8" r="3" fill="currentColor"/>
+              <path d="M2 38 Q2 2 38 2" fill="none" stroke="currentColor" strokeWidth="3"/>
+              <circle cx="8" cy="8" r="4" fill="currentColor"/>
             </svg>
+          </div>
+
+          {/* 顶部英文装饰 */}
+          <div className="pt-16 text-center">
+            <p className="text-xs text-amber-600 tracking-[0.3em]">★ FAMILY GENEALOGY ★</p>
           </div>
 
           {/* 徽章 */}
-          <div className="flex justify-center pt-16 pb-6">
-            <div className="w-28 h-28 relative">
-              <div className="absolute inset-0 rounded-full border-4 border-amber-700 bg-gradient-to-br from-amber-200 to-amber-400 shadow-lg">
-                <div className="absolute inset-2 rounded-full border-2 border-amber-600 flex items-center justify-center">
-                  <div className="text-5xl text-amber-800 font-serif">谱</div>
+          <div className="flex justify-center pt-8 pb-4">
+            <div className="w-24 h-24 relative">
+              <div className="absolute inset-0 rounded-full border-4 border-amber-700 bg-gradient-to-br from-amber-200 to-amber-400 shadow-xl">
+                <div className="absolute inset-3 rounded-full border-2 border-amber-600 flex items-center justify-center">
+                  <span className="text-5xl text-amber-800 font-serif">谱</span>
                 </div>
-                <div className="absolute top-1 left-1/2 -translate-x-1/2 w-2 h-2 rounded-full bg-amber-600"/>
-                <div className="absolute bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 rounded-full bg-amber-600"/>
-                <div className="absolute left-1 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-amber-600"/>
-                <div className="absolute right-1 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-amber-600"/>
               </div>
             </div>
           </div>
 
           {/* 家族名称 */}
-          <div className="text-center px-8">
-            <h1 className="text-4xl font-bold text-amber-900 tracking-widest mb-2">
+          <div className="text-center px-6">
+            <h1 className="text-4xl font-bold text-amber-900 tracking-widest mb-1">
               {familyName || '某某家族'}
             </h1>
-            <p className="text-lg text-amber-700 tracking-wider">祖谱</p>
+            <p className="text-lg text-amber-700 tracking-widest">— 祖谱 —</p>
 
-            <div className="flex items-center justify-center gap-3 my-6">
-              <div className="h-px w-16 bg-gradient-to-r from-transparent to-amber-500" />
-              <div className="flex gap-1">
-                <span className="text-amber-500 text-xs">◆</span>
+            <div className="flex items-center justify-center gap-2 my-4">
+              <div className="h-px w-12 bg-gradient-to-r from-transparent to-amber-500" />
+              <div className="flex gap-2">
                 <span className="text-amber-500">◆</span>
-                <span className="text-amber-500 text-xs">◆</span>
+                <span className="text-amber-600">◆</span>
+                <span className="text-amber-500">◆</span>
               </div>
-              <div className="h-px w-16 bg-gradient-to-l from-transparent to-amber-500" />
+              <div className="h-px w-12 bg-gradient-to-l from-transparent to-amber-500" />
             </div>
 
-            <Badge variant="outline" className="text-amber-800 border-amber-400 bg-amber-50 text-sm px-3 py-1">
+            <Badge variant="outline" className="text-amber-800 border-amber-400 bg-amber-50 text-sm px-4 py-1">
               现代版
             </Badge>
           </div>
 
-          <div className="mx-8 mt-6 p-4 bg-amber-100/50 border border-amber-300 rounded text-center">
-            <p className="text-sm text-amber-800 italic">
+          {/* 家族宗旨 */}
+          <div className="mx-10 mt-6 p-4 bg-amber-100/60 border border-amber-300 rounded-lg text-center">
+            <p className="text-base text-amber-800 italic leading-relaxed">
               {familyMaxim || '传承家族文化  弘扬优良家风'}
             </p>
           </div>
 
-          <div className="text-center mt-4 px-8">
-            <p className="text-xs text-amber-700">
+          {/* 装饰分隔 */}
+          <div className="flex items-center justify-center mt-6 px-10">
+            <div className="flex-1 h-px bg-gradient-to-r from-transparent via-amber-400 to-transparent" />
+            <div className="px-4 text-amber-500 text-lg">✦</div>
+            <div className="flex-1 h-px bg-gradient-to-r from-transparent via-amber-400 to-transparent" />
+          </div>
+
+          {/* 始祖源地 */}
+          <div className="text-center mt-6 px-8">
+            <p className="text-sm text-amber-700">
               始祖源地：{familyOrigin || '源远流长'}
             </p>
           </div>
 
-          <div className="absolute bottom-20 left-0 right-0 text-center">
+          {/* 底部信息区 */}
+          <div className="absolute bottom-20 left-0 right-0 text-center px-4">
             {membersByGeneration.length > 10 && (
-              <div className="mb-2 px-3 py-1 bg-amber-100 border border-amber-400 rounded-lg inline-block">
+              <div className="mb-3 px-3 py-1.5 bg-amber-100 border border-amber-400 rounded-lg inline-block">
                 <p className="text-xs text-amber-800">
-                  代数较多，建议使用"分册导出"功能分开导出
+                  代数较多，建议使用"分册导出"功能
                 </p>
               </div>
             )}
-            <p className="text-sm text-amber-700">
-              共录 <span className="font-bold text-amber-900">{allMembersSorted.length}</span> 名族人
+            <p className="text-base text-amber-700">
+              共录 <span className="font-bold text-amber-900 text-lg">{allMembersSorted.length}</span> 名族人
             </p>
-            <p className="text-xs text-amber-600 mt-1">
-              传承 {membersByGeneration.length} 代
+            <p className="text-sm text-amber-600 mt-1">
+              传承 <span className="text-amber-800 font-medium">{membersByGeneration.length}</span> 代
             </p>
           </div>
 
+          {/* 进入按钮 */}
           <div className="absolute bottom-8 left-0 right-0 flex justify-center">
             <Button
               onClick={handleEnterToc}
-              className="bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white px-8 py-2 rounded-full shadow-lg gap-2"
+              className="bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white px-10 py-2.5 rounded-full shadow-lg gap-2 text-base"
             >
-              <BookOpen className="w-4 h-4" />
+              <BookOpen className="w-5 h-5" />
               进入祖谱
             </Button>
           </div>
