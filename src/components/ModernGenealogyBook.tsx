@@ -626,6 +626,40 @@ ${membersHtml}
       endGen: volume.endGen
     })
 
+    // 生成索引页HTML
+    const tocHtml = `
+<div style="width: 210mm; min-height: 297mm; margin: 0 auto; background: white; padding: 15mm 20mm; font-family: 'Noto Sans SC', 'SimSun', sans-serif; box-sizing: border-box; page-break-after: always;">
+  <div style="text-align: center; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 2px solid #f59e0b;">
+    <h1 style="font-size: 24px; font-weight: bold; color: #78350f; letter-spacing: 4px; margin: 0;">${familyName || '某某家族'}</h1>
+    <p style="color: #b45309; font-size: 18px; margin: 4px 0 0 0;">${volumeTitle} · 成员索引</p>
+  </div>
+  <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+    <thead>
+      <tr style="color: #78350f; border-bottom: 1px solid #fde68a;">
+        <th style="text-align: left; padding: 8px 4px; font-weight: 500;">页码</th>
+        <th style="text-align: left; padding: 8px 4px; font-weight: 500;">代数</th>
+        <th style="text-align: left; padding: 8px 4px; font-weight: 500;">字辈</th>
+        <th style="text-align: left; padding: 8px 4px; font-weight: 500;">姓名</th>
+        <th style="text-align: left; padding: 8px 4px; font-weight: 500;">生年</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${volumeMembers.map((m, i) => {
+        const genNum = parseInt(m.generation || '0', 10) || 0
+        const genWord = m.generation_word || ''
+        return `
+        <tr style="color: #3f3f46; border-bottom: 1px solid #fef3c7;">
+          <td style="padding: 8px 4px;">${i + 1}</td>
+          <td style="padding: 8px 4px;">${genNum > 0 ? `第${genNum}代` : '-'}</td>
+          <td style="padding: 8px 4px;">${genWord || '-'}</td>
+          <td style="padding: 8px 4px;">${m.name}</td>
+          <td style="padding: 8px 4px;">${m.birth_date?.substring(0, 4) || '-'}</td>
+        </tr>`
+      }).join('')}
+    </tbody>
+  </table>
+</div>`
+
     // 生成成员详情HTML
     let membersHtml = ''
     volumeMembers.forEach((m, index) => {
@@ -698,6 +732,7 @@ ${membersHtml}
 </head>
 <body>
 ${coverHtml}
+${tocHtml}
 ${membersHtml}
 </body>
 </html>`
@@ -734,6 +769,40 @@ ${membersHtml}
       endGen: volume.endGen
     })
 
+    // 生成索引页HTML
+    const tocHtml = `
+<div style="width: 210mm; min-height: 297mm; margin: 0 auto; background: white; padding: 15mm 20mm; font-family: 'Noto Sans SC', 'SimSun', sans-serif; box-sizing: border-box; page-break-after: always;">
+  <div style="text-align: center; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 2px solid #f59e0b;">
+    <h1 style="font-size: 24px; font-weight: bold; color: #78350f; letter-spacing: 4px; margin: 0;">${familyName || '某某家族'}</h1>
+    <p style="color: #b45309; font-size: 18px; margin: 4px 0 0 0;">${volumeTitle} · 成员索引</p>
+  </div>
+  <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+    <thead>
+      <tr style="color: #78350f; border-bottom: 1px solid #fde68a;">
+        <th style="text-align: left; padding: 8px 4px; font-weight: 500;">页码</th>
+        <th style="text-align: left; padding: 8px 4px; font-weight: 500;">代数</th>
+        <th style="text-align: left; padding: 8px 4px; font-weight: 500;">字辈</th>
+        <th style="text-align: left; padding: 8px 4px; font-weight: 500;">姓名</th>
+        <th style="text-align: left; padding: 8px 4px; font-weight: 500;">生年</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${volumeMembers.map((m, i) => {
+        const genNum = parseInt(m.generation || '0', 10) || 0
+        const genWord = m.generation_word || ''
+        return `
+        <tr style="color: #3f3f46; border-bottom: 1px solid #fef3c7;">
+          <td style="padding: 8px 4px;">${i + 1}</td>
+          <td style="padding: 8px 4px;">${genNum > 0 ? `第${genNum}代` : '-'}</td>
+          <td style="padding: 8px 4px;">${genWord || '-'}</td>
+          <td style="padding: 8px 4px;">${m.name}</td>
+          <td style="padding: 8px 4px;">${m.birth_date?.substring(0, 4) || '-'}</td>
+        </tr>`
+      }).join('')}
+    </tbody>
+  </table>
+</div>`
+
     // 生成成员详情HTML
     let membersHtml = ''
     volumeMembers.forEach((m, index) => {
@@ -806,6 +875,7 @@ ${membersHtml}
 </head>
 <body>
 ${coverHtml}
+${tocHtml}
 ${membersHtml}
 </body>
 </html>`
