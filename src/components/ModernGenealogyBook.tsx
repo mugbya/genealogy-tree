@@ -3,14 +3,13 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import type { Member, MemberRelation } from '@/api/client'
-import { ArrowLeft, BookOpen, Plus, Trash2, FileText, Printer } from 'lucide-react'
+import { ArrowLeft, BookOpen, Plus, Trash2, FileText } from 'lucide-react'
 
 interface ModernGenealogyBookProps {
   familyName: string
   familySurname: string
   familyOrigin: string
   familyMaxim: string
-  familyGenerationWords: string
   members: Member[]
   relations: MemberRelation[]
 }
@@ -29,13 +28,9 @@ export function ModernGenealogyBook({
   familySurname,
   familyOrigin,
   familyMaxim,
-  familyGenerationWords,
   members,
   relations,
 }: ModernGenealogyBookProps) {
-  // 注意: familyGenerationWords 已弃用,现在使用存储在成员表中的 generation_word 字段
-  void familyGenerationWords
-
   const [view, setView] = useState<ViewState>('cover')
   const [selectedMember, setSelectedMember] = useState<Member | null>(null)
   const coverRef = useRef<HTMLDivElement>(null)
@@ -392,7 +387,7 @@ export function ModernGenealogyBook({
       const fatherInfo = rels?.father ? memberMap.get(rels.father.id) : null
       const motherInfo = rels?.mother ? memberMap.get(rels.mother.id) : null
       const spouseInfo = rels?.spouses || []
-      const childrenInfo = (rels?.children || []).map(c => memberMap.get(c.id)).filter((c): c is Member => c !== undefined)
+      const childrenInfo = (rels?.children || []).map((c: Member | undefined): c is Member => c !== undefined)
       const genNum = parseInt(m.generation || '0', 10) || 0
       const genWord = m.generation_word || ''
 
@@ -525,7 +520,7 @@ ${membersHtml}
       const fatherInfo = rels?.father ? memberMap.get(rels.father.id) : null
       const motherInfo = rels?.mother ? memberMap.get(rels.mother.id) : null
       const spouseInfo = rels?.spouses || []
-      const childrenInfo = (rels?.children || []).map(c => memberMap.get(c.id)).filter((c): c is Member => c !== undefined)
+      const childrenInfo = (rels?.children || []).map((c: Member | undefined): c is Member => c !== undefined)
       const genNum = parseInt(m.generation || '0', 10) || 0
       const genWord = m.generation_word || ''
 
@@ -667,7 +662,7 @@ ${membersHtml}
       const fatherInfo = rels?.father ? memberMap.get(rels.father.id) : null
       const motherInfo = rels?.mother ? memberMap.get(rels.mother.id) : null
       const spouseInfo = rels?.spouses || []
-      const childrenInfo = (rels?.children || []).map(c => memberMap.get(c.id)).filter((c): c is Member => c !== undefined)
+      const childrenInfo = (rels?.children || []).map((c: Member | undefined): c is Member => c !== undefined)
       const genNum = parseInt(m.generation || '0', 10) || 0
       const genWord = m.generation_word || ''
 
@@ -810,7 +805,7 @@ ${membersHtml}
       const fatherInfo = rels?.father ? memberMap.get(rels.father.id) : null
       const motherInfo = rels?.mother ? memberMap.get(rels.mother.id) : null
       const spouseInfo = rels?.spouses || []
-      const childrenInfo = (rels?.children || []).map(c => memberMap.get(c.id)).filter((c): c is Member => c !== undefined)
+      const childrenInfo = (rels?.children || []).map((c: Member | undefined): c is Member => c !== undefined)
       const genNum = parseInt(m.generation || '0', 10) || 0
       const genWord = m.generation_word || ''
 

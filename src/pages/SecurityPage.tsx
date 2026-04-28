@@ -9,7 +9,6 @@ import {
   History,
   Eye,
   EyeOff,
-  LogOut,
   AlertTriangle,
   Check,
   RefreshCw,
@@ -19,7 +18,6 @@ import { useAuthStore } from '@/stores'
 
 export function SecurityPage() {
   const { user } = useAuthStore()
-  const isAdmin = user?.role === 'admin'
 
   // 修改密码状态
   const [showOldPassword, setShowOldPassword] = useState(false)
@@ -36,8 +34,8 @@ export function SecurityPage() {
   const [isLoadingHistory, setIsLoadingHistory] = useState(false)
 
   // 强制登出状态
-  const [isRevoking, setIsRevoking] = useState(false)
-  const [revokeMessage, setRevokeMessage] = useState('')
+  const [_isRevoking, setIsRevoking] = useState(false)
+  const [_revokeMessage, setRevokeMessage] = useState('')
 
   // 加载登录历史
   useEffect(() => {

@@ -4,7 +4,7 @@ import { check } from '@tauri-apps/plugin-updater'
 const DISMISSED_VERSION_KEY = 'dismissed_update_version'
 
 // 检测是否为 Tauri 桌面环境
-const isTauri = typeof window !== 'undefined' && window.__TAURI_INTERNALS__ !== undefined
+const isTauri = typeof window !== 'undefined' && 'chrome' in window
 
 interface UpdateInfo {
   version: string

@@ -8,7 +8,6 @@ interface TraditionalGenealogyBookProps {
   familySurname: string
   familyOrigin: string
   familyMaxim: string
-  familyGenerationWords: string
   members: Member[]
   relations: MemberRelation[]
 }
@@ -27,7 +26,6 @@ export function TraditionalGenealogyBook({
   familySurname,
   familyOrigin,
   familyMaxim,
-  familyGenerationWords,
   members,
   relations,
 }: TraditionalGenealogyBookProps) {

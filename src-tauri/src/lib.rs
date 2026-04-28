@@ -1,6 +1,8 @@
 mod api;
 mod auth;
+mod constants;
 mod db;
+mod license;
 mod models;
 
 use std::sync::{Arc, Mutex};
@@ -13,6 +15,7 @@ use tauri_plugin_updater::UpdaterExt;
 pub use models::*;
 pub use api::*;
 pub use auth::*;
+pub use license::*;
 
 // 单个 CPU 核心信息
 #[derive(Serialize, Clone)]

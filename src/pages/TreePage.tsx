@@ -1524,7 +1524,6 @@ export function TreePage() {
             familySurname={familySurname}
             familyOrigin={familyOrigin}
             familyMaxim={familyMaxim}
-            familyGenerationWords={familyGenerationWords}
             members={members}
             relations={relationsData?.data || []}
           />
@@ -1537,7 +1536,6 @@ export function TreePage() {
             familySurname={familySurname}
             familyOrigin={familyOrigin}
             familyMaxim={familyMaxim}
-            familyGenerationWords={familyGenerationWords}
             members={members}
             relations={relationsData?.data || []}
           />
@@ -1550,7 +1548,6 @@ export function TreePage() {
             familySurname={familySurname}
             familyOrigin={familyOrigin}
             familyMaxim={familyMaxim}
-            familyGenerationWords={familyGenerationWords}
             members={members}
             relations={relationsData?.data || []}
           />

@@ -118,6 +118,28 @@ export const memberRelationsApi = {
   delete: (id: number) => api.delete(`/api/member-relations/${id}`),
 }
 
+// License API
+export const licenseApi = {
+  getInfo: () => api.get<LicenseInfo>('/api/license/info'),
+  activate: (licenseKey: string) => api.post<LicenseStatus>('/api/license/activate', { license_key: licenseKey }),
+  verify: () => api.post<LicenseStatus>('/api/license/verify'),
+}
+
+export interface LicenseInfo {
+  license_key?: string
+  license_type?: string
+  activated_at?: string
+  expires_at?: string
+  is_valid: boolean
+}
+
+export interface LicenseStatus {
+  valid: boolean
+  license_type?: string
+  expires_at?: string
+  error?: string
+}
+
 // 系统信息 API - 通过 HTTP API 获取（网页版使用）
 export const systemApi = {
   getSystemInfo: () => api.get<SystemInfo>('/api/system/info'),

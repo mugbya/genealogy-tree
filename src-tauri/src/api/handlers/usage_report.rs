@@ -7,8 +7,8 @@ use sysinfo::System;
 
 use crate::models::usage_report::{UsageReport, PendingReport};
 
-/// 上报地址 - 编译时确定，开发时可修改此值
-const USAGE_REPORT_URL: &str = "http://162.14.99.144/api/usage/report";
+/// 上报地址 - 编译时确定，与授权服务器地址一致
+use crate::constants::USAGE_REPORT_URL;
 
 /// Get all pending reports from database
 fn get_pending_reports(db: &Mutex<Connection>) -> Result<Vec<PendingReport>, String> {

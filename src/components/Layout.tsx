@@ -2,7 +2,6 @@ import { Link, useLocation, useNavigate, Outlet } from 'react-router-dom'
 import {
   Home,
   TreeDeciduous,
-  Settings,
   Menu,
   X,
   ChevronRight,

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { cn } from '@/lib/utils'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -19,12 +19,15 @@ import {
   Check,
   HardDrive,
   Copy,
+  Key,
 } from 'lucide-react'
 import { wechatApi } from '@/api/client'
 import { useAuthStore } from '@/stores'
 import { useUpdateChecker } from '@/hooks/useUpdateChecker'
 import { getVersion } from '@tauri-apps/api/app'
 import { invoke } from '@tauri-apps/api/core'
+import { licenseApi, LicenseInfo } from '@/api/client'
+import { LicenseDialog } from '@/components/LicenseDialog'
 
 // 数据库路径信息
 interface DatabasePathInfo {
@@ -32,13 +35,14 @@ interface DatabasePathInfo {
   os_type: string  // macos, linux, windows
 }
 
-type TabType = 'general' | '穿透' | 'platinum' | 'update'
+type TabType = 'general' | '穿透' | 'platinum' | 'update' | 'license'
 
 const tabs = [
   { id: 'general' as TabType, label: '通用设置', icon: Settings },
   // { id: '穿透' as TabType, label: '内网穿透', icon: Network },
   // { id: 'platinum' as TabType, label: '白金版', icon: Crown },
   { id: 'update' as TabType, label: '版本更新', icon: RefreshCw },
+  { id: 'license' as TabType, label: '授权管理', icon: Key },
 ]
 
 export function SettingsPage() {
@@ -82,6 +86,7 @@ export function SettingsPage() {
         {activeTab === '穿透' && <IntranetPenetration />}
         {activeTab === 'platinum' && <PlatinumSettings />}
         {activeTab === 'update' && <UpdateSettings />}
+        {activeTab === 'license' && <LicenseSettings />}
       </div>
     </div>
   )
@@ -926,6 +931,169 @@ function PlatinumSettings() {
             </div>
           </div>
         </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+function LicenseSettings() {
+  const [licenseInfo, setLicenseInfo] = useState<LicenseInfo | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [showActivateDialog, setShowActivateDialog] = useState(false)
+  const [isVerifying, setIsVerifying] = useState(false)
+
+  const fetchLicenseInfo = useCallback(async () => {
+    setIsLoading(true)
+    setError(null)
+    try {
+      const result = await licenseApi.getInfo()
+      if (result.data) {
+        setLicenseInfo(result.data)
+      } else if (result.error) {
+        setError(result.error)
+      }
+    } catch (err) {
+      setError('获取授权信息失败')
+      console.error(err)
+    } finally {
+      setIsLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    fetchLicenseInfo()
+  }, [fetchLicenseInfo])
+
+  const handleVerify = async () => {
+    setIsVerifying(true)
+    try {
+      const result = await licenseApi.verify()
+      if (result.data?.valid) {
+        await fetchLicenseInfo()
+      } else {
+        setError(result.error || '验证失败')
+      }
+    } catch (err) {
+      setError('验证请求失败')
+      console.error(err)
+    } finally {
+      setIsVerifying(false)
+    }
+  }
+
+  const handleActivationSuccess = () => {
+    setShowActivateDialog(false)
+    fetchLicenseInfo()
+  }
+
+  const getLicenseTypeDisplay = (licenseType?: string, isValid?: boolean) => {
+    if (!isValid) return <Badge variant="danger">已过期</Badge>
+    switch (licenseType) {
+      case 'year': return <Badge variant="success">年度授权</Badge>
+      case 'permanent': return <Badge variant="success">永久授权</Badge>
+      default: return <Badge variant="outline">未激活</Badge>
+    }
+  }
+
+  const getRemainingDays = (expiresAt?: string): number | null => {
+    if (expiresAt) {
+      const expires = new Date(expiresAt)
+      const now = new Date()
+      return Math.max(0, Math.ceil((expires.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)))
+    }
+    return null
+  }
+
+  if (isLoading) {
+    return (
+      <Card className="border-0 shadow-sm">
+        <CardContent className="flex items-center justify-center h-64">
+          <RefreshCw className="w-8 h-8 animate-spin text-muted-foreground" />
+        </CardContent>
+      </Card>
+    )
+  }
+
+  return (
+    <Card className="border-0 shadow-sm">
+      <CardHeader>
+        <CardTitle className="text-lg font-semibold flex items-center gap-2">
+          <Key className="w-5 h-5" />
+          授权管理
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-6 max-w-2xl">
+        {error && (
+          <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
+            {error}
+          </div>
+        )}
+
+        <div className="p-4 border rounded-lg">
+          <p className="text-sm font-medium text-zinc-700 mb-3">当前授权状态</p>
+          <div className="flex items-center gap-3">
+            <div className={`w-12 h-12 rounded-full flex items-center justify-center ${
+              licenseInfo?.is_valid ? 'bg-green-100' : 'bg-zinc-100'
+            }`}>
+              <Key className={`w-6 h-6 ${licenseInfo?.is_valid ? 'text-green-600' : 'text-zinc-400'}`} />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <p className="font-medium">{licenseInfo?.license_key || '未激活'}</p>
+                {getLicenseTypeDisplay(licenseInfo?.license_type, licenseInfo?.is_valid)}
+              </div>
+              <p className="text-sm text-zinc-500">
+                {licenseInfo?.is_valid ? '授权有效' : '请激活授权'}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {licenseInfo?.license_key && (
+          <div className="p-4 border rounded-lg space-y-3">
+            {licenseInfo.activated_at && (
+              <div className="flex justify-between text-sm">
+                <span className="text-zinc-500">激活时间</span>
+                <span>{licenseInfo.activated_at}</span>
+              </div>
+            )}
+            {licenseInfo.expires_at && (
+              <div className="flex justify-between text-sm">
+                <span className="text-zinc-500">到期时间</span>
+                <span>{licenseInfo.expires_at}</span>
+              </div>
+            )}
+            {licenseInfo?.license_type === 'year' && licenseInfo?.expires_at && (
+              <div className="flex justify-between text-sm">
+                <span className="text-zinc-500">剩余天数</span>
+                <span className="font-medium text-green-600">
+                  {getRemainingDays(licenseInfo.expires_at)} 天
+                </span>
+              </div>
+            )}
+          </div>
+        )}
+
+        <div className="flex gap-3">
+          {licenseInfo?.license_key ? (
+            <Button onClick={handleVerify} disabled={isVerifying} className="gap-2">
+              {isVerifying && <RefreshCw className="w-4 h-4 animate-spin" />}
+              验证授权
+            </Button>
+          ) : (
+            <Button onClick={() => setShowActivateDialog(true)} className="gap-2">
+              <Key className="w-4 h-4" />
+              激活授权
+            </Button>
+          )}
+        </div>
+
+        <LicenseDialog
+          open={showActivateDialog}
+          onOpenChange={setShowActivateDialog}
+          onSuccess={handleActivationSuccess}
+        />
       </CardContent>
     </Card>
   )

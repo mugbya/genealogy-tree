@@ -26,3 +26,5 @@ private/
 .tauri/
 dist/
 .vite/
+license-server
+license-server.tar.gz

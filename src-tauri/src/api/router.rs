@@ -83,6 +83,10 @@ pub fn create_router(
         // System info (public - no auth required)
         .route("/api/system/info", get(handlers::get_system_info))
         .route("/api/system/network-interfaces", get(handlers::get_network_interfaces))
+        // License (public - no auth required)
+        .route("/api/license/info", get(handlers::get_license_info))
+        .route("/api/license/activate", post(handlers::activate_license))
+        .route("/api/license/verify", post(handlers::verify_license))
         .layer(cors)
         .with_state(state);
 
