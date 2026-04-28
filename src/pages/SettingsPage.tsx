@@ -1088,12 +1088,18 @@ function LicenseSettings() {
           </div>
         )}
 
-        <div className="flex gap-3">
+        <div className="flex gap-3 flex-wrap">
           {licenseInfo?.license_key ? (
-            <Button onClick={handleVerify} disabled={isVerifying} className="gap-2">
-              {isVerifying && <RefreshCw className="w-4 h-4 animate-spin" />}
-              验证授权
-            </Button>
+            <>
+              <Button onClick={handleVerify} disabled={isVerifying} className="gap-2">
+                {isVerifying && <RefreshCw className="w-4 h-4 animate-spin" />}
+                验证授权
+              </Button>
+              <Button onClick={() => setShowActivateDialog(true)} variant="outline" className="gap-2">
+                <Key className="w-4 h-4" />
+                重新授权
+              </Button>
+            </>
           ) : (
             <Button onClick={() => setShowActivateDialog(true)} className="gap-2">
               <Key className="w-4 h-4" />
