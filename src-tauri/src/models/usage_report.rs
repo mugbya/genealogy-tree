@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 /// Usage report data structure
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UsageReport {
+    pub project: String,
     pub app_version: String,
     pub os_name: String,
     pub os_version: String,

@@ -118,6 +118,7 @@ fn collect_usage_info() -> UsageReport {
     let report_date = Local::now().format("%Y-%m-%d").to_string();
 
     UsageReport {
+        project: "zupu".to_string(),
         app_version,
         os_name,
         os_version,
