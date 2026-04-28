@@ -47,14 +47,16 @@ export function ModernGenealogyBook({
   // 分册配置状态
   const [volumeRanges, setVolumeRanges] = useState<VolumeRange[]>([])
 
-  const isOwnFamily = (member: Member) => {
-    if (!familySurname) return true
-    if (!member.surname) return true
-    return member.surname === familySurname
-  }
+  // 提前计算 ownFamilyMembers 避免重复 filter
+  const ownFamilyMembers = useMemo(() => {
+    if (!familySurname) return members
+    return members.filter(m => !m.surname || m.surname === familySurname)
+  }, [members, familySurname])
 
   // 构建成员关系
   const memberRelations = useMemo(() => {
+    if (members.length === 0) return new Map()
+
     const memberMap = new Map(members.map(m => [m.id, m]))
     const result = new Map<number, {
       father?: { id: number; name: string }
@@ -67,59 +69,60 @@ export function ModernGenealogyBook({
       result.set(member.id, { father: undefined, mother: undefined, spouses: [], children: [] })
     })
 
+    // 一次性过滤减少遍历
     const parentRelations = relations.filter(r => r.relation_type === 'father' || r.relation_type === 'mother')
     const spouseRelations = relations.filter(r => r.relation_type === 'spouse')
 
-    parentRelations.forEach(rel => {
+    // 构建父子关系
+    for (const rel of parentRelations) {
       const entry = result.get(rel.from_member_id)
-      if (!entry) return
+      if (!entry) continue
+      const parent = memberMap.get(rel.to_member_id)
+      if (!parent) continue
       if (rel.relation_type === 'father') {
-        const parent = memberMap.get(rel.to_member_id)
-        if (parent) entry.father = { id: parent.id, name: parent.name }
+        entry.father = { id: parent.id, name: parent.name }
       } else if (rel.relation_type === 'mother') {
-        const parent = memberMap.get(rel.to_member_id)
-        if (parent) entry.mother = { id: parent.id, name: parent.name }
+        entry.mother = { id: parent.id, name: parent.name }
       }
-    })
+    }
 
-    spouseRelations.forEach(rel => {
-      if (rel.from_member_id === rel.to_member_id) return
-      let memberId: number
-      let spouseId: number
-      if (rel.from_member_id < rel.to_member_id) {
-        memberId = rel.from_member_id
-        spouseId = rel.to_member_id
-      } else {
-        memberId = rel.to_member_id
-        spouseId = rel.from_member_id
-      }
-      const member = memberMap.get(memberId)
-      const spouse = memberMap.get(spouseId)
-      if (!member || !spouse) return
-      const memberEntry = result.get(memberId)
-      if (!memberEntry) return
-      if (!memberEntry.spouses.find(s => s.id === spouseId)) {
-        memberEntry.spouses.push({ id: spouseId, name: spouse.name, tag: rel.tag_name })
-      }
-    })
+    // 构建配偶关系
+    for (const rel of spouseRelations) {
+      if (rel.from_member_id === rel.to_member_id) continue
+      const member = memberMap.get(rel.from_member_id)
+      const spouse = memberMap.get(rel.to_member_id)
+      if (!member || !spouse) continue
 
-    parentRelations.forEach(rel => {
-      if (rel.relation_type === 'father' || rel.relation_type === 'mother') {
-        const entry = result.get(rel.to_member_id)
-        if (!entry) return
-        const child = memberMap.get(rel.from_member_id)
-        if (child && !entry.children.find(c => c.id === child.id)) {
-          entry.children.push({ id: child.id, name: child.name })
-        }
+      const memberEntry = result.get(member.id)
+      const spouseEntry = result.get(spouse.id)
+      if (!memberEntry || !spouseEntry) continue
+
+      if (!memberEntry.spouses.find(s => s.id === spouse.id)) {
+        memberEntry.spouses.push({ id: spouse.id, name: spouse.name, tag: rel.tag_name })
       }
-    })
+      if (!spouseEntry.spouses.find(s => s.id === member.id)) {
+        spouseEntry.spouses.push({ id: member.id, name: member.name, tag: rel.tag_name })
+      }
+    }
+
+    // 构建子女关系
+    for (const rel of parentRelations) {
+      const entry = result.get(rel.to_member_id)
+      if (!entry) continue
+      const child = memberMap.get(rel.from_member_id)
+      if (!child) continue
+      if (!entry.children.find(c => c.id === child.id)) {
+        entry.children.push({ id: child.id, name: child.name })
+      }
+    }
 
     return result
   }, [members, relations])
 
   // 按代数分组
   const membersByGeneration = useMemo(() => {
-    const ownMembers = members.filter(m => isOwnFamily(m))
+    if (ownFamilyMembers.length === 0) return []
+
     const memberMap = new Map(members.map(m => [m.id, m]))
     const relMap = memberRelations
 
@@ -129,7 +132,11 @@ export function ModernGenealogyBook({
         const genNum = parseInt(member.generation, 10)
         if (!isNaN(genNum) && genNum > 0) return genNum
       }
+      // 递归查找祖先
+      const visited = new Set<number>()
       const getAncestors = (mid: number, depth: number): number => {
+        if (visited.has(mid)) return depth
+        visited.add(mid)
         const r = relMap.get(mid)
         if (!r?.father) return depth
         return getAncestors(r.father.id, depth + 1)
@@ -137,33 +144,29 @@ export function ModernGenealogyBook({
       return getAncestors(memberId, 1)
     }
 
-    const byGen = new Map<number, typeof ownMembers>()
-    ownMembers.forEach(m => {
+    const byGen = new Map<number, Member[]>()
+    for (const m of ownFamilyMembers) {
       const gen = getGeneration(m.id)
       if (!byGen.has(gen)) byGen.set(gen, [])
       byGen.get(gen)!.push(m)
-    })
+    }
 
     const sortedGens = Array.from(byGen.keys()).sort((a, b) => a - b)
     return sortedGens.map(gen => ({
       generation: gen,
       members: byGen.get(gen)!.sort((a, b) => (b.weight ?? 0) - (a.weight ?? 0))
     }))
-  }, [members, relations, isOwnFamily, memberRelations])
+  }, [members, ownFamilyMembers, memberRelations])
 
   // 全部族人排序
   const allMembersSorted = useMemo(() => {
-    return members
-      .filter(m => isOwnFamily(m))
-      .sort((a, b) => {
-        // 先按代数排序（从小到大，第一代在前）
-        const genA = parseInt(a.generation || '0', 10) || 0
-        const genB = parseInt(b.generation || '0', 10) || 0
-        if (genA !== genB) return genA - genB
-        // 同代数内按 weight 排序
-        return (b.weight ?? 0) - (a.weight ?? 0)
-      })
-  }, [members, isOwnFamily])
+    return [...ownFamilyMembers].sort((a, b) => {
+      const genA = parseInt(a.generation || '0', 10) || 0
+      const genB = parseInt(b.generation || '0', 10) || 0
+      if (genA !== genB) return genA - genB
+      return (b.weight ?? 0) - (a.weight ?? 0)
+    })
+  }, [ownFamilyMembers])
 
   const handleViewDetail = (member: Member) => {
     setSelectedMember(member)
