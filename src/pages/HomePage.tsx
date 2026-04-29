@@ -16,11 +16,12 @@ import {
   User,
   UsersRound,
   GitBranch,
+  Key,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState, useEffect, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { systemApi, membersApi, NetworkInterface } from "@/api/client";
+import { systemApi, membersApi, NetworkInterface, licenseApi, LicenseInfo } from "@/api/client";
 
 // 通过自定义 User-Agent 检测是否为桌面端（WebView）
 const isDesktop = typeof window !== 'undefined' &&
@@ -42,6 +43,13 @@ interface FamilyStats {
   surnameCounts: { surname: string; count: number }[];
 }
 
+// 检查授权是否过期
+function isExpired(expiresAt?: string | null): boolean {
+  if (!expiresAt) return false;
+  const expDate = new Date(expiresAt);
+  return expDate < new Date();
+}
+
 export function HomePage() {
   // 网络接口
   const [networkInterfaces, setNetworkInterfaces] = useState<
@@ -55,6 +63,9 @@ export function HomePage() {
   const [serviceStatus] = useState<ServiceStatus>({
     type: "free",
   });
+
+  // 授权信息
+  const [licenseInfo, setLicenseInfo] = useState<LicenseInfo | null>(null);
 
   // 家族统计
   const [familyStats, setFamilyStats] = useState<FamilyStats>({
@@ -90,6 +101,18 @@ export function HomePage() {
       }
     } catch (err) {
       console.error("Failed to get network interfaces:", err);
+    }
+  }, []);
+
+  // 获取授权信息
+  const fetchLicenseInfo = useCallback(async () => {
+    try {
+      const result = await licenseApi.getInfo();
+      if (result.data) {
+        setLicenseInfo(result.data);
+      }
+    } catch (err) {
+      console.error("Failed to get license info:", err);
     }
   }, []);
 
@@ -145,7 +168,8 @@ export function HomePage() {
   useEffect(() => {
     fetchNetworkInterfaces();
     fetchFamilyStats();
-  }, [fetchNetworkInterfaces, fetchFamilyStats]);
+    fetchLicenseInfo();
+  }, [fetchNetworkInterfaces, fetchFamilyStats, fetchLicenseInfo]);
 
   const copyToClipboard = async (text: string) => {
     await navigator.clipboard.writeText(text);
@@ -331,8 +355,8 @@ export function HomePage() {
           <Card className="border-0 shadow-sm">
             <CardHeader className="pb-4">
               <CardTitle className="text-lg font-semibold flex items-center gap-2">
-                <Crown className="w-5 h-5 text-amber-600" />
-                服务状态
+                <Key className="w-5 h-5 text-amber-600" />
+                授权状态
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -340,43 +364,103 @@ export function HomePage() {
                 <div
                   className={cn(
                     "w-20 h-20 rounded-3xl flex items-center justify-center mb-4",
-                    serviceStatus.type === "platinum"
-                      ? "bg-gradient-to-br from-amber-400 to-yellow-500 shadow-lg shadow-amber-500/30"
-                      : "bg-gradient-to-br from-gray-400 to-gray-500 shadow-lg shadow-gray-500/30",
+                    licenseInfo?.is_valid
+                      ? licenseInfo?.is_trial
+                        ? "bg-gradient-to-br from-blue-500 to-cyan-600 shadow-lg shadow-blue-500/30"
+                        : "bg-gradient-to-br from-amber-400 to-yellow-500 shadow-lg shadow-amber-500/30"
+                      : "bg-gradient-to-br from-red-500 to-red-600 shadow-lg shadow-red-500/30",
                   )}
                 >
-                  <Crown className="w-10 h-10 text-white" />
+                  {licenseInfo?.is_valid ? (
+                    licenseInfo?.is_trial ? (
+                      <RefreshCw className="w-10 h-10 text-white" />
+                    ) : (
+                      <Crown className="w-10 h-10 text-white" />
+                    )
+                  ) : (
+                    <Shield className="w-10 h-10 text-white" />
+                  )}
                 </div>
 
                 <Badge
-                  variant={
-                    serviceStatus.type === "platinum" ? "default" : "outline"
-                  }
+                  variant={licenseInfo?.is_valid ? "default" : "danger"}
                   className={cn(
                     "px-4 py-1 text-sm font-medium",
-                    serviceStatus.type === "platinum" &&
-                      "bg-amber-500 hover:bg-amber-600",
+                    licenseInfo?.is_trial && licenseInfo?.is_valid
+                      ? "bg-blue-500 hover:bg-blue-600"
+                      : licenseInfo?.is_valid
+                        ? "bg-amber-500 hover:bg-amber-600"
+                        : "bg-red-500 hover:bg-red-600",
                   )}
                 >
-                  {serviceStatus.type === "free" ? "免费版" : "白金版"}
+                  {!licenseInfo?.license_key
+                    ? "未激活"
+                    : licenseInfo?.is_trial
+                      ? "试用版"
+                      : licenseInfo?.license_type === "year"
+                        ? "年度版"
+                        : licenseInfo?.license_type === "permanent"
+                          ? "永久版"
+                          : licenseInfo?.is_valid
+                            ? "已激活"
+                            : "已过期"}
                 </Badge>
 
-                {/* {serviceStatus.type === "free" ? (
-                  <p className="text-sm text-muted-foreground mt-4 max-w-[200px]">
-                    升级白金版解锁更多功能
-                  </p>
-                ) : (
-                  <p className="text-sm text-muted-foreground mt-4">
-                    到期时间: {serviceStatus.expireDate || "2026-12-31"}
+                {/* 授权信息 */}
+                <div className="w-full mt-4 space-y-2 text-sm">
+                  {licenseInfo?.license_key && (
+                    <div className="flex justify-between items-center p-2 rounded-lg bg-gray-50">
+                      <span className="text-gray-500">许可证</span>
+                      <span className="font-mono text-xs text-right">
+                        {licenseInfo.license_key}
+                      </span>
+                    </div>
+                  )}
+                  {licenseInfo?.expires_at && (
+                    <div className="flex justify-between items-center p-2 rounded-lg bg-gray-50">
+                      <span className="text-gray-500">
+                        {licenseInfo?.is_trial ? "试用到期" : "到期时间"}
+                      </span>
+                      <span
+                        className={cn(
+                          licenseInfo?.is_valid ? "text-gray-700" : "text-red-600",
+                        )}
+                      >
+                        {licenseInfo.expires_at}
+                      </span>
+                    </div>
+                  )}
+                  {licenseInfo?.is_trial &&
+                    licenseInfo?.trial_remaining_days !== undefined &&
+                    licenseInfo?.trial_remaining_days !== null && (
+                      <div className="flex justify-between items-center p-2 rounded-lg bg-gray-50">
+                        <span className="text-gray-500">剩余</span>
+                        <span
+                          className={cn(
+                            licenseInfo?.is_valid
+                              ? "text-blue-600 font-medium"
+                              : "text-red-600",
+                          )}
+                        >
+                          {licenseInfo.is_valid
+                            ? `${licenseInfo.trial_remaining_days} 天`
+                            : "已过期"}
+                        </span>
+                      </div>
+                    )}
+                </div>
+
+                {/* 未激活或过期时显示提示 */}
+                {!licenseInfo?.is_valid && licenseInfo?.license_key && (
+                  <p className="text-sm text-red-600 mt-3">
+                    授权已过期，请重新激活
                   </p>
                 )}
-
-                {serviceStatus.type === "free" && (
-                  <Button className="mt-4 bg-amber-500 hover:bg-amber-600 gap-2">
-                    <Crown className="w-4 h-4" />
-                    升级版本
-                  </Button>
-                )} */}
+                {!licenseInfo?.license_key && (
+                  <p className="text-sm text-muted-foreground mt-3">
+                    请激活授权以解锁全部功能
+                  </p>
+                )}
               </div>
             </CardContent>
           </Card>

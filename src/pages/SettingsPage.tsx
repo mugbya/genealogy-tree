@@ -1022,7 +1022,7 @@ function LicenseSettings() {
   const getLicenseTypeDisplay = (licenseType?: string, expiresAt?: string, isTrial?: boolean) => {
     const expired = isExpired(expiresAt)
     if (expired) return <Badge variant="danger">已过期</Badge>
-    if (isTrial) return <Badge variant="info">试用期</Badge>
+    if (isTrial) return <Badge variant="warning">试用期</Badge>
     switch (licenseType) {
       case 'year': return <Badge variant="success">年度授权</Badge>
       case 'permanent': return <Badge variant="success">永久授权</Badge>
