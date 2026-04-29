@@ -1,9 +1,10 @@
-import React, { useMemo, useState, useRef } from 'react'
+import React, { useMemo, useState, useRef, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import type { Member, MemberRelation } from '@/api/client'
-import { ArrowLeft, BookOpen, Plus, Trash2, FileText } from 'lucide-react'
+import { licenseApi } from '@/api/client'
+import { ArrowLeft, BookOpen, Plus, Trash2, FileText, AlertTriangle } from 'lucide-react'
 
 interface ModernGenealogyBookProps {
   familyName: string
@@ -41,6 +42,44 @@ export function ModernGenealogyBook({
 
   // 分册配置状态
   const [volumeRanges, setVolumeRanges] = useState<VolumeRange[]>([])
+
+  // 授权功能状态
+  const [licenseFeatures, setLicenseFeatures] = useState({
+    exportHtml: false,
+    exportWord: false,
+    exportVolume: false,
+  })
+  const [licenseValid, setLicenseValid] = useState(false)
+
+  // 检查授权功能
+  useEffect(() => {
+    const checkLicenseFeatures = async () => {
+      try {
+        // Check export_html feature
+        const htmlResult = await licenseApi.checkFeature('export_html')
+        // Check export_volume feature
+        const volumeResult = await licenseApi.checkFeature('export_volume')
+
+        setLicenseFeatures({
+          exportHtml: htmlResult.data?.allowed ?? false,
+          exportWord: false, // Word export not yet implemented
+          exportVolume: volumeResult.data?.allowed ?? false,
+        })
+        setLicenseValid(htmlResult.data?.is_valid ?? false)
+      } catch (err) {
+        console.error('检查授权失败:', err)
+        // On error, assume not licensed
+        setLicenseFeatures({
+          exportHtml: false,
+          exportWord: false,
+          exportVolume: false,
+        })
+        setLicenseValid(false)
+      }
+    }
+
+    checkLicenseFeatures()
+  }, [])
 
   // 提前计算 ownFamilyMembers 避免重复 filter
   const ownFamilyMembers = useMemo(() => {
@@ -899,11 +938,20 @@ ${membersHtml}
             <button onClick={() => setExportSuccess(null)} className="ml-auto hover:text-emerald-900">×</button>
           </div>
         )}
+        {!licenseValid && (
+          <div className="flex-1 flex items-center gap-2 px-3 py-1 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-700 animate-fade-in">
+            <AlertTriangle className="w-4 h-4 shrink-0" />
+            <span className="font-medium">导出功能需要授权才能使用</span>
+            <span className="text-amber-600">如有需要请联系客服获取授权</span>
+          </div>
+        )}
         <Button
           variant="outline"
           size="sm"
           onClick={() => setView('volume')}
           className="gap-2"
+          disabled={!licenseFeatures.exportVolume}
+          title={!licenseFeatures.exportVolume ? '需要授权才能使用分册导出功能' : ''}
         >
           <FileText className="w-4 h-4" />
           分册导出
@@ -913,6 +961,8 @@ ${membersHtml}
           size="sm"
           onClick={handleExportFullHtml}
           className="gap-2"
+          disabled={!licenseFeatures.exportHtml}
+          title={!licenseFeatures.exportHtml ? '需要授权才能使用HTML导出功能' : ''}
         >
           <FileText className="w-4 h-4" />
           导出HTML
@@ -1366,8 +1416,9 @@ ${membersHtml}
                           variant="outline"
                           size="sm"
                           onClick={() => handleExportVolumeHtml(volume)}
-                          disabled={volumeMembers.length === 0}
+                          disabled={!licenseFeatures.exportVolume || volumeMembers.length === 0}
                           className="gap-1 text-blue-600 border-blue-300 hover:bg-blue-50"
+                          title={!licenseFeatures.exportVolume ? '需要授权才能使用分册导出功能' : ''}
                         >
                           <FileText className="w-4 h-4" />
                           HTML

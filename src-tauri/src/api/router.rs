@@ -87,6 +87,7 @@ pub fn create_router(
         .route("/api/license/info", get(handlers::get_license_info))
         .route("/api/license/activate", post(handlers::activate_license))
         .route("/api/license/verify", post(handlers::verify_license))
+        .route("/api/license/check-feature", post(handlers::check_feature))
         .layer(cors)
         .with_state(state);
 

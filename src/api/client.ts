@@ -123,6 +123,14 @@ export const licenseApi = {
   getInfo: () => api.get<LicenseInfo>('/api/license/info'),
   activate: (licenseKey: string) => api.post<LicenseStatus>('/api/license/activate', { license_key: licenseKey }),
   verify: () => api.post<LicenseStatus>('/api/license/verify'),
+  checkFeature: (feature: string) => api.post<FeatureCheckResult>('/api/license/check-feature', { feature }),
+}
+
+export interface FeatureCheckResult {
+  feature: string
+  allowed: boolean
+  is_valid: boolean
+  expires_at?: string
 }
 
 export interface LicenseInfo {

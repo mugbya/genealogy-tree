@@ -4,6 +4,8 @@ use std::sync::{Arc, Mutex};
 use rusqlite::Connection;
 use sha2::{Sha256, Digest};
 use sysinfo::System;
+use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
+use hmac::{Hmac, Mac};
 
 // License configuration keys
 pub const CONFIG_LICENSE_MACHINE_CODE: &str = "license_machine_code";
@@ -13,8 +15,127 @@ pub const CONFIG_LICENSE_ACTIVATED_AT: &str = "license_activated_at";
 pub const CONFIG_LICENSE_EXPIRES_AT: &str = "license_expires_at";
 pub const CONFIG_LICENSE_VERIFIED_AT: &str = "license_verified_at";
 
+// License secret key (must match server)
+const LICENSE_SECRET_KEY: &str = "genealogy-license-secret-key-32byte!";
+
 // 授权服务器地址（代码层面配置）
 use crate::constants::LICENSE_SERVER_URL;
+
+type HmacSha256 = Hmac<Sha256>;
+
+/// License data decoded from encoded license key
+#[derive(Debug, Clone)]
+pub struct LicenseData {
+    pub key: String,
+    pub license_type: String,
+    pub exp: i64,  // Unix timestamp, 0 means permanent
+}
+
+/// Features that require license authorization
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LicenseFeature {
+    ExportHtml,
+    ExportWord,
+    ExportVolume,
+}
+
+impl LicenseFeature {
+    pub fn requires_license(&self) -> bool {
+        match self {
+            LicenseFeature::ExportHtml => true,
+            LicenseFeature::ExportWord => true,
+            LicenseFeature::ExportVolume => true,
+        }
+    }
+}
+
+/// Decode license key and verify HMAC signature
+/// Returns LicenseData if valid, None if invalid
+fn decode_license(encoded: &str) -> Option<LicenseData> {
+    // Must start with GLY- prefix
+    let data_part = encoded.strip_prefix("GLY-")?;
+
+    // Base64 decode
+    let decoded = BASE64.decode(data_part).ok()?;
+
+    // Parse as string
+    let json_str = String::from_utf8(decoded).ok()?;
+
+    // Parse JSON: format is {"key":"...","type":"...","exp":123456,"sig":"..."}
+    let json: serde_json::Value = serde_json::from_str(&json_str).ok()?;
+
+    let key = json.get("key")?.as_str()?.to_string();
+    let license_type = json.get("type")?.as_str()?.to_string();
+    let exp = json.get("exp")?.as_i64()?;
+    let sig = json.get("sig")?.as_str()?.to_string();
+
+    // Verify HMAC signature - recompute from the data fields
+    let data_for_sig = format!(r#"{{"key":"{}","type":"{}","exp":{}}}"#, key, license_type, exp);
+    let mut mac = HmacSha256::new_from_slice(LICENSE_SECRET_KEY.as_bytes()).ok()?;
+    mac.update(data_for_sig.as_bytes());
+    let expected_sig = hex::encode(mac.finalize().into_bytes());
+
+    if sig != expected_sig {
+        eprintln!("[License] HMAC signature mismatch");
+        return None;
+    }
+
+    Some(LicenseData {
+        key,
+        license_type,
+        exp,
+    })
+}
+
+/// Check if a license key is valid (not expired)
+/// The license_key should be the stored encoded license key
+pub fn is_license_valid(license_key: Option<&str>, stored_expires_at: Option<&str>) -> bool {
+    let Some(key) = license_key else {
+        return false;
+    };
+
+    // Decode the license key
+    let data = match decode_license(key) {
+        Some(d) => d,
+        None => {
+            // Fallback: if decode fails, use stored expiry time
+            eprintln!("[License] Failed to decode license, falling back to stored expiry");
+            return check_local_license_validity(None, stored_expires_at);
+        }
+    };
+
+    // Check if expired (0 means permanent)
+    if data.exp > 0 {
+        let now = chrono::Utc::now().timestamp();
+        if data.exp < now {
+            eprintln!("[License] License expired at {}", data.exp);
+            return false;
+        }
+    }
+
+    // Optional: verify against stored expiry to prevent downgrade
+    if let Some(stored) = stored_expires_at {
+        if let Ok(stored_dt) = chrono::NaiveDateTime::parse_from_str(stored, "%Y-%m-%d %H:%M:%S") {
+            let stored_ts = stored_dt.and_utc().timestamp();
+            // If stored expiry is LATER than encoded expiry, something is wrong
+            if data.exp > 0 && stored_ts > data.exp {
+                eprintln!("[License] Stored expiry {} is later than encoded expiry {}, possible tampering", stored_ts, data.exp);
+                return false;
+            }
+        }
+    }
+
+    true
+}
+
+/// Check if a specific feature is allowed based on license
+pub fn is_feature_allowed(feature: LicenseFeature, license_key: Option<&str>, stored_expires_at: Option<&str>) -> bool {
+    if !feature.requires_license() {
+        return true;
+    }
+
+    is_license_valid(license_key, stored_expires_at)
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LicenseInfo {
@@ -86,8 +207,8 @@ pub fn get_license_info(db: &Mutex<Connection>) -> Result<LicenseInfo, String> {
     println!("[License] get_license_info: key={:?}, type={:?}, activated={:?}, expires={:?}",
         license_key, license_type, activated_at, expires_at);
 
-    // Check if license is valid locally
-    let is_valid = check_local_license_validity(license_type.as_deref(), expires_at.as_deref());
+    // Check if license is valid using encoded key (with anti-tampering)
+    let is_valid = is_license_valid(license_key.as_deref(), expires_at.as_deref());
 
     Ok(LicenseInfo {
         machine_code,

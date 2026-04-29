@@ -984,38 +984,66 @@ function LicenseSettings() {
     }
   }
 
-  const handleActivationSuccess = (activatedData: {
-    license_key: string
-    license_type: string
-    expires_at?: string
-  }) => {
+  const handleActivationSuccess = () => {
     setShowActivateDialog(false)
-    // 直接更新状态
-    setLicenseInfo({
-      license_key: activatedData.license_key,
-      license_type: activatedData.license_type,
-      activated_at: new Date().toLocaleString(),
-      expires_at: activatedData.expires_at,
-      is_valid: true
-    })
+    // 等待 500ms 后重新从服务器获取授权信息
+    setTimeout(() => {
+      fetchLicenseInfo()
+    }, 500)
   }
 
-  const getLicenseTypeDisplay = (licenseType?: string, isValid?: boolean) => {
-    if (!isValid) return <Badge variant="danger">已过期</Badge>
+  // 解析日期字符串
+  const parseDate = (dateStr?: string): Date | null => {
+    if (!dateStr) return null
+    // 先尝试直接解析（ISO 格式）
+    let date = new Date(dateStr)
+    if (!isNaN(date.getTime())) return date
+    // 再尝试替换空格为 T（国内格式 "YYYY-MM-DD HH:MM:SS"）
+    date = new Date(dateStr.replace(' ', 'T'))
+    if (!isNaN(date.getTime())) return date
+    // 最后尝试手动解析
+    const match = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})(?:[\sT](\d{2}):(\d{2}):(\d{2}))?$/)
+    if (match) {
+      const [, year, month, day, hour = '0', minute = '0', second = '0'] = match
+      date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day), parseInt(hour), parseInt(minute), parseInt(second))
+      if (!isNaN(date.getTime())) return date
+    }
+    console.log('[License] parseDate failed:', dateStr)
+    return null
+  }
+
+  // 检查授权是否真正过期
+  const isExpired = (expiresAt?: string): boolean => {
+    const date = parseDate(expiresAt)
+    if (!date) return false
+    return date < new Date()
+  }
+
+  const getLicenseTypeDisplay = (licenseType?: string, expiresAt?: string) => {
+    const expired = isExpired(expiresAt)
+    if (expired) return <Badge variant="danger">已过期</Badge>
     switch (licenseType) {
       case 'year': return <Badge variant="success">年度授权</Badge>
       case 'permanent': return <Badge variant="success">永久授权</Badge>
+      case 'custom': return <Badge variant="warning">自定义授权</Badge>
       default: return <Badge variant="outline">未激活</Badge>
     }
   }
 
+  // 判断授权是否有效（考虑过期）
+  const checkLicenseValid = (info: LicenseInfo | null): boolean => {
+    if (!info?.is_valid) return false
+    if (info.license_type === 'permanent') return true
+    if (info.expires_at) return !isExpired(info.expires_at)
+    return true
+  }
+
   const getRemainingDays = (expiresAt?: string): number | null => {
-    if (expiresAt) {
-      const expires = new Date(expiresAt)
-      const now = new Date()
-      return Math.max(0, Math.ceil((expires.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)))
-    }
-    return null
+    const date = parseDate(expiresAt)
+    if (!date) return null
+    const now = new Date()
+    const diff = date.getTime() - now.getTime()
+    return Math.max(0, Math.floor(diff / (1000 * 60 * 60 * 24)))
   }
 
   if (isLoading) {
@@ -1047,17 +1075,17 @@ function LicenseSettings() {
           <p className="text-sm font-medium text-zinc-700 mb-3">当前授权状态</p>
           <div className="flex items-center gap-3">
             <div className={`w-12 h-12 rounded-full flex items-center justify-center ${
-              licenseInfo?.is_valid ? 'bg-green-100' : 'bg-zinc-100'
+              checkLicenseValid(licenseInfo) ? 'bg-green-100' : 'bg-red-100'
             }`}>
-              <Key className={`w-6 h-6 ${licenseInfo?.is_valid ? 'text-green-600' : 'text-zinc-400'}`} />
+              <Key className={`w-6 h-6 ${checkLicenseValid(licenseInfo) ? 'text-green-600' : 'text-red-600'}`} />
             </div>
             <div>
               <div className="flex items-center gap-2">
                 <p className="font-medium">{licenseInfo?.license_key || '未激活'}</p>
-                {getLicenseTypeDisplay(licenseInfo?.license_type, licenseInfo?.is_valid)}
+                {getLicenseTypeDisplay(licenseInfo?.license_type, licenseInfo?.expires_at)}
               </div>
               <p className="text-sm text-zinc-500">
-                {licenseInfo?.is_valid ? '授权有效' : '请激活授权'}
+                {checkLicenseValid(licenseInfo) ? '授权有效' : '授权已过期'}
               </p>
             </div>
           </div>
@@ -1080,8 +1108,16 @@ function LicenseSettings() {
             {licenseInfo?.license_type === 'year' && licenseInfo?.expires_at && (
               <div className="flex justify-between text-sm">
                 <span className="text-zinc-500">剩余天数</span>
-                <span className="font-medium text-green-600">
-                  {getRemainingDays(licenseInfo.expires_at)} 天
+                <span className={isExpired(licenseInfo.expires_at) ? 'text-red-600' : 'font-medium text-green-600'}>
+                  {isExpired(licenseInfo.expires_at) ? '已过期' : `${getRemainingDays(licenseInfo.expires_at)} 天`}
+                </span>
+              </div>
+            )}
+            {licenseInfo?.license_type === 'custom' && licenseInfo?.expires_at && (
+              <div className="flex justify-between text-sm">
+                <span className="text-zinc-500">剩余天数</span>
+                <span className={isExpired(licenseInfo.expires_at) ? 'text-red-600' : 'font-medium text-green-600'}>
+                  {isExpired(licenseInfo.expires_at) ? '已过期' : `${getRemainingDays(licenseInfo.expires_at)} 天`}
                 </span>
               </div>
             )}
