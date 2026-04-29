@@ -1134,10 +1134,20 @@ function LicenseSettings() {
         )}
 
         <div className="flex gap-3 flex-wrap">
-          {licenseInfo?.is_trial ? (
+          {licenseInfo?.is_trial && !isExpired(licenseInfo.expires_at) ? (
             <div className="text-sm text-zinc-500">
               试用期授权已自动激活，如需正式授权请联系客服购买
             </div>
+          ) : licenseInfo?.is_trial && isExpired(licenseInfo.expires_at) ? (
+            <>
+              <div className="text-sm text-red-600">
+                试用期已过期，请购买正式授权
+              </div>
+              <Button onClick={() => setShowActivateDialog(true)} className="gap-2">
+                <Key className="w-4 h-4" />
+                输入许可证
+              </Button>
+            </>
           ) : licenseInfo?.license_key ? (
             <>
               <Button onClick={handleVerify} disabled={isVerifying} className="gap-2">

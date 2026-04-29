@@ -16,10 +16,11 @@ pub async fn get_license_info(
     match result {
         Ok(info) => {
             // If no license exists, request trial license from server
-            let (license_key, license_type, expires_at, is_valid, is_trial) = if info.license_key.is_none() {
+            let (license_key, auth_code, license_type, expires_at, is_valid, is_trial) = if info.license_key.is_none() {
                 match license_module::get_or_generate_trial_license_async(state.db.clone()).await {
-                    Ok((trial_key, trial_exp)) => (
+                    Ok((trial_key, trial_auth_code, trial_exp)) => (
                         Some(trial_key),
+                        Some(trial_auth_code),
                         Some("trial".to_string()),
                         Some(trial_exp.clone()),
                         true, // Trial is valid until expired
@@ -27,12 +28,12 @@ pub async fn get_license_info(
                     ),
                     Err(e) => {
                         eprintln!("[License] Failed to get trial license: {}", e);
-                        (None, None, None, false, false)
+                        (None, None, None, None, false, false)
                     }
                 }
             } else {
                 let is_trial = info.license_type.as_deref() == Some("trial");
-                (info.license_key, info.license_type, info.expires_at, info.is_valid, is_trial)
+                (info.license_key, info.auth_code, info.license_type, info.expires_at, info.is_valid, is_trial)
             };
 
             // Calculate remaining trial days if is_trial
@@ -57,6 +58,7 @@ pub async fn get_license_info(
             (StatusCode::OK, Json(json!({
                 "data": {
                     "license_key": license_key,
+                    "auth_code": auth_code,
                     "license_type": license_type,
                     "activated_at": info.activated_at,
                     "expires_at": expires_at,
@@ -148,21 +150,27 @@ pub async fn check_feature(
     };
 
     // If no license exists, request trial license from server
-    let (license_key, expires_at, license_type) = if license_info.license_key.is_none() {
+    let (license_key, auth_code, expires_at, license_type) = if license_info.license_key.is_none() {
         match license_module::get_or_generate_trial_license_async(state.db.clone()).await {
-            Ok((trial_key, trial_exp)) => (Some(trial_key), Some(trial_exp), Some("trial".to_string())),
+            Ok((trial_key, trial_auth_code, trial_exp)) => (
+                Some(trial_key),
+                Some(trial_auth_code),
+                Some(trial_exp),
+                Some("trial".to_string())
+            ),
             Err(e) => {
                 eprintln!("[License] Failed to get trial license: {}", e);
-                (None, None, None)
+                (None, None, None, None)
             }
         }
     } else {
-        (license_info.license_key.clone(), license_info.expires_at.clone(), license_info.license_type.clone())
+        (license_info.license_key.clone(), license_info.auth_code.clone(), license_info.expires_at.clone(), license_info.license_type.clone())
     };
 
+    // Use auth_code for local verification
     let allowed = license_module::is_feature_allowed(
         feature,
-        license_key.as_deref(),
+        auth_code.as_deref(),
         expires_at.as_deref(),
         license_type.as_deref(),
     );

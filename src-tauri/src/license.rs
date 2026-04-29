@@ -2,14 +2,12 @@ use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::sync::{Arc, Mutex};
 use rusqlite::Connection;
-use sha2::{Sha256, Digest};
 use sysinfo::System;
-use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
-use hmac::{Hmac, Mac};
 
 // License configuration keys
 pub const CONFIG_LICENSE_MACHINE_CODE: &str = "license_machine_code";
-pub const CONFIG_LICENSE_KEY: &str = "license_key";
+pub const CONFIG_LICENSE_KEY: &str = "license_key";  // Short format for display
+pub const CONFIG_LICENSE_AUTH_CODE: &str = "license_auth_code";  // RSA encrypted for local verification
 pub const CONFIG_LICENSE_TYPE: &str = "license_type";
 pub const CONFIG_LICENSE_ACTIVATED_AT: &str = "license_activated_at";
 pub const CONFIG_LICENSE_EXPIRES_AT: &str = "license_expires_at";
@@ -17,23 +15,18 @@ pub const CONFIG_LICENSE_VERIFIED_AT: &str = "license_verified_at";
 pub const CONFIG_TRIAL_FIRST_USE: &str = "trial_first_use";  // 首次使用时间戳
 pub const CONFIG_TRIAL_GENERATED: &str = "trial_generated";  // 是否已生成试用授权
 
-// License secret key (must match server)
-const LICENSE_SECRET_KEY: &str = "genealogy-license-secret-key-32byte!";
-
 // Trial license constants
 const TRIAL_DAYS: i64 = 30;
 
 // 授权服务器地址（代码层面配置）
 use crate::constants::LICENSE_SERVER_URL;
 
-type HmacSha256 = Hmac<Sha256>;
-
-/// License data decoded from encoded license key
+/// License data decoded from auth code
 #[derive(Debug, Clone)]
 pub struct LicenseData {
-    pub key: String,
-    pub license_type: String,
-    pub exp: i64,  // Unix timestamp, 0 means permanent
+    pub exp: i64,       // Unix timestamp, 0 means permanent
+    pub jti: String,    // Unique identifier
+    pub start_at: String, // Activation time
 }
 
 /// Features that require license authorization
@@ -54,78 +47,110 @@ impl LicenseFeature {
     }
 }
 
-/// Decode license key and verify HMAC signature
-/// Supports GLY- (year), GLT- (trial), GLC- (custom), GLP- (permanent)
-/// Returns LicenseData if valid, None if invalid
-/// Note: Short format codes (GLT-XXXX-XXXX-XXXX-XXXX) cannot be decoded locally,
-/// they need server verification. For trial, expiry is calculated from trial_first_use.
-fn decode_license(encoded: &str) -> Option<LicenseData> {
-    // Short format detection: GLX-XXXX-XXXX-XXXX-XXXX (4 groups of 4 chars)
-    let is_short_format = encoded.len() == 19 &&
-        encoded.chars().filter(|c| *c == '-').count() == 4;
+/// RSA Public Key for license verification (2048-bit)
+/// This is the public key corresponding to the server's private key
+const LICENSE_PUBLIC_KEY_PEM: &str = r#"-----BEGIN PUBLIC KEY-----
+MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAtvuj0QcMQ6KNIqgI7d+8
+AbULb0awuSupwB6gqubJSvOyOkQTuOKy9TBKsLF72AcHLS0J1E0LhNx+hHcIC2iz
+ZIhk9aSQlnywgxm67WxE6e78UVP3PYNmO/ZTywhjj3IdSuTdAShFjKPo3JkGes8w
+gvuiRPtnbnGW6kDfKWyXSl8Eeh8bBaYMoO//hYTlosjnZinSL4XGu+Vc1MG+15Es
+fOkWt02dO1oW9BfmN6aKs2jdyS5Mlje5yvK9dYT2bQaM1YtnAOP8+W71l8MzaWBV
+FBgZCcmcuFVZQyjRS2mICxXKKwkMCgDNaPdQ49INIwxdXx3yWf4NTkMXnFKMG4a5
+QQIDAQAB
+-----END PUBLIC KEY-----"#;
 
-    if is_short_format {
-        // Short format cannot be decoded locally - requires server verification
-        // For trial license, expiry is calculated from stored trial_first_use
+/// Decode auth code and verify RSA signature (JWT format RS256)
+/// Format: GLY-{base64url(header)}.{base64url(payload)}.{base64url(signature)}
+///
+/// JWT Payload contains: {"exp": timestamp, "jti": uuid, "start_at": datetime}
+fn decode_auth_code(encoded: &str) -> Option<LicenseData> {
+    use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD as BASE64URL};
+
+    // Parse JWT format: prefix-part.part.part
+    let parts: Vec<&str> = encoded.split('-').collect();
+    if parts.len() < 2 {
+        eprintln!("[License] decode_auth_code: invalid format (no prefix)");
         return None;
     }
 
-    // Base64 encoded format - try to decode
-    let data_part = if encoded.starts_with("GLY-") {
-        encoded.strip_prefix("GLY-")?
-    } else if encoded.starts_with("GLT-") {
-        encoded.strip_prefix("GLT-")?
-    } else if encoded.starts_with("GLC-") {
-        encoded.strip_prefix("GLC-")?
-    } else if encoded.starts_with("GLP-") {
-        encoded.strip_prefix("GLP-")?
-    } else {
+    // Get the JWT part after prefix
+    let prefix = parts[0];
+    let jwt_part = parts[1..].join("-");
+
+    // Split into header.payload.signature
+    let jwt_parts: Vec<&str> = jwt_part.split('.').collect();
+    if jwt_parts.len() != 3 {
+        eprintln!("[License] decode_auth_code: JWT should have 3 parts, got {}", jwt_parts.len());
         return None;
+    }
+
+    let (_header_b64, payload_b64, signature_b64) = (jwt_parts[0], jwt_parts[1], jwt_parts[2]);
+
+    // Decode signature
+    let signature = match BASE64URL.decode(signature_b64) {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("[License] decode_auth_code: failed to decode signature: {}", e);
+            return None;
+        }
     };
 
-    // Base64 decode
-    let decoded = BASE64.decode(data_part).ok()?;
+    // Verify signature
+    let signing_input = format!("{}.{}", _header_b64, payload_b64);
+    use rsa::signature::Verifier;
+    use rsa::pkcs1v15::Signature;
+    use rsa::{RsaPublicKey, pkcs8::DecodePublicKey};
+    use sha2::Digest;
 
-    // Parse as string
-    let json_str = String::from_utf8(decoded).ok()?;
+    // Parse public key from PEM
+    let public_key = RsaPublicKey::from_public_key_pem(LICENSE_PUBLIC_KEY_PEM)
+        .map_err(|e| e.to_string()).unwrap();
 
-    // Parse JSON: format is {"key":"...","type":"...","exp":123456,"sig":"..."}
-    let json: serde_json::Value = serde_json::from_str(&json_str).ok()?;
+    // Use new_unprefixed which has less strict trait bounds
+    // RS256 = RSA with SHA256
+    let verifying_key: rsa::pkcs1v15::VerifyingKey<sha2::Sha256> =
+        rsa::pkcs1v15::VerifyingKey::new_unprefixed(public_key);
 
-    let key = json.get("key")?.as_str()?.to_string();
-    let license_type = json.get("type")?.as_str()?.to_string();
-    let exp = json.get("exp")?.as_i64()?;
-    let sig = json.get("sig")?.as_str()?.to_string();
+    let signature = Signature::try_from(signature.as_slice()).unwrap();
+    let verify_result = verifying_key.verify(signing_input.as_bytes(), &signature);
 
-    // Verify HMAC signature - recompute from the data fields
-    let data_for_sig = format!(r#"{{"key":"{}","type":"{}","exp":{}}}"#, key, license_type, exp);
-    let mut mac = HmacSha256::new_from_slice(LICENSE_SECRET_KEY.as_bytes()).ok()?;
-    mac.update(data_for_sig.as_bytes());
-    let expected_sig = hex::encode(mac.finalize().into_bytes());
-
-    if sig != expected_sig {
-        eprintln!("[License] HMAC signature mismatch");
+    if verify_result.is_err() {
+        eprintln!("[License] decode_auth_code: signature verification failed");
         return None;
     }
 
+    // Decode payload
+    let payload_bytes = match BASE64URL.decode(payload_b64) {
+        Ok(p) => p,
+        Err(e) => {
+            eprintln!("[License] decode_auth_code: failed to decode payload: {}", e);
+            return None;
+        }
+    };
+
+    let payload_str = String::from_utf8(payload_bytes).map_err(|e| e.to_string()).ok()?;
+    let json: serde_json::Value = match serde_json::from_str(&payload_str) {
+        Ok(j) => j,
+        Err(e) => {
+            eprintln!("[License] decode_auth_code: failed to parse payload JSON: {}", e);
+            return None;
+        }
+    };
+
+    let exp = json.get("exp").and_then(|v| v.as_i64()).unwrap_or(0);
+    let jti = json.get("jti").and_then(|v| v.as_str()).unwrap_or("").to_string();
+    let start_at = json.get("start_at").and_then(|v| v.as_str()).unwrap_or("").to_string();
+
     Some(LicenseData {
-        key,
-        license_type,
         exp,
+        jti,
+        start_at,
     })
 }
 
-/// Generate a random 4-character uppercase alphanumeric string
-fn generate_random_part() -> String {
-    use rand::Rng;
-    let chars: Vec<char> = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789".chars().collect();
-    let mut rng = rand::thread_rng();
-    (0..4).map(|_| chars[rng.gen_range(0..chars.len())]).collect()
-}
-
 /// Request trial license from server
-/// Returns (license_key, expires_at)
-pub async fn request_trial_license_from_server(machine_code: &str) -> Result<(String, String), String> {
+/// Returns (license_key, auth_code, expires_at)
+pub async fn request_trial_license_from_server(machine_code: &str) -> Result<(String, String, String), String> {
     let client = Client::new();
 
     #[derive(Deserialize)]
@@ -138,6 +163,7 @@ pub async fn request_trial_license_from_server(machine_code: &str) -> Result<(St
     #[derive(Deserialize)]
     struct TrialData {
         license_key: String,
+        auth_code: String,
         license_type: String,
         expires_at: Option<String>,
         is_existing: bool,
@@ -162,6 +188,7 @@ pub async fn request_trial_license_from_server(machine_code: &str) -> Result<(St
                      data.license_key, data.is_existing);
             return Ok((
                 data.license_key,
+                data.auth_code,
                 data.expires_at.unwrap_or_else(|| "2099-12-31 23:59:59".to_string())
             ));
         }
@@ -173,7 +200,7 @@ pub async fn request_trial_license_from_server(machine_code: &str) -> Result<(St
 /// Get or create trial license from server
 /// This function is async because it needs to call the license server
 /// Trial licenses are auto-activated (no manual activation needed)
-pub async fn get_or_generate_trial_license_async(db: Arc<Mutex<Connection>>) -> Result<(String, String), String> {
+pub async fn get_or_generate_trial_license_async(db: Arc<Mutex<Connection>>) -> Result<(String, String, String), String> {
     // Get machine code
     let machine_code = {
         let conn = db.lock().map_err(|e| e.to_string())?;
@@ -197,8 +224,8 @@ pub async fn get_or_generate_trial_license_async(db: Arc<Mutex<Connection>>) -> 
         }
     };
 
-    // Request trial from server
-    let (trial_key, expires_at) = request_trial_license_from_server(&machine_code).await?;
+    // Request trial from server - returns (license_key, auth_code, expires_at)
+    let (trial_key, auth_code, expires_at) = request_trial_license_from_server(&machine_code).await?;
 
     // Auto-activate: store to database with activated_at timestamp
     {
@@ -209,6 +236,11 @@ pub async fn get_or_generate_trial_license_async(db: Arc<Mutex<Connection>>) -> 
             "INSERT INTO family_config (key, value) VALUES (?1, ?2)
              ON CONFLICT(key) DO UPDATE SET value = excluded.value",
             [CONFIG_LICENSE_KEY, &trial_key]
+        );
+        let _ = conn.execute(
+            "INSERT INTO family_config (key, value) VALUES (?1, ?2)
+             ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+            [CONFIG_LICENSE_AUTH_CODE, &auth_code]
         );
         let _ = conn.execute(
             "INSERT INTO family_config (key, value) VALUES (?1, ?2)
@@ -229,35 +261,36 @@ pub async fn get_or_generate_trial_license_async(db: Arc<Mutex<Connection>>) -> 
 
     println!("[License] Trial auto-activated: {} (expires: {})", trial_key, expires_at);
 
-    Ok((trial_key, expires_at))
+    Ok((trial_key, auth_code, expires_at))
 }
 
-/// Check if a license key is valid (not expired)
-/// The license_key should be the stored encoded license key
-pub fn is_license_valid(license_key: Option<&str>, stored_expires_at: Option<&str>, license_type: Option<&str>) -> bool {
-    let Some(key) = license_key else {
-        eprintln!("[License] is_license_valid: no license_key");
+/// Check if a license is valid (not expired)
+/// The auth_code is the RSA encrypted code for local verification
+pub fn is_license_valid(auth_code: Option<&str>, stored_expires_at: Option<&str>, license_type: Option<&str>) -> bool {
+    let Some(code) = auth_code else {
+        eprintln!("[License] is_license_valid: no auth_code");
         return false;
     };
 
-    eprintln!("[License] is_license_valid: key={}, type={:?}, expires_at={:?}", key, license_type, stored_expires_at);
+    eprintln!("[License] is_license_valid: code={}, type={:?}, expires_at={:?}", code, license_type, stored_expires_at);
 
-    // Try to decode the license key
-    let data = match decode_license(key) {
+    // Try to decode the auth code
+    let data = match decode_auth_code(code) {
         Some(d) => {
-            eprintln!("[License] is_license_valid: decoded data exp={}", d.exp);
+            eprintln!("[License] is_license_valid: decoded exp={}", d.exp);
             d
         },
         None => {
-            // Fallback: if decode fails (short format or invalid), use stored expiry time
+            // Fallback: if decode fails, use stored expiry time
             eprintln!("[License] is_license_valid: decode failed, using stored expiry");
             return check_local_license_validity(license_type, stored_expires_at);
         }
     };
 
     // Check if expired (0 means permanent)
+    // Use local time to match server's encode which uses local time
     if data.exp > 0 {
-        let now = chrono::Utc::now().timestamp();
+        let now = chrono::Local::now().timestamp();
         if data.exp < now {
             eprintln!("[License] License expired at {}", data.exp);
             return false;
@@ -280,18 +313,19 @@ pub fn is_license_valid(license_key: Option<&str>, stored_expires_at: Option<&st
 }
 
 /// Check if a specific feature is allowed based on license
-pub fn is_feature_allowed(feature: LicenseFeature, license_key: Option<&str>, stored_expires_at: Option<&str>, license_type: Option<&str>) -> bool {
+pub fn is_feature_allowed(feature: LicenseFeature, auth_code: Option<&str>, stored_expires_at: Option<&str>, license_type: Option<&str>) -> bool {
     if !feature.requires_license() {
         return true;
     }
 
-    is_license_valid(license_key, stored_expires_at, license_type)
+    is_license_valid(auth_code, stored_expires_at, license_type)
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LicenseInfo {
     pub machine_code: String,
-    pub license_key: Option<String>,
+    pub license_key: Option<String>,  // Short format for display
+    pub auth_code: Option<String>,  // RSA encrypted for local verification
     pub license_type: Option<String>,
     pub activated_at: Option<String>,
     pub expires_at: Option<String>,
@@ -309,11 +343,12 @@ pub struct LicenseStatus {
 // Generate machine code from hardware info (internal use, not shown to user)
 // Uses: CPU序列号 + 主板序列号 + BIOS_UUID
 fn generate_machine_code() -> String {
+    use sha2::{Sha256, Digest};
+
     let mut hasher = Sha256::new();
 
     #[cfg(target_os = "macos")]
     {
-        // macOS: Try to get hardware UUID from IOKit
         use std::process::Command;
 
         // Get Platform UUID (same as hardware UUID)
@@ -333,7 +368,7 @@ fn generate_machine_code() -> String {
         }
 
         // Also get CPU architecture info as additional identifier
-        if let Ok(output) = Command::new("sysctl").args(["-n", "machdep.cpu.brand"]).output() {
+        if let Ok(output) = std::process::Command::new("sysctl").args(["-n", "machdep.cpu.brand"]).output() {
             let cpu_brand = String::from_utf8_lossy(&output.stdout).trim().to_string();
             if !cpu_brand.is_empty() {
                 hasher.update(cpu_brand.as_bytes());
@@ -370,7 +405,7 @@ fn generate_machine_code() -> String {
         use std::process::Command;
 
         // Use wmic to get BIOS serial and UUID
-        if let Ok(output) = Command::new("wmic").args(["csproduct", "get", "UUID"]).output() {
+        if let Ok(output) = std::process::Command::new("wmic").args(["csproduct", "get", "UUID"]).output() {
             let uuid = String::from_utf8_lossy(&output.stdout);
             if let Some(last_line) = uuid.lines().last() {
                 let uuid = last_line.trim();
@@ -381,7 +416,7 @@ fn generate_machine_code() -> String {
         }
 
         // Get CPU ID
-        if let Ok(output) = Command::new("wmic").args(["cpu", "get", "ProcessorId"]).output() {
+        if let Ok(output) = std::process::Command::new("wmic").args(["cpu", "get", "ProcessorId"]).output() {
             let cpu_id = String::from_utf8_lossy(&output.stdout);
             if let Some(last_line) = cpu_id.lines().last() {
                 let cpu_id = last_line.trim();
@@ -393,7 +428,6 @@ fn generate_machine_code() -> String {
     }
 
     // Fallback: use system name and hostname
-    use sysinfo::System;
     let sys = System::new();
     hasher.update(System::name().unwrap_or_default().as_bytes());
     hasher.update(System::host_name().unwrap_or_default().as_bytes());
@@ -426,19 +460,21 @@ pub fn get_license_info(db: &Mutex<Connection>) -> Result<LicenseInfo, String> {
         });
 
     let license_key = get_config(CONFIG_LICENSE_KEY);
+    let auth_code = get_config(CONFIG_LICENSE_AUTH_CODE);
     let license_type = get_config(CONFIG_LICENSE_TYPE);
     let activated_at = get_config(CONFIG_LICENSE_ACTIVATED_AT);
     let expires_at = get_config(CONFIG_LICENSE_EXPIRES_AT);
 
-    println!("[License] get_license_info: key={:?}, type={:?}, activated={:?}, expires={:?}",
-        license_key, license_type, activated_at, expires_at);
+    println!("[License] get_license_info: key={:?}, auth_code={:?}, type={:?}, activated={:?}, expires={:?}",
+        license_key, auth_code, license_type, activated_at, expires_at);
 
-    // Check if license is valid using encoded key (with anti-tampering)
-    let is_valid = is_license_valid(license_key.as_deref(), expires_at.as_deref(), license_type.as_deref());
+    // Check if license is valid using auth code (with anti-tampering)
+    let is_valid = is_license_valid(auth_code.as_deref(), expires_at.as_deref(), license_type.as_deref());
 
     Ok(LicenseInfo {
         machine_code,
         license_key,
+        auth_code,
         license_type,
         activated_at,
         expires_at,
@@ -517,6 +553,8 @@ pub async fn activate_license(
 
     #[derive(Deserialize)]
     struct ActivateData {
+        license_key: String,  // Short format for display
+        auth_code: String,  // RSA encrypted for local verification
         license_type: String,
         activated_at: String,
         expires_at: Option<String>,
@@ -535,7 +573,8 @@ pub async fn activate_license(
 
         // Store license info
         let updates = [
-            (CONFIG_LICENSE_KEY, license_key),
+            (CONFIG_LICENSE_KEY, data.license_key.as_str()),
+            (CONFIG_LICENSE_AUTH_CODE, data.auth_code.as_str()),
             (CONFIG_LICENSE_TYPE, &data.license_type),
             (CONFIG_LICENSE_ACTIVATED_AT, &data.activated_at),
         ];
@@ -625,6 +664,7 @@ pub async fn verify_license(
         valid: bool,
         license_type: Option<String>,
         expires_at: Option<String>,
+        auth_code: Option<String>,
     }
 
     let result: VerifyResponse = response.json().await.map_err(|e| e.to_string())?;
@@ -638,6 +678,15 @@ pub async fn verify_license(
                  ON CONFLICT(key) DO UPDATE SET value = excluded.value",
                 [CONFIG_LICENSE_VERIFIED_AT, &now]
             );
+
+            // Update auth_code if returned
+            if let Some(ref auth_code) = data.auth_code {
+                let _ = conn.execute(
+                    "INSERT INTO family_config (key, value) VALUES (?1, ?2)
+                     ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+                    [CONFIG_LICENSE_AUTH_CODE, auth_code]
+                );
+            }
         }
 
         return Ok(LicenseStatus {
