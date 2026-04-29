@@ -1019,9 +1019,10 @@ function LicenseSettings() {
     return date < new Date()
   }
 
-  const getLicenseTypeDisplay = (licenseType?: string, expiresAt?: string) => {
+  const getLicenseTypeDisplay = (licenseType?: string, expiresAt?: string, isTrial?: boolean) => {
     const expired = isExpired(expiresAt)
     if (expired) return <Badge variant="danger">已过期</Badge>
+    if (isTrial) return <Badge variant="info">试用期</Badge>
     switch (licenseType) {
       case 'year': return <Badge variant="success">年度授权</Badge>
       case 'permanent': return <Badge variant="success">永久授权</Badge>
@@ -1082,7 +1083,7 @@ function LicenseSettings() {
             <div>
               <div className="flex items-center gap-2">
                 <p className="font-medium">{licenseInfo?.license_key || '未激活'}</p>
-                {getLicenseTypeDisplay(licenseInfo?.license_type, licenseInfo?.expires_at)}
+                {getLicenseTypeDisplay(licenseInfo?.license_type, licenseInfo?.expires_at, licenseInfo?.is_trial)}
               </div>
               <p className="text-sm text-zinc-500">
                 {checkLicenseValid(licenseInfo) ? '授权有效' : '授权已过期'}
@@ -1113,6 +1114,14 @@ function LicenseSettings() {
                 </span>
               </div>
             )}
+            {licenseInfo?.is_trial && licenseInfo?.expires_at && (
+              <div className="flex justify-between text-sm">
+                <span className="text-zinc-500">试用期剩余</span>
+                <span className={isExpired(licenseInfo.expires_at) ? 'text-red-600' : 'font-medium text-blue-600'}>
+                  {isExpired(licenseInfo.expires_at) ? '已过期' : `${getRemainingDays(licenseInfo.expires_at)} 天`}
+                </span>
+              </div>
+            )}
             {licenseInfo?.license_type === 'custom' && licenseInfo?.expires_at && (
               <div className="flex justify-between text-sm">
                 <span className="text-zinc-500">剩余天数</span>
@@ -1125,7 +1134,11 @@ function LicenseSettings() {
         )}
 
         <div className="flex gap-3 flex-wrap">
-          {licenseInfo?.license_key ? (
+          {licenseInfo?.is_trial ? (
+            <div className="text-sm text-zinc-500">
+              试用期授权已自动激活，如需正式授权请联系客服购买
+            </div>
+          ) : licenseInfo?.license_key ? (
             <>
               <Button onClick={handleVerify} disabled={isVerifying} className="gap-2">
                 {isVerifying && <RefreshCw className="w-4 h-4 animate-spin" />}

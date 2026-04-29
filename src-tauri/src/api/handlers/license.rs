@@ -14,15 +14,58 @@ pub async fn get_license_info(
     let result = license_module::get_license_info(&state.db);
 
     match result {
-        Ok(info) => (StatusCode::OK, Json(json!({
-            "data": {
-                "license_key": info.license_key,
-                "license_type": info.license_type,
-                "activated_at": info.activated_at,
-                "expires_at": info.expires_at,
-                "is_valid": info.is_valid
-            }
-        }))),
+        Ok(info) => {
+            // If no license exists, request trial license from server
+            let (license_key, license_type, expires_at, is_valid, is_trial) = if info.license_key.is_none() {
+                match license_module::get_or_generate_trial_license_async(state.db.clone()).await {
+                    Ok((trial_key, trial_exp)) => (
+                        Some(trial_key),
+                        Some("trial".to_string()),
+                        Some(trial_exp.clone()),
+                        true, // Trial is valid until expired
+                        true  // is_trial
+                    ),
+                    Err(e) => {
+                        eprintln!("[License] Failed to get trial license: {}", e);
+                        (None, None, None, false, false)
+                    }
+                }
+            } else {
+                let is_trial = info.license_type.as_deref() == Some("trial");
+                (info.license_key, info.license_type, info.expires_at, info.is_valid, is_trial)
+            };
+
+            // Calculate remaining trial days if is_trial
+            let trial_remaining_days = if is_trial {
+                expires_at.as_ref().and_then(|exp| {
+                    chrono::NaiveDateTime::parse_from_str(exp, "%Y-%m-%d %H:%M:%S")
+                        .ok()
+                        .and_then(|dt| {
+                            let now = chrono::Local::now().naive_local();
+                            let diff = dt.signed_duration_since(now);
+                            if diff.num_days() >= 0 {
+                                Some(diff.num_days())
+                            } else {
+                                Some(0) // Expired
+                            }
+                        })
+                })
+            } else {
+                None
+            };
+
+            (StatusCode::OK, Json(json!({
+                "data": {
+                    "license_key": license_key,
+                    "license_type": license_type,
+                    "activated_at": info.activated_at,
+                    "expires_at": expires_at,
+                    "is_valid": is_valid,
+                    "is_trial": is_trial,
+                    "trial_remaining_days": trial_remaining_days
+                }
+            })))
+        },
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e }))),
     }
 }
@@ -104,18 +147,39 @@ pub async fn check_feature(
         Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e }))),
     };
 
+    // If no license exists, request trial license from server
+    let (license_key, expires_at, license_type) = if license_info.license_key.is_none() {
+        match license_module::get_or_generate_trial_license_async(state.db.clone()).await {
+            Ok((trial_key, trial_exp)) => (Some(trial_key), Some(trial_exp), Some("trial".to_string())),
+            Err(e) => {
+                eprintln!("[License] Failed to get trial license: {}", e);
+                (None, None, None)
+            }
+        }
+    } else {
+        (license_info.license_key.clone(), license_info.expires_at.clone(), license_info.license_type.clone())
+    };
+
     let allowed = license_module::is_feature_allowed(
         feature,
-        license_info.license_key.as_deref(),
-        license_info.expires_at.as_deref(),
+        license_key.as_deref(),
+        expires_at.as_deref(),
+        license_type.as_deref(),
     );
+
+    // Check if it's a trial license that expired
+    let is_trial_expired = license_key.as_ref()
+        .map(|k| k.starts_with("GLT-"))
+        .unwrap_or(false)
+        && !allowed;
 
     (StatusCode::OK, Json(json!({
         "data": {
             "feature": req.feature,
             "allowed": allowed,
-            "is_valid": license_info.is_valid,
-            "expires_at": license_info.expires_at
+            "is_valid": allowed,
+            "expires_at": expires_at,
+            "is_trial_expired": is_trial_expired
         }
     })))
 }

@@ -14,9 +14,14 @@ pub const CONFIG_LICENSE_TYPE: &str = "license_type";
 pub const CONFIG_LICENSE_ACTIVATED_AT: &str = "license_activated_at";
 pub const CONFIG_LICENSE_EXPIRES_AT: &str = "license_expires_at";
 pub const CONFIG_LICENSE_VERIFIED_AT: &str = "license_verified_at";
+pub const CONFIG_TRIAL_FIRST_USE: &str = "trial_first_use";  // 首次使用时间戳
+pub const CONFIG_TRIAL_GENERATED: &str = "trial_generated";  // 是否已生成试用授权
 
 // License secret key (must match server)
 const LICENSE_SECRET_KEY: &str = "genealogy-license-secret-key-32byte!";
+
+// Trial license constants
+const TRIAL_DAYS: i64 = 30;
 
 // 授权服务器地址（代码层面配置）
 use crate::constants::LICENSE_SERVER_URL;
@@ -50,10 +55,33 @@ impl LicenseFeature {
 }
 
 /// Decode license key and verify HMAC signature
+/// Supports GLY- (year), GLT- (trial), GLC- (custom), GLP- (permanent)
 /// Returns LicenseData if valid, None if invalid
+/// Note: Short format codes (GLT-XXXX-XXXX-XXXX-XXXX) cannot be decoded locally,
+/// they need server verification. For trial, expiry is calculated from trial_first_use.
 fn decode_license(encoded: &str) -> Option<LicenseData> {
-    // Must start with GLY- prefix
-    let data_part = encoded.strip_prefix("GLY-")?;
+    // Short format detection: GLX-XXXX-XXXX-XXXX-XXXX (4 groups of 4 chars)
+    let is_short_format = encoded.len() == 19 &&
+        encoded.chars().filter(|c| *c == '-').count() == 4;
+
+    if is_short_format {
+        // Short format cannot be decoded locally - requires server verification
+        // For trial license, expiry is calculated from stored trial_first_use
+        return None;
+    }
+
+    // Base64 encoded format - try to decode
+    let data_part = if encoded.starts_with("GLY-") {
+        encoded.strip_prefix("GLY-")?
+    } else if encoded.starts_with("GLT-") {
+        encoded.strip_prefix("GLT-")?
+    } else if encoded.starts_with("GLC-") {
+        encoded.strip_prefix("GLC-")?
+    } else if encoded.starts_with("GLP-") {
+        encoded.strip_prefix("GLP-")?
+    } else {
+        return None;
+    };
 
     // Base64 decode
     let decoded = BASE64.decode(data_part).ok()?;
@@ -87,20 +115,143 @@ fn decode_license(encoded: &str) -> Option<LicenseData> {
     })
 }
 
+/// Generate a random 4-character uppercase alphanumeric string
+fn generate_random_part() -> String {
+    use rand::Rng;
+    let chars: Vec<char> = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789".chars().collect();
+    let mut rng = rand::thread_rng();
+    (0..4).map(|_| chars[rng.gen_range(0..chars.len())]).collect()
+}
+
+/// Request trial license from server
+/// Returns (license_key, expires_at)
+pub async fn request_trial_license_from_server(machine_code: &str) -> Result<(String, String), String> {
+    let client = Client::new();
+
+    #[derive(Deserialize)]
+    struct TrialResponse {
+        success: bool,
+        data: Option<TrialData>,
+        error: Option<String>,
+    }
+
+    #[derive(Deserialize)]
+    struct TrialData {
+        license_key: String,
+        license_type: String,
+        expires_at: Option<String>,
+        is_existing: bool,
+    }
+
+    let response = client
+        .post(&format!("{}/api/license/trial", LICENSE_SERVER_URL))
+        .query(&[("machine_code", machine_code)])
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+
+    if !response.status().is_success() {
+        return Err("请求试用授权失败，请检查网络连接".to_string());
+    }
+
+    let result: TrialResponse = response.json().await.map_err(|e| e.to_string())?;
+
+    if result.success {
+        if let Some(data) = result.data {
+            println!("[License] Trial license: {} (is_existing: {})",
+                     data.license_key, data.is_existing);
+            return Ok((
+                data.license_key,
+                data.expires_at.unwrap_or_else(|| "2099-12-31 23:59:59".to_string())
+            ));
+        }
+    }
+
+    Err(result.error.unwrap_or_else(|| "获取试用授权失败".to_string()))
+}
+
+/// Get or create trial license from server
+/// This function is async because it needs to call the license server
+/// Trial licenses are auto-activated (no manual activation needed)
+pub async fn get_or_generate_trial_license_async(db: Arc<Mutex<Connection>>) -> Result<(String, String), String> {
+    // Get machine code
+    let machine_code = {
+        let conn = db.lock().map_err(|e| e.to_string())?;
+        let existing = conn.query_row(
+            "SELECT value FROM family_config WHERE key = ?",
+            [CONFIG_LICENSE_MACHINE_CODE],
+            |row| row.get::<_, String>(0)
+        ).ok();
+
+        match existing {
+            Some(code) => code,
+            None => {
+                let code = generate_machine_code();
+                let _ = conn.execute(
+                    "INSERT INTO family_config (key, value) VALUES (?1, ?2)
+                     ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+                    [CONFIG_LICENSE_MACHINE_CODE, &code]
+                );
+                code
+            }
+        }
+    };
+
+    // Request trial from server
+    let (trial_key, expires_at) = request_trial_license_from_server(&machine_code).await?;
+
+    // Auto-activate: store to database with activated_at timestamp
+    {
+        let conn = db.lock().map_err(|e| e.to_string())?;
+        let now = chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+
+        let _ = conn.execute(
+            "INSERT INTO family_config (key, value) VALUES (?1, ?2)
+             ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+            [CONFIG_LICENSE_KEY, &trial_key]
+        );
+        let _ = conn.execute(
+            "INSERT INTO family_config (key, value) VALUES (?1, ?2)
+             ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+            [CONFIG_LICENSE_TYPE, "trial"]
+        );
+        let _ = conn.execute(
+            "INSERT INTO family_config (key, value) VALUES (?1, ?2)
+             ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+            [CONFIG_LICENSE_EXPIRES_AT, &expires_at]
+        );
+        let _ = conn.execute(
+            "INSERT INTO family_config (key, value) VALUES (?1, ?2)
+             ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+            [CONFIG_LICENSE_ACTIVATED_AT, &now]
+        );
+    }
+
+    println!("[License] Trial auto-activated: {} (expires: {})", trial_key, expires_at);
+
+    Ok((trial_key, expires_at))
+}
+
 /// Check if a license key is valid (not expired)
 /// The license_key should be the stored encoded license key
-pub fn is_license_valid(license_key: Option<&str>, stored_expires_at: Option<&str>) -> bool {
+pub fn is_license_valid(license_key: Option<&str>, stored_expires_at: Option<&str>, license_type: Option<&str>) -> bool {
     let Some(key) = license_key else {
+        eprintln!("[License] is_license_valid: no license_key");
         return false;
     };
 
-    // Decode the license key
+    eprintln!("[License] is_license_valid: key={}, type={:?}, expires_at={:?}", key, license_type, stored_expires_at);
+
+    // Try to decode the license key
     let data = match decode_license(key) {
-        Some(d) => d,
+        Some(d) => {
+            eprintln!("[License] is_license_valid: decoded data exp={}", d.exp);
+            d
+        },
         None => {
-            // Fallback: if decode fails, use stored expiry time
-            eprintln!("[License] Failed to decode license, falling back to stored expiry");
-            return check_local_license_validity(None, stored_expires_at);
+            // Fallback: if decode fails (short format or invalid), use stored expiry time
+            eprintln!("[License] is_license_valid: decode failed, using stored expiry");
+            return check_local_license_validity(license_type, stored_expires_at);
         }
     };
 
@@ -129,12 +280,12 @@ pub fn is_license_valid(license_key: Option<&str>, stored_expires_at: Option<&st
 }
 
 /// Check if a specific feature is allowed based on license
-pub fn is_feature_allowed(feature: LicenseFeature, license_key: Option<&str>, stored_expires_at: Option<&str>) -> bool {
+pub fn is_feature_allowed(feature: LicenseFeature, license_key: Option<&str>, stored_expires_at: Option<&str>, license_type: Option<&str>) -> bool {
     if !feature.requires_license() {
         return true;
     }
 
-    is_license_valid(license_key, stored_expires_at)
+    is_license_valid(license_key, stored_expires_at, license_type)
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -156,20 +307,95 @@ pub struct LicenseStatus {
 }
 
 // Generate machine code from hardware info (internal use, not shown to user)
+// Uses: CPU序列号 + 主板序列号 + BIOS_UUID
 fn generate_machine_code() -> String {
-    let mut sys = System::new_all();
-    sys.refresh_all();
-
     let mut hasher = Sha256::new();
 
-    // CPU brand
-    for cpu in sys.cpus() {
-        hasher.update(cpu.brand().as_bytes());
+    #[cfg(target_os = "macos")]
+    {
+        // macOS: Try to get hardware UUID from IOKit
+        use std::process::Command;
+
+        // Get Platform UUID (same as hardware UUID)
+        if let Ok(output) = Command::new("ioreg").args(["-rd1", "-c", "IOPlatformExpertDevice"]).output() {
+            let output_str = String::from_utf8_lossy(&output.stdout);
+            if let Some(uuid_start) = output_str.find("IOPlatformUUID") {
+                let uuid_line = &output_str[uuid_start..];
+                if let Some(uuid) = uuid_line.lines().next() {
+                    if let Some(eq_pos) = uuid.find('=') {
+                        let uuid_value = uuid[eq_pos+1..].trim().trim_matches('"');
+                        if !uuid_value.is_empty() {
+                            hasher.update(uuid_value.as_bytes());
+                        }
+                    }
+                }
+            }
+        }
+
+        // Also get CPU architecture info as additional identifier
+        if let Ok(output) = Command::new("sysctl").args(["-n", "machdep.cpu.brand"]).output() {
+            let cpu_brand = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            if !cpu_brand.is_empty() {
+                hasher.update(cpu_brand.as_bytes());
+            }
+        }
     }
 
-    // System name
+    #[cfg(target_os = "linux")]
+    {
+        use std::fs;
+
+        // Try to read CPU serial from /proc/cpuinfo
+        if let Ok(cpuinfo) = fs::read_to_string("/proc/cpuinfo") {
+            for line in cpuinfo.lines() {
+                if line.starts_with("Serial") || line.starts_with("processor") {
+                    hasher.update(line.as_bytes());
+                }
+            }
+        }
+
+        // Try to read chassis UUID
+        if let Ok(uuid) = fs::read_to_string("/sys/class/dmi/id/chassis_uuid") {
+            hasher.update(uuid.trim().as_bytes());
+        }
+
+        // Try to read board serial
+        if let Ok(serial) = fs::read_to_string("/sys/class/dmi/id/board_serial") {
+            hasher.update(serial.trim().as_bytes());
+        }
+    }
+
+    #[cfg(target_windows)]
+    {
+        use std::process::Command;
+
+        // Use wmic to get BIOS serial and UUID
+        if let Ok(output) = Command::new("wmic").args(["csproduct", "get", "UUID"]).output() {
+            let uuid = String::from_utf8_lossy(&output.stdout);
+            if let Some(last_line) = uuid.lines().last() {
+                let uuid = last_line.trim();
+                if !uuid.is_empty() && uuid != "UUID" {
+                    hasher.update(uuid.as_bytes());
+                }
+            }
+        }
+
+        // Get CPU ID
+        if let Ok(output) = Command::new("wmic").args(["cpu", "get", "ProcessorId"]).output() {
+            let cpu_id = String::from_utf8_lossy(&output.stdout);
+            if let Some(last_line) = cpu_id.lines().last() {
+                let cpu_id = last_line.trim();
+                if !cpu_id.is_empty() && cpu_id != "ProcessorId" {
+                    hasher.update(cpu_id.as_bytes());
+                }
+            }
+        }
+    }
+
+    // Fallback: use system name and hostname
+    use sysinfo::System;
+    let sys = System::new();
     hasher.update(System::name().unwrap_or_default().as_bytes());
-    // Hostname
     hasher.update(System::host_name().unwrap_or_default().as_bytes());
 
     let result = hasher.finalize();
@@ -208,7 +434,7 @@ pub fn get_license_info(db: &Mutex<Connection>) -> Result<LicenseInfo, String> {
         license_key, license_type, activated_at, expires_at);
 
     // Check if license is valid using encoded key (with anti-tampering)
-    let is_valid = is_license_valid(license_key.as_deref(), expires_at.as_deref());
+    let is_valid = is_license_valid(license_key.as_deref(), expires_at.as_deref(), license_type.as_deref());
 
     Ok(LicenseInfo {
         machine_code,
@@ -224,23 +450,32 @@ fn check_local_license_validity(
     license_type: Option<&str>,
     expires_at: Option<&str>,
 ) -> bool {
-    let Some(_lt) = license_type else {
+    let Some(lt) = license_type else {
+        eprintln!("[License] check_local_license_validity: no license_type");
         return false;
     };
 
     // If has license type but no expiry, it's permanent
     if expires_at.is_none() {
+        eprintln!("[License] check_local_license_validity: {} has no expiry, valid", lt);
         return true;
     }
 
-    // Check expiration
+    // Check expiration - use local time to match how expires_at is stored
     if let Some(exp) = expires_at {
         if let Ok(dt) = chrono::NaiveDateTime::parse_from_str(exp, "%Y-%m-%d %H:%M:%S") {
-            return chrono::Utc::now().naive_utc() < dt;
+            let now = chrono::Local::now().naive_local();
+            let is_valid = now < dt;
+            eprintln!("[License] check_local_license_validity: {} expires_at={}, now={}, is_valid={}",
+                     lt, dt, now, is_valid);
+            return is_valid;
+        } else {
+            eprintln!("[License] check_local_license_validity: failed to parse expires_at: {}", exp);
         }
     }
 
-    true
+    eprintln!("[License] check_local_license_validity: default returning false");
+    false
 }
 
 // Activate license with key (user only provides license key)

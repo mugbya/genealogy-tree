@@ -131,6 +131,7 @@ export interface FeatureCheckResult {
   allowed: boolean
   is_valid: boolean
   expires_at?: string
+  is_trial_expired?: boolean
 }
 
 export interface LicenseInfo {
@@ -139,6 +140,8 @@ export interface LicenseInfo {
   activated_at?: string
   expires_at?: string
   is_valid: boolean
+  is_trial?: boolean
+  trial_remaining_days?: number | null
 }
 
 export interface LicenseStatus {
