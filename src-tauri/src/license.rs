@@ -7,13 +7,10 @@ use sysinfo::System;
 // License configuration keys
 pub const CONFIG_LICENSE_MACHINE_CODE: &str = "license_machine_code";
 pub const CONFIG_LICENSE_KEY: &str = "license_key";  // Short format for display
-pub const CONFIG_LICENSE_AUTH_CODE: &str = "license_auth_code";  // RSA encrypted for local verification
+pub const CONFIG_LICENSE_AUTH_CODE: &str = "license_auth_code";  // JWT auth code for local verification
 pub const CONFIG_LICENSE_TYPE: &str = "license_type";
 pub const CONFIG_LICENSE_ACTIVATED_AT: &str = "license_activated_at";
-pub const CONFIG_LICENSE_EXPIRES_AT: &str = "license_expires_at";
 pub const CONFIG_LICENSE_VERIFIED_AT: &str = "license_verified_at";
-pub const CONFIG_TRIAL_FIRST_USE: &str = "trial_first_use";  // 首次使用时间戳
-pub const CONFIG_TRIAL_GENERATED: &str = "trial_generated";  // 是否已生成试用授权
 
 // Trial license constants
 const TRIAL_DAYS: i64 = 30;
@@ -100,7 +97,6 @@ fn decode_auth_code(encoded: &str) -> Option<LicenseData> {
     use rsa::signature::Verifier;
     use rsa::pkcs1v15::Signature;
     use rsa::{RsaPublicKey, pkcs8::DecodePublicKey};
-    use sha2::Digest;
 
     // Parse public key from PEM
     let public_key = RsaPublicKey::from_public_key_pem(LICENSE_PUBLIC_KEY_PEM)
@@ -246,11 +242,6 @@ pub async fn get_or_generate_trial_license_async(db: Arc<Mutex<Connection>>) -> 
             "INSERT INTO family_config (key, value) VALUES (?1, ?2)
              ON CONFLICT(key) DO UPDATE SET value = excluded.value",
             [CONFIG_LICENSE_TYPE, "trial"]
-        );
-        let _ = conn.execute(
-            "INSERT INTO family_config (key, value) VALUES (?1, ?2)
-             ON CONFLICT(key) DO UPDATE SET value = excluded.value",
-            [CONFIG_LICENSE_EXPIRES_AT, &expires_at]
         );
         let _ = conn.execute(
             "INSERT INTO family_config (key, value) VALUES (?1, ?2)
@@ -463,7 +454,26 @@ pub fn get_license_info(db: &Mutex<Connection>) -> Result<LicenseInfo, String> {
     let auth_code = get_config(CONFIG_LICENSE_AUTH_CODE);
     let license_type = get_config(CONFIG_LICENSE_TYPE);
     let activated_at = get_config(CONFIG_LICENSE_ACTIVATED_AT);
-    let expires_at = get_config(CONFIG_LICENSE_EXPIRES_AT);
+
+    // Decode auth_code to get expires_at
+    let (expires_at, start_at) = if let Some(ref code) = auth_code {
+        if let Some(data) = decode_auth_code(code) {
+            if data.exp > 0 {
+                // Convert timestamp to datetime string
+                let dt = chrono::DateTime::from_timestamp(data.exp, 0)
+                    .map(|dt| dt.format("%Y-%m-%d %H:%M:%S").to_string())
+                    .unwrap_or_default();
+                (Some(dt), Some(data.start_at))
+            } else {
+                // Permanent license
+                (None, Some(data.start_at))
+            }
+        } else {
+            (None, activated_at.clone())
+        }
+    } else {
+        (None, None)
+    };
 
     println!("[License] get_license_info: key={:?}, auth_code={:?}, type={:?}, activated={:?}, expires={:?}",
         license_key, auth_code, license_type, activated_at, expires_at);
@@ -591,17 +601,14 @@ pub async fn activate_license(
             }
         }
 
-        let expires_at_str = if let Some(ref expires) = data.expires_at {
-            if let Err(e) = conn.execute(
-                "INSERT INTO family_config (key, value) VALUES (?1, ?2)
-                 ON CONFLICT(key) DO UPDATE SET value = excluded.value",
-                [CONFIG_LICENSE_EXPIRES_AT, expires]
-            ) {
-                eprintln!("Failed to save expires_at: {}", e);
+        // Decode auth_code to get expires_at
+        let expires_at = if let Some(license_data) = decode_auth_code(&data.auth_code) {
+            if license_data.exp > 0 {
+                chrono::DateTime::from_timestamp(license_data.exp, 0)
+                    .map(|dt| dt.format("%Y-%m-%d %H:%M:%S").to_string())
             } else {
-                println!("[License] Saved expires_at = {}", expires);
+                None // Permanent
             }
-            Some(expires.clone())
         } else {
             None
         };
@@ -609,7 +616,7 @@ pub async fn activate_license(
         return Ok(LicenseStatus {
             valid: true,
             license_type: Some(data.license_type),
-            expires_at: expires_at_str,
+            expires_at,
             error: None,
         });
     }
