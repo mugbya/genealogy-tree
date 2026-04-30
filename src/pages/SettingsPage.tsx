@@ -1114,6 +1114,12 @@ function LicenseSettings() {
                 </span>
               </div>
             )}
+            {licenseInfo?.license_type === 'permanent' && (
+              <div className="flex justify-between text-sm">
+                <span className="text-zinc-500">有效期</span>
+                <span className="font-medium text-green-600">永久有效</span>
+              </div>
+            )}
             {licenseInfo?.is_trial && licenseInfo?.expires_at && (
               <div className="flex justify-between text-sm">
                 <span className="text-zinc-500">试用期剩余</span>

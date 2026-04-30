@@ -102,10 +102,11 @@ fn decode_auth_code(encoded: &str) -> Option<LicenseData> {
     let public_key = RsaPublicKey::from_public_key_pem(LICENSE_PUBLIC_KEY_PEM)
         .map_err(|e| e.to_string()).unwrap();
 
-    // Use new_unprefixed which has less strict trait bounds
-    // RS256 = RSA with SHA256
+    // Use new() which includes the correct prefix for RS256
+    // RS256 = RSA with SHA256 (requires DER-encoded OID prefix)
+    // Note: requires sha2 with oid feature
     let verifying_key: rsa::pkcs1v15::VerifyingKey<sha2::Sha256> =
-        rsa::pkcs1v15::VerifyingKey::new_unprefixed(public_key);
+        rsa::pkcs1v15::VerifyingKey::new(public_key);
 
     let signature = Signature::try_from(signature.as_slice()).unwrap();
     let verify_result = verifying_key.verify(signing_input.as_bytes(), &signature);

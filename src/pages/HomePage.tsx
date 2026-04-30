@@ -50,6 +50,21 @@ function isExpired(expiresAt?: string | null): boolean {
   return expDate < new Date();
 }
 
+// 计算剩余天数
+function parseDate(dateStr?: string | null): Date | null {
+  if (!dateStr) return null;
+  const date = new Date(dateStr);
+  return isNaN(date.getTime()) ? null : date;
+}
+
+function getRemainingDays(expiresAt?: string | null): number | null {
+  const date = parseDate(expiresAt);
+  if (!date) return null;
+  const now = new Date();
+  const diff = date.getTime() - now.getTime();
+  return Math.max(0, Math.floor(diff / (1000 * 60 * 60 * 24)));
+}
+
 export function HomePage() {
   // 网络接口
   const [networkInterfaces, setNetworkInterfaces] = useState<
@@ -419,15 +434,25 @@ export function HomePage() {
                   {licenseInfo?.expires_at && (
                     <div className="flex justify-between items-center p-2 rounded-lg bg-gray-50">
                       <span className="text-gray-500">
-                        {licenseInfo?.is_trial ? "试用到期" : "到期时间"}
+                        {licenseInfo?.is_trial ? "试用到期" : licenseInfo?.license_type === "permanent" ? "有效期" : "到期时间"}
                       </span>
                       <span
                         className={cn(
-                          licenseInfo?.is_valid ? "text-gray-700" : "text-red-600",
+                          licenseInfo?.license_type === "permanent"
+                            ? "text-green-600 font-medium"
+                            : licenseInfo?.is_valid ? "text-gray-700" : "text-red-600",
                         )}
                       >
-                        {licenseInfo.expires_at}
+                        {licenseInfo?.license_type === "permanent"
+                          ? "永久有效"
+                          : licenseInfo.expires_at}
                       </span>
+                    </div>
+                  )}
+                  {!licenseInfo?.expires_at && licenseInfo?.license_type === "permanent" && (
+                    <div className="flex justify-between items-center p-2 rounded-lg bg-gray-50">
+                      <span className="text-gray-500">有效期</span>
+                      <span className="text-green-600 font-medium">永久有效</span>
                     </div>
                   )}
                   {licenseInfo?.is_trial &&
@@ -448,6 +473,22 @@ export function HomePage() {
                         </span>
                       </div>
                     )}
+                  {licenseInfo?.license_type === "year" && licenseInfo?.expires_at && (
+                    <div className="flex justify-between items-center p-2 rounded-lg bg-gray-50">
+                      <span className="text-gray-500">剩余天数</span>
+                      <span
+                        className={cn(
+                          isExpired(licenseInfo.expires_at)
+                            ? "text-red-600"
+                            : "text-green-600 font-medium",
+                        )}
+                      >
+                        {isExpired(licenseInfo.expires_at)
+                          ? "已过期"
+                          : `${getRemainingDays(licenseInfo.expires_at)} 天`}
+                      </span>
+                    </div>
+                  )}
                 </div>
 
                 {/* 未激活或过期时显示提示 */}
