@@ -6,9 +6,9 @@ use sysinfo::System;
 
 // NTP server for time synchronization (国内可用的 NTP 服务器)
 const NTP_SERVERS: &[&str] = &[
-    "ntp.aliyun.com",
-    "ntp.tencent.com",
-    "time.windows.com",
+    "ntp.aliyun.com:123",
+    "ntp.tencent.com:123",
+    "time.windows.com:123",
 ];
 
 // License configuration keys
@@ -56,30 +56,36 @@ impl LicenseFeature {
 /// Falls back to system time if NTP fails
 fn get_ntp_time() -> i64 {
     for server in NTP_SERVERS {
-        match ntp::request(server) {
+        eprintln!("[License] Trying NTP server: {}", server);
+        match ntp::request(*server) {
             Ok(packet) => {
                 // Get transmit timestamp from packet and convert to Unix timestamp
                 // NTP epoch is 1900-01-01, Unix epoch is 1970-01-01
                 // Offset is 2208988800 seconds
                 const NTP_UNIX_OFFSET: u64 = 2208988800;
 
-                let ntp_timestamp: u64 = packet.transmit_time.into();
-                let unix_time = (ntp_timestamp as i64) - (NTP_UNIX_OFFSET as i64);
+                // Use .sec field to get seconds since NTP epoch
+                let ntp_secs: u64 = packet.transmit_time.sec as u64;
+                let unix_time = (ntp_secs as i64) - (NTP_UNIX_OFFSET as i64);
+
+                eprintln!("[License] NTP sec: {}, converted: {}", ntp_secs, unix_time);
 
                 if unix_time > 1000000000 && unix_time < 10000000000 {
                     // Sanity check: Unix timestamp should be between 2001 and 2286
-                    println!("[License] NTP time synced: {} (server: {})", unix_time, server);
+                    eprintln!("[License] NTP time synced: {} (server: {})", unix_time, server);
                     return unix_time;
+                } else {
+                    eprintln!("[License] NTP timestamp out of range: {}", unix_time);
                 }
             }
             Err(e) => {
-                println!("[License] NTP sync failed for {}: {:?}", server, e);
+                eprintln!("[License] NTP sync failed for {}: {:?}", server, e);
             }
         }
     }
 
     // NTP 全部失败，回退到系统时间
-    println!("[License] NTP sync failed, falling back to system time");
+    eprintln!("[License] NTP sync failed, falling back to system time");
     chrono::Utc::now().timestamp()
 }
 
