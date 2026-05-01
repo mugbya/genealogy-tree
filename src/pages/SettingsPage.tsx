@@ -21,13 +21,14 @@ import {
   Copy,
   Key,
 } from 'lucide-react'
-import { wechatApi } from '@/api/client'
+import { wechatApi, configApi } from '@/api/client'
 import { useAuthStore } from '@/stores'
 import { useUpdateChecker } from '@/hooks/useUpdateChecker'
 import { getVersion } from '@tauri-apps/api/app'
 import { invoke } from '@tauri-apps/api/core'
 import { licenseApi, LicenseInfo } from '@/api/client'
 import { LicenseDialog } from '@/components/LicenseDialog'
+import { MessageDialog, useMessageDialog } from '@/components/MessageDialog'
 
 // 数据库路径信息
 interface DatabasePathInfo {
@@ -99,6 +100,7 @@ function GeneralSettings() {
   const [isSaving, setIsSaving] = useState(false)
   const [dbPathInfo, setDbPathInfo] = useState<DatabasePathInfo | null>(null)
   const [copied, setCopied] = useState(false)
+  const { showMessage, MessageDialogComponent } = useMessageDialog()
 
   // 获取数据库路径
   useEffect(() => {
@@ -111,6 +113,25 @@ function GeneralSettings() {
       }
     }
     fetchDbPath()
+  }, [])
+
+  // 加载端口配置
+  useEffect(() => {
+    const loadPortConfig = async () => {
+      try {
+        const httpResult = await configApi.get('http_port')
+        if (httpResult.data?.value) {
+          setHttpPort(httpResult.data.value)
+        }
+        const httpsResult = await configApi.get('https_port')
+        if (httpsResult.data?.value) {
+          setHttpsPort(httpsResult.data.value)
+        }
+      } catch (err) {
+        console.error('加载端口配置失败:', err)
+      }
+    }
+    loadPortConfig()
   }, [])
 
   // 复制路径到剪贴板
@@ -132,12 +153,26 @@ function GeneralSettings() {
 
   const handleSave = async () => {
     setIsSaving(true)
-    // TODO: 调用后端 API 保存设置
+    console.log('开始保存端口设置:', { httpPort, httpsPort })
     try {
-      // await configApi.setBatch([...])
-      console.log('保存设置:', { autoStart, httpPort, httpsPort })
+      const httpResult = await configApi.set('http_port', httpPort)
+      console.log('HTTP 端口保存结果:', httpResult)
+      if (httpResult.error) {
+        showMessage({ title: '保存失败', description: `保存 HTTP 端口失败: ${httpResult.error}`, type: 'error' })
+        setIsSaving(false)
+        return
+      }
+      const httpsResult = await configApi.set('https_port', httpsPort)
+      console.log('HTTPS 端口保存结果:', httpsResult)
+      if (httpsResult.error) {
+        showMessage({ title: '保存失败', description: `保存 HTTPS 端口失败: ${httpsResult.error}`, type: 'error' })
+        setIsSaving(false)
+        return
+      }
+      showMessage({ title: '设置已保存', description: '端口设置已保存，重启软件后生效', type: 'success' })
     } catch (err) {
       console.error('保存失败:', err)
+      showMessage({ title: '保存失败', description: '保存设置失败，请稍后重试', type: 'error' })
     }
     setIsSaving(false)
   }
@@ -263,6 +298,7 @@ function GeneralSettings() {
           </Button>
         </div>
       </CardContent>
+      {MessageDialogComponent}
     </Card>
   )
 }

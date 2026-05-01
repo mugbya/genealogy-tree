@@ -235,13 +235,44 @@ pub fn run() {
             // 获取 AppHandle 用于模板下载
             let app_handle = app.handle().clone();
 
-            eprintln!("[genealogy] Starting HTTP server on http://localhost:8080");
+            // 获取 HTTP 端口配置
+            let http_port = {
+                let conn = db.lock().unwrap();
+                let result: Result<String, _> = conn.query_row(
+                    "SELECT value FROM family_config WHERE key = 'http_port'",
+                    [],
+                    |row| row.get::<_, String>(0),
+                );
+                match result {
+                    Ok(port) => {
+                        eprintln!("[genealogy] Loaded http_port from config: {}", port);
+                        port
+                    }
+                    Err(e) => {
+                        eprintln!("[genealogy] Failed to load http_port from config: {}, using default 8080", e);
+                        "8080".to_string()
+                    }
+                }
+            };
+
+            // 获取 HTTPS 端口配置（暂未启用，为将来扩展留用）
+            let https_port = {
+                let conn = db.lock().unwrap();
+                let result: Result<String, _> = conn.query_row(
+                    "SELECT value FROM family_config WHERE key = 'https_port'",
+                    [],
+                    |row| row.get::<_, String>(0),
+                );
+                result.unwrap_or_else(|_| "8443".to_string())
+            };
+            eprintln!("[genealogy] Starting HTTP server on http://localhost:{}", http_port);
             std::thread::spawn(move || {
                 let rt = tokio::runtime::Runtime::new().expect("Failed to create runtime");
                 rt.block_on(async {
                     let app = api::create_router(http_db, http_wechat_store, Some(dist_path), Some(app_handle));
-                    let listener = tokio::net::TcpListener::bind("0.0.0.0:8080").await.expect("Failed to bind port 8080");
-                    eprintln!("[genealogy] HTTP server running on http://localhost:8080");
+                    let bind_addr = format!("0.0.0.0:{}", http_port);
+                    let listener = tokio::net::TcpListener::bind(&bind_addr).await.expect("Failed to bind port");
+                    eprintln!("[genealogy] HTTP server running on http://localhost:{}", http_port);
                     axum::serve(listener, app).await.expect("HTTP server error");
                 });
             });

@@ -7,12 +7,14 @@ interface ApiResponse<T> {
 }
 
 async function handleResponse<T>(res: Response): Promise<ApiResponse<T>> {
+  console.log('API Response:', res.status, res.url)
   if (!res.ok) {
     const body = await res.json().catch(() => ({}))
     console.error('API Error Response:', res.status, body)
     return { error: body.error || body.message || `HTTP ${res.status}` }
   }
   const body = await res.json()
+  console.log('API Success Response:', body)
   return { data: body.data }
 }
 
@@ -34,6 +36,7 @@ export const api = {
 
   async post<T>(path: string, data?: unknown): Promise<ApiResponse<T>> {
     const headers = await getHeaders()
+    console.log('POST request:', `${API_BASE}${path}`, data)
     const res = await fetch(`${API_BASE}${path}`, {
       method: 'POST',
       headers,
@@ -82,7 +85,10 @@ export const healthApi = {
 export const configApi = {
   list: () => api.get<Config[]>('/api/config'),
   get: (key: string) => api.get<Config>(`/api/config/${key}`),
-  set: (key: string, value: string) => api.post('/api/config', { key, value }),
+  set: (key: string, value: string) => {
+    console.log('configApi.set called:', key, value)
+    return api.post('/api/config', { key, value })
+  },
   setBatch: (configs: { key: string; value: string }[]) => api.post('/api/config/batch', configs),
   delete: (key: string) => api.delete(`/api/config/${key}`),
   getPublic: () => api.get<PublicConfig>('/api/config/public'),

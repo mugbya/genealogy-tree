@@ -37,3 +37,5 @@ pub const CONFIG_FAMILY_SURNAME: &str = "family_surname";
 pub const CONFIG_FAMILY_ORIGIN: &str = "family_origin";
 pub const CONFIG_FAMILY_MAXIM: &str = "family_maxim";
 pub const CONFIG_FAMILY_GENERATION_WORDS: &str = "family_generation_words";
+pub const CONFIG_HTTP_PORT: &str = "http_port";
+pub const CONFIG_HTTPS_PORT: &str = "https_port";
