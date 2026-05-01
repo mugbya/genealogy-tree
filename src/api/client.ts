@@ -156,6 +156,7 @@ export interface LicenseInfo {
   is_valid: boolean
   is_trial?: boolean
   trial_remaining_days?: number | null
+  remaining_days?: number | null
 }
 
 export interface LicenseStatus {

@@ -59,7 +59,7 @@ impl LicenseFeature {
 
 /// Get current time from NTP server (returns Unix timestamp)
 /// Falls back to system time if NTP fails
-fn get_ntp_time() -> i64 {
+pub fn get_ntp_time() -> i64 {
     for server in NTP_SERVERS {
         debug!("Trying NTP server: {}", server);
         match ntp::request(*server) {
@@ -93,7 +93,7 @@ fn get_ntp_time() -> i64 {
 }
 
 /// Check if license is expired using NTP time
-fn is_expired_by_ntp(expires_at: &str) -> bool {
+pub fn is_expired_by_ntp(expires_at: &str) -> bool {
     let exp_timestamp = match chrono::NaiveDateTime::parse_from_str(expires_at, "%Y-%m-%d %H:%M:%S") {
         Ok(dt) => dt.and_utc().timestamp(),
         Err(e) => {
@@ -104,6 +104,23 @@ fn is_expired_by_ntp(expires_at: &str) -> bool {
 
     let current_time = get_ntp_time();
     current_time >= exp_timestamp
+}
+
+/// Get remaining days using NTP time (returns negative if expired)
+pub fn get_remaining_days_by_ntp(expires_at: &str) -> i64 {
+    // expires_at 是本地时间字符串，格式为 "%Y-%m-%d %H:%M:%S"
+    // 直接解析为 NaiveDateTime 然后获取时间戳（本地时间戳）
+    let exp_timestamp = match chrono::NaiveDateTime::parse_from_str(expires_at, "%Y-%m-%d %H:%M:%S") {
+        Ok(dt) => dt.timestamp(),
+        Err(e) => {
+            warn!("Failed to parse expires_at '{}': {}", expires_at, e);
+            return 0;
+        }
+    };
+
+    let current_time = get_ntp_time();
+    let diff = exp_timestamp - current_time;
+    diff / 86400 // Convert seconds to days
 }
 
 

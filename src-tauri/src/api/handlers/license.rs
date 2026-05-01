@@ -7,7 +7,7 @@ use serde_json::{json, Value};
 use tracing::warn;
 
 use crate::api::router::AppState;
-use crate::license::{self as license_module, LicenseFeature};
+use crate::license::{self as license_module, LicenseFeature, get_remaining_days_by_ntp};
 
 pub async fn get_license_info(
     State(state): State<AppState>,
@@ -37,21 +37,10 @@ pub async fn get_license_info(
                 (info.license_key, info.auth_code, info.license_type, info.expires_at, info.is_valid, is_trial)
             };
 
-            // Calculate remaining trial days if is_trial
-            let trial_remaining_days = if is_trial {
-                expires_at.as_ref().and_then(|exp| {
-                    chrono::NaiveDateTime::parse_from_str(exp, "%Y-%m-%d %H:%M:%S")
-                        .ok()
-                        .and_then(|dt| {
-                            let now = chrono::Local::now().naive_local();
-                            let diff = dt.signed_duration_since(now);
-                            if diff.num_days() >= 0 {
-                                Some(diff.num_days())
-                            } else {
-                                Some(0) // Expired
-                            }
-                        })
-                })
+            // Calculate remaining days using NTP time (for all license types, not just trial)
+            let remaining_days = if let Some(ref exp) = expires_at {
+                let days = get_remaining_days_by_ntp(exp);
+                if days >= 0 { Some(days) } else { Some(0) } // Show 0 if expired
             } else {
                 None
             };
@@ -65,7 +54,7 @@ pub async fn get_license_info(
                     "expires_at": expires_at,
                     "is_valid": is_valid,
                     "is_trial": is_trial,
-                    "trial_remaining_days": trial_remaining_days
+                    "remaining_days": remaining_days
                 }
             })))
         },

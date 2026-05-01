@@ -483,14 +483,14 @@ export function HomePage() {
                       <span className="text-gray-500">剩余天数</span>
                       <span
                         className={cn(
-                          isExpired(licenseInfo.expires_at)
-                            ? "text-red-600"
-                            : "text-green-600 font-medium",
+                          licenseInfo?.remaining_days !== undefined && licenseInfo?.remaining_days > 0
+                            ? "text-green-600 font-medium"
+                            : "text-red-600",
                         )}
                       >
-                        {isExpired(licenseInfo.expires_at)
-                          ? "已过期"
-                          : `${getRemainingDays(licenseInfo.expires_at)} 天`}
+                        {licenseInfo?.remaining_days !== undefined && licenseInfo?.remaining_days > 0
+                          ? `${licenseInfo.remaining_days} 天`
+                          : "已过期"}
                       </span>
                     </div>
                   )}

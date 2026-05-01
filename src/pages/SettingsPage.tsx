@@ -1148,8 +1148,8 @@ function LicenseSettings() {
             {licenseInfo?.license_type === 'year' && licenseInfo?.expires_at && (
               <div className="flex justify-between text-sm">
                 <span className="text-zinc-500">剩余天数</span>
-                <span className={isExpired(licenseInfo.expires_at) ? 'text-red-600' : 'font-medium text-green-600'}>
-                  {isExpired(licenseInfo.expires_at) ? '已过期' : `${getRemainingDays(licenseInfo.expires_at)} 天`}
+                <span className={licenseInfo.remaining_days !== undefined && licenseInfo.remaining_days > 0 ? 'font-medium text-green-600' : 'text-red-600'}>
+                  {licenseInfo.remaining_days !== undefined && licenseInfo.remaining_days > 0 ? `${licenseInfo.remaining_days} 天` : '已过期'}
                 </span>
               </div>
             )}
@@ -1162,16 +1162,16 @@ function LicenseSettings() {
             {licenseInfo?.is_trial && licenseInfo?.expires_at && (
               <div className="flex justify-between text-sm">
                 <span className="text-zinc-500">试用期剩余</span>
-                <span className={isExpired(licenseInfo.expires_at) ? 'text-red-600' : 'font-medium text-blue-600'}>
-                  {isExpired(licenseInfo.expires_at) ? '已过期' : `${getRemainingDays(licenseInfo.expires_at)} 天`}
+                <span className={licenseInfo.remaining_days !== undefined && licenseInfo.remaining_days > 0 ? 'font-medium text-blue-600' : 'text-red-600'}>
+                  {licenseInfo.remaining_days !== undefined && licenseInfo.remaining_days > 0 ? `${licenseInfo.remaining_days} 天` : '已过期'}
                 </span>
               </div>
             )}
             {licenseInfo?.license_type === 'custom' && licenseInfo?.expires_at && (
               <div className="flex justify-between text-sm">
                 <span className="text-zinc-500">剩余天数</span>
-                <span className={isExpired(licenseInfo.expires_at) ? 'text-red-600' : 'font-medium text-green-600'}>
-                  {isExpired(licenseInfo.expires_at) ? '已过期' : `${getRemainingDays(licenseInfo.expires_at)} 天`}
+                <span className={licenseInfo.remaining_days !== undefined && licenseInfo.remaining_days > 0 ? 'font-medium text-green-600' : 'text-red-600'}>
+                  {licenseInfo.remaining_days !== undefined && licenseInfo.remaining_days > 0 ? `${licenseInfo.remaining_days} 天` : '已过期'}
                 </span>
               </div>
             )}
