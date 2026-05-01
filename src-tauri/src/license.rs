@@ -1,8 +1,16 @@
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 use rusqlite::Connection;
 use sysinfo::System;
+
+// NTP server for time synchronization (国内可用的 NTP 服务器)
+const NTP_SERVERS: &[&str] = &[
+    "ntp.aliyun.com",
+    "ntp.tencent.com",
+    "time.windows.com",
+];
 
 // License configuration keys
 pub const CONFIG_LICENSE_MACHINE_CODE: &str = "license_machine_code";
@@ -42,6 +50,51 @@ impl LicenseFeature {
             LicenseFeature::ExportVolume => true,
         }
     }
+}
+
+/// Get current time from NTP server (returns Unix timestamp)
+/// Falls back to system time if NTP fails
+fn get_ntp_time() -> i64 {
+    for server in NTP_SERVERS {
+        match ntp::request(server) {
+            Ok(packet) => {
+                // Get transmit timestamp from packet and convert to Unix timestamp
+                // NTP epoch is 1900-01-01, Unix epoch is 1970-01-01
+                // Offset is 2208988800 seconds
+                const NTP_UNIX_OFFSET: u64 = 2208988800;
+
+                let ntp_timestamp: u64 = packet.transmit_time.into();
+                let unix_time = (ntp_timestamp as i64) - (NTP_UNIX_OFFSET as i64);
+
+                if unix_time > 1000000000 && unix_time < 10000000000 {
+                    // Sanity check: Unix timestamp should be between 2001 and 2286
+                    println!("[License] NTP time synced: {} (server: {})", unix_time, server);
+                    return unix_time;
+                }
+            }
+            Err(e) => {
+                println!("[License] NTP sync failed for {}: {:?}", server, e);
+            }
+        }
+    }
+
+    // NTP 全部失败，回退到系统时间
+    println!("[License] NTP sync failed, falling back to system time");
+    chrono::Utc::now().timestamp()
+}
+
+/// Check if license is expired using NTP time
+fn is_expired_by_ntp(expires_at: &str) -> bool {
+    let exp_timestamp = match chrono::NaiveDateTime::parse_from_str(expires_at, "%Y-%m-%d %H:%M:%S") {
+        Ok(dt) => dt.and_utc().timestamp(),
+        Err(e) => {
+            eprintln!("[License] Failed to parse expires_at '{}': {}", expires_at, e);
+            return false; // 解析失败时不认为过期
+        }
+    };
+
+    let current_time = get_ntp_time();
+    current_time >= exp_timestamp
 }
 
 /// RSA Public Key for license verification (2048-bit)
@@ -280,11 +333,11 @@ pub fn is_license_valid(auth_code: Option<&str>, stored_expires_at: Option<&str>
     };
 
     // Check if expired (0 means permanent)
-    // Use local time to match server's encode which uses local time
+    // Use NTP time to prevent local clock manipulation
     if data.exp > 0 {
-        let now = chrono::Local::now().timestamp();
+        let now = get_ntp_time();
         if data.exp < now {
-            eprintln!("[License] License expired at {}", data.exp);
+            eprintln!("[License] License expired at {} (NTP now: {})", data.exp, now);
             return false;
         }
     }
@@ -508,17 +561,12 @@ fn check_local_license_validity(
         return true;
     }
 
-    // Check expiration - use local time to match how expires_at is stored
+    // Check expiration - use NTP time to prevent local clock manipulation
     if let Some(exp) = expires_at {
-        if let Ok(dt) = chrono::NaiveDateTime::parse_from_str(exp, "%Y-%m-%d %H:%M:%S") {
-            let now = chrono::Local::now().naive_local();
-            let is_valid = now < dt;
-            eprintln!("[License] check_local_license_validity: {} expires_at={}, now={}, is_valid={}",
-                     lt, dt, now, is_valid);
-            return is_valid;
-        } else {
-            eprintln!("[License] check_local_license_validity: failed to parse expires_at: {}", exp);
-        }
+        let is_expired = is_expired_by_ntp(exp);
+        eprintln!("[License] check_local_license_validity: {} expires_at={}, is_expired={}",
+                 lt, exp, is_expired);
+        return !is_expired;
     }
 
     eprintln!("[License] check_local_license_validity: default returning false");
