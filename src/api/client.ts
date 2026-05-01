@@ -8,12 +8,20 @@ interface ApiResponse<T> {
 
 async function handleResponse<T>(res: Response): Promise<ApiResponse<T>> {
   console.log('API Response:', res.status, res.url)
+  const body = await res.json().catch(() => ({}))
+  console.log('API Response body:', body)
+
+  // 检查业务层面的 success 字段（即使 HTTP 状态码是 200）
+  if (body.success === false) {
+    console.error('API Business Error:', body.error)
+    return { error: body.error || '请求失败' }
+  }
+
   if (!res.ok) {
-    const body = await res.json().catch(() => ({}))
-    console.error('API Error Response:', res.status, body)
+    console.error('API HTTP Error Response:', res.status, body)
     return { error: body.error || body.message || `HTTP ${res.status}` }
   }
-  const body = await res.json()
+
   console.log('API Success Response:', body)
   return { data: body.data }
 }

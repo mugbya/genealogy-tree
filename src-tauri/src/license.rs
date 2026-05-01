@@ -755,14 +755,15 @@ pub async fn verify_license(
         return Err("验证失败，请检查网络连接".to_string());
     }
 
-    #[derive(Deserialize)]
+    #[derive(Deserialize, Debug)]
     struct VerifyResponse {
-        #[allow(dead_code)]
+        // #[allow(dead_code)]
         success: bool,
+        error: Option<String>,
         data: Option<VerifyData>,
     }
 
-    #[derive(Deserialize)]
+    #[derive(Deserialize, Debug)]
     struct VerifyData {
         #[allow(dead_code)]
         valid: bool,
@@ -775,6 +776,12 @@ pub async fn verify_license(
     }
 
     let result: VerifyResponse = response.json().await.map_err(|e| e.to_string())?;
+    // info!("result: {:?}", result);
+
+    // Check if success is false, return error message if present
+    if !result.success {
+        return Err(result.error.unwrap_or_else(|| "验证失败".to_string()));
+    }
 
     if let Some(data) = result.data {
         // Update last verified time

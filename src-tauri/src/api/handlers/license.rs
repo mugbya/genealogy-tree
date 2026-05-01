@@ -117,8 +117,8 @@ pub async fn verify_license(
     ).await;
 
     match result {
-        Ok(status) => (StatusCode::OK, Json(json!({ "data": status }))),
-        Err(e) => (StatusCode::BAD_REQUEST, Json(json!({ "error": e }))),
+        Ok(status) => (StatusCode::OK, Json(json!({ "success": true, "data": status }))),
+        Err(e) => (StatusCode::OK, Json(json!({ "success": false, "error": e }))),
     }
 }
 
