@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 use std::sync::{Arc, Mutex};
 use rusqlite::Connection;
 use sysinfo::System;
+use tracing::{info, warn, debug};
 
 // NTP server for time synchronization (国内可用的 NTP 服务器)
 const NTP_SERVERS: &[&str] = &[
@@ -56,7 +57,7 @@ impl LicenseFeature {
 /// Falls back to system time if NTP fails
 fn get_ntp_time() -> i64 {
     for server in NTP_SERVERS {
-        eprintln!("[License] Trying NTP server: {}", server);
+        debug!("Trying NTP server: {}", server);
         match ntp::request(*server) {
             Ok(packet) => {
                 // Get transmit timestamp from packet and convert to Unix timestamp
@@ -68,24 +69,22 @@ fn get_ntp_time() -> i64 {
                 let ntp_secs: u64 = packet.transmit_time.sec as u64;
                 let unix_time = (ntp_secs as i64) - (NTP_UNIX_OFFSET as i64);
 
-                eprintln!("[License] NTP sec: {}, converted: {}", ntp_secs, unix_time);
-
                 if unix_time > 1000000000 && unix_time < 10000000000 {
                     // Sanity check: Unix timestamp should be between 2001 and 2286
-                    eprintln!("[License] NTP time synced: {} (server: {})", unix_time, server);
+                    info!("NTP time synced: {} (server: {})", unix_time, server);
                     return unix_time;
                 } else {
-                    eprintln!("[License] NTP timestamp out of range: {}", unix_time);
+                    warn!("NTP timestamp out of range: {}", unix_time);
                 }
             }
             Err(e) => {
-                eprintln!("[License] NTP sync failed for {}: {:?}", server, e);
+                warn!("NTP sync failed for {}: {:?}", server, e);
             }
         }
     }
 
     // NTP 全部失败，回退到系统时间
-    eprintln!("[License] NTP sync failed, falling back to system time");
+    warn!("NTP sync failed, falling back to system time");
     chrono::Utc::now().timestamp()
 }
 
@@ -94,7 +93,7 @@ fn is_expired_by_ntp(expires_at: &str) -> bool {
     let exp_timestamp = match chrono::NaiveDateTime::parse_from_str(expires_at, "%Y-%m-%d %H:%M:%S") {
         Ok(dt) => dt.and_utc().timestamp(),
         Err(e) => {
-            eprintln!("[License] Failed to parse expires_at '{}': {}", expires_at, e);
+            warn!("Failed to parse expires_at '{}': {}", expires_at, e);
             return false; // 解析失败时不认为过期
         }
     };
@@ -125,7 +124,7 @@ fn decode_auth_code(encoded: &str) -> Option<LicenseData> {
     // Parse JWT format: prefix-part.part.part
     let parts: Vec<&str> = encoded.split('-').collect();
     if parts.len() < 2 {
-        eprintln!("[License] decode_auth_code: invalid format (no prefix)");
+        warn!(module="license", "decode_auth_code: invalid format (no prefix)");
         return None;
     }
 
@@ -136,7 +135,7 @@ fn decode_auth_code(encoded: &str) -> Option<LicenseData> {
     // Split into header.payload.signature
     let jwt_parts: Vec<&str> = jwt_part.split('.').collect();
     if jwt_parts.len() != 3 {
-        eprintln!("[License] decode_auth_code: JWT should have 3 parts, got {}", jwt_parts.len());
+        warn!(module="license", "decode_auth_code: JWT should have 3 parts, got {}", jwt_parts.len());
         return None;
     }
 
@@ -146,7 +145,7 @@ fn decode_auth_code(encoded: &str) -> Option<LicenseData> {
     let signature = match BASE64URL.decode(signature_b64) {
         Ok(s) => s,
         Err(e) => {
-            eprintln!("[License] decode_auth_code: failed to decode signature: {}", e);
+            warn!(module="license", "decode_auth_code: failed to decode signature: {}", e);
             return None;
         }
     };
@@ -171,7 +170,7 @@ fn decode_auth_code(encoded: &str) -> Option<LicenseData> {
     let verify_result = verifying_key.verify(signing_input.as_bytes(), &signature);
 
     if verify_result.is_err() {
-        eprintln!("[License] decode_auth_code: signature verification failed");
+        warn!(module="license", "decode_auth_code: signature verification failed");
         return None;
     }
 
@@ -179,7 +178,7 @@ fn decode_auth_code(encoded: &str) -> Option<LicenseData> {
     let payload_bytes = match BASE64URL.decode(payload_b64) {
         Ok(p) => p,
         Err(e) => {
-            eprintln!("[License] decode_auth_code: failed to decode payload: {}", e);
+            warn!(module="license", "decode_auth_code: failed to decode payload: {}", e);
             return None;
         }
     };
@@ -188,7 +187,7 @@ fn decode_auth_code(encoded: &str) -> Option<LicenseData> {
     let json: serde_json::Value = match serde_json::from_str(&payload_str) {
         Ok(j) => j,
         Err(e) => {
-            eprintln!("[License] decode_auth_code: failed to parse payload JSON: {}", e);
+            warn!(module="license", "decode_auth_code: failed to parse payload JSON: {}", e);
             return None;
         }
     };
@@ -245,8 +244,7 @@ pub async fn request_trial_license_from_server(machine_code: &str) -> Result<(St
 
     if result.success {
         if let Some(data) = result.data {
-            println!("[License] Trial license: {} (is_existing: {})",
-                     data.license_key, data.is_existing);
+            info!(module="license", "Trial license: {} (is_existing: {})", data.license_key, data.is_existing);
             return Ok((
                 data.license_key,
                 data.auth_code,
@@ -315,7 +313,7 @@ pub async fn get_or_generate_trial_license_async(db: Arc<Mutex<Connection>>) -> 
         );
     }
 
-    println!("[License] Trial auto-activated: {} (expires: {})", trial_key, expires_at);
+    info!(module="license", "Trial auto-activated: {} (expires: {})", trial_key, expires_at);
 
     Ok((trial_key, auth_code, expires_at))
 }
@@ -324,21 +322,21 @@ pub async fn get_or_generate_trial_license_async(db: Arc<Mutex<Connection>>) -> 
 /// The auth_code is the RSA encrypted code for local verification
 pub fn is_license_valid(auth_code: Option<&str>, stored_expires_at: Option<&str>, license_type: Option<&str>) -> bool {
     let Some(code) = auth_code else {
-        eprintln!("[License] is_license_valid: no auth_code");
+        warn!(module="license", "is_license_valid: no auth_code");
         return false;
     };
 
-    eprintln!("[License] is_license_valid: code={}, type={:?}, expires_at={:?}", code, license_type, stored_expires_at);
+    warn!(module="license", "is_license_valid: code={}, type={:?}, expires_at={:?}", code, license_type, stored_expires_at);
 
     // Try to decode the auth code
     let data = match decode_auth_code(code) {
         Some(d) => {
-            eprintln!("[License] is_license_valid: decoded exp={}", d.exp);
+            warn!(module="license", "is_license_valid: decoded exp={}", d.exp);
             d
         },
         None => {
             // Fallback: if decode fails, use stored expiry time
-            eprintln!("[License] is_license_valid: decode failed, using stored expiry");
+            warn!(module="license", "is_license_valid: decode failed, using stored expiry");
             return check_local_license_validity(license_type, stored_expires_at);
         }
     };
@@ -348,7 +346,7 @@ pub fn is_license_valid(auth_code: Option<&str>, stored_expires_at: Option<&str>
     if data.exp > 0 {
         let now = get_ntp_time();
         if data.exp < now {
-            eprintln!("[License] License expired at {} (NTP now: {})", data.exp, now);
+            warn!(module="license", "License expired at {} (NTP now: {})", data.exp, now);
             return false;
         }
     }
@@ -359,7 +357,7 @@ pub fn is_license_valid(auth_code: Option<&str>, stored_expires_at: Option<&str>
             let stored_ts = stored_dt.and_utc().timestamp();
             // If stored expiry is LATER than encoded expiry, something is wrong
             if data.exp > 0 && stored_ts > data.exp {
-                eprintln!("[License] Stored expiry {} is later than encoded expiry {}, possible tampering", stored_ts, data.exp);
+                warn!(module="license", "Stored expiry {} is later than encoded expiry {}, possible tampering", stored_ts, data.exp);
                 return false;
             }
         }
@@ -540,7 +538,7 @@ pub fn get_license_info(db: &Mutex<Connection>) -> Result<LicenseInfo, String> {
         (None, None)
     };
 
-    println!("[License] get_license_info: key={:?}, auth_code={:?}, type={:?}, activated={:?}, expires={:?}",
+    info!(module="license", "get_license_info: key={:?}, auth_code={:?}, type={:?}, activated={:?}, expires={:?}",
         license_key, auth_code, license_type, activated_at, expires_at);
 
     // Check if license is valid using auth code (with anti-tampering)
@@ -562,25 +560,25 @@ fn check_local_license_validity(
     expires_at: Option<&str>,
 ) -> bool {
     let Some(lt) = license_type else {
-        eprintln!("[License] check_local_license_validity: no license_type");
+        warn!(module="license", "check_local_license_validity: no license_type");
         return false;
     };
 
     // If has license type but no expiry, it's permanent
     if expires_at.is_none() {
-        eprintln!("[License] check_local_license_validity: {} has no expiry, valid", lt);
+        warn!(module="license", "check_local_license_validity: {} has no expiry, valid", lt);
         return true;
     }
 
     // Check expiration - use NTP time to prevent local clock manipulation
     if let Some(exp) = expires_at {
         let is_expired = is_expired_by_ntp(exp);
-        eprintln!("[License] check_local_license_validity: {} expires_at={}, is_expired={}",
-                 lt, exp, is_expired);
+        warn!(module="license", "check_local_license_validity: {} expires_at={}, is_expired={}",
+              lt, exp, is_expired);
         return !is_expired;
     }
 
-    eprintln!("[License] check_local_license_validity: default returning false");
+    warn!(module="license", "check_local_license_validity: default returning false");
     false
 }
 
@@ -661,9 +659,9 @@ pub async fn activate_license(
                  ON CONFLICT(key) DO UPDATE SET value = excluded.value",
                 [key, value]
             ) { Err(e) => {
-                eprintln!("Failed to save {}: {}", key, e);
+                warn!(module="license", "Failed to save {}: {}", key, e);
             } _ => {
-                println!("[License] Saved {} = {}", key, value);
+                debug!(module="license", "Saved {} = {}", key, value);
             }}
         }
 

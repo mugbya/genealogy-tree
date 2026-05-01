@@ -4,6 +4,7 @@ use axum::{
     Json,
 };
 use serde_json::{json, Value};
+use tracing::warn;
 
 use crate::api::router::AppState;
 use crate::license::{self as license_module, LicenseFeature};
@@ -27,7 +28,7 @@ pub async fn get_license_info(
                         true  // is_trial
                     ),
                     Err(e) => {
-                        eprintln!("[License] Failed to get trial license: {}", e);
+                        warn!(module="license_handler", "Failed to get trial license: {}", e);
                         (None, None, None, None, false, false)
                     }
                 }
@@ -159,7 +160,7 @@ pub async fn check_feature(
                 Some("trial".to_string())
             ),
             Err(e) => {
-                eprintln!("[License] Failed to get trial license: {}", e);
+                warn!(module="license_handler", "Failed to get trial license: {}", e);
                 (None, None, None, None)
             }
         }

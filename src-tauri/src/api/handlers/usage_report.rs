@@ -4,6 +4,7 @@ use rusqlite::Connection;
 use serde_json::json;
 use chrono::{Local, Timelike};
 use sysinfo::System;
+use tracing::{info, warn};
 
 use crate::models::usage_report::{UsageReport, PendingReport};
 
@@ -155,16 +156,16 @@ async fn send_report_to_server(reports: Vec<UsageReport>, url: &str) -> Result<(
 
 /// Check and execute report task
 pub fn check_and_report(db: Arc<Mutex<Connection>>) {
-    eprintln!("[usage_report] Starting usage report check...");
-    eprintln!("[usage_report] Report URL: {}", USAGE_REPORT_URL);
+    info!(module="usage_report", "Starting usage report check...");
+    info!(module="usage_report", "Report URL: {}", USAGE_REPORT_URL);
 
     let current_report = collect_usage_info();
-    eprintln!("[usage_report] Collected info - IP: {}, Country: {}, Region: {}, City: {}", current_report.public_ip, current_report.country, current_report.region, current_report.city);
+    info!(module="usage_report", "Collected info - IP: {}, Country: {}, Region: {}, City: {}", current_report.public_ip, current_report.country, current_report.region, current_report.city);
 
     let pending = match get_pending_reports(&db) {
         Ok(p) => p,
         Err(e) => {
-            eprintln!("[usage_report] Failed to get pending reports: {}", e);
+            warn!(module="usage_report", "Failed to get pending reports: {}", e);
             return;
         }
     };
@@ -178,7 +179,7 @@ pub fn check_and_report(db: Arc<Mutex<Connection>>) {
         }
     }
 
-    eprintln!("[usage_report] Total reports to send: {} (1 current + {} pending)", all_reports.len(), pending.len());
+    info!(module="usage_report", "Total reports to send: {} (1 current + {} pending)", all_reports.len(), pending.len());
 
     let rt = tokio::runtime::Runtime::new().expect("Failed to create runtime");
     let result = rt.block_on(async {
@@ -187,15 +188,15 @@ pub fn check_and_report(db: Arc<Mutex<Connection>>) {
 
     match result {
         Ok(()) => {
-            eprintln!("[usage_report] Report sent successfully, clearing pending reports...");
+            info!(module="usage_report", "Report sent successfully, clearing pending reports...");
             if let Err(e) = clear_pending_reports(&db) {
-                eprintln!("[usage_report] Failed to clear pending reports: {}", e);
+                warn!(module="usage_report", "Failed to clear pending reports: {}", e);
             }
         }
         Err(e) => {
-            eprintln!("[usage_report] Failed to send report: {}, saving to pending...", e);
+            warn!(module="usage_report", "Failed to send report: {}, saving to pending...", e);
             if let Err(e) = save_pending_report(&db, &current_report) {
-                eprintln!("[usage_report] Failed to save pending report: {}", e);
+                warn!(module="usage_report", "Failed to save pending report: {}", e);
             }
         }
     }
@@ -219,13 +220,13 @@ pub fn start_report_timer(db: Arc<Mutex<Connection>>) {
             };
 
             let duration_until_noon = (next_noon - now.naive_local()).num_seconds() as u64;
-            eprintln!("[usage_report] Next report scheduled in {} seconds (at 12:00)", duration_until_noon);
+            info!(module="usage_report", "Next report scheduled in {} seconds (at 12:00)", duration_until_noon);
 
             std::thread::sleep(std::time::Duration::from_secs(duration_until_noon));
 
             check_and_report(db.clone());
 
-            eprintln!("[usage_report] Next report in 24 hours...");
+            info!(module="usage_report", "Next report in 24 hours...");
             std::thread::sleep(std::time::Duration::from_secs(24 * 60 * 60));
         }
     });

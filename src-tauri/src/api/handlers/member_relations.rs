@@ -5,6 +5,7 @@ use axum::{
 };
 use rusqlite::params;
 use serde_json::{json, Value};
+use tracing::warn;
 
 use crate::api::router::AppState;
 use crate::api::handlers::members::recalculate_generations;
@@ -299,7 +300,7 @@ pub async fn create_member_relation(
             // 如果是父母关系，重新计算代数
             if req.relation_type == "father" || req.relation_type == "mother" {
                 if let Err(e) = recalculate_generations(&conn) {
-                    eprintln!("[create_relation] Warning: failed to recalculate generations: {}", e);
+                    warn!(module="member_relations", "Warning: failed to recalculate generations: {}", e);
                 }
             }
 
@@ -360,7 +361,7 @@ pub async fn delete_member_relation(
             // 如果是父母关系，重新计算代数
             if relation_type == "father" || relation_type == "mother" {
                 if let Err(e) = recalculate_generations(&conn) {
-                    eprintln!("[delete_relation] Warning: failed to recalculate generations: {}", e);
+                    warn!(module="member_relations", "Warning: failed to recalculate generations: {}", e);
                 }
             }
             (StatusCode::OK, Json(json!({ "success": true })))

@@ -4,6 +4,7 @@ use axum::{
     response::Response,
 };
 use tauri::Manager;
+use tracing::{info, warn};
 
 /// 下载模板文件
 pub async fn download_template(
@@ -20,13 +21,13 @@ pub async fn download_template(
     let resource_dir = app.path().resource_dir().map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     let template_path = resource_dir.join("templates").join(&template_name);
 
-    eprintln!("[template] Looking for template at: {:?}", template_path);
+    info!(module="template", "Looking for template at: {:?}", template_path);
 
     // 读取文件
     let content = tokio::fs::read(&template_path)
         .await
         .map_err(|e| {
-            eprintln!("[template] Failed to read template: {}", e);
+            warn!(module="template", "Failed to read template: {}", e);
             StatusCode::INTERNAL_SERVER_ERROR
         })?;
 

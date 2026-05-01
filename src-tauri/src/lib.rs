@@ -11,6 +11,7 @@ use std::sync::{Arc, Mutex};
 use std::path::PathBuf;
 use tauri::Manager;
 use serde::Serialize;
+use tracing::{info, warn};
 
 pub use models::*;
 pub use api::*;
@@ -137,7 +138,7 @@ pub fn run() {
             let app_data_dir = app.path().app_data_dir().expect("Failed to get app data dir");
             std::fs::create_dir_all(&app_data_dir).expect("Failed to create app data dir");
             let db_path = app_data_dir.join(".genealogy.db");
-            eprintln!("[genealogy] Database path: {:?}", db_path);
+            info!(module="lib", "Database path: {:?}", db_path);
 
             let conn = db::init_database(&db_path).expect("Failed to initialize database");
             let db = Arc::new(Mutex::new(conn));
@@ -149,7 +150,7 @@ pub fn run() {
 
             // 启动使用情况上报定时器
             let report_db = db.clone();
-            eprintln!("[genealogy] Starting usage report timer...");
+            info!(module="lib", "Starting usage report timer...");
             api::start_report_timer(report_db);
 
             // 获取 dist 目录路径（在 spawn 线程之前）
@@ -165,7 +166,7 @@ pub fn run() {
                     .expect("Failed to get resource dir")
                     .join("dist")
             };
-            eprintln!("[genealogy] Static files path: {:?}", dist_path);
+            info!(module="lib", "Static files path: {:?}", dist_path);
 
             // 获取 AppHandle 用于模板下载
             let app_handle = app.handle().clone();
@@ -180,11 +181,11 @@ pub fn run() {
                 );
                 match result {
                     Ok(port) => {
-                        eprintln!("[genealogy] Loaded http_port from config: {}", port);
+                        info!(module="lib", "Loaded http_port from config: {}", port);
                         port
                     }
                     Err(e) => {
-                        eprintln!("[genealogy] Failed to load http_port from config: {}, using default 8080", e);
+                        warn!(module="lib", "Failed to load http_port from config: {}, using default 8080", e);
                         "8080".to_string()
                     }
                 }
@@ -200,14 +201,14 @@ pub fn run() {
                 );
                 result.unwrap_or_else(|_| "8443".to_string())
             };
-            eprintln!("[genealogy] Starting HTTP server on http://localhost:{}", http_port);
+            info!(module="lib", "Starting HTTP server on http://localhost:{}", http_port);
             std::thread::spawn(move || {
                 let rt = tokio::runtime::Runtime::new().expect("Failed to create runtime");
                 rt.block_on(async {
                     let app = api::create_router(http_db, http_wechat_store, Some(dist_path), Some(app_handle));
                     let bind_addr = format!("0.0.0.0:{}", http_port);
                     let listener = tokio::net::TcpListener::bind(&bind_addr).await.expect("Failed to bind port");
-                    eprintln!("[genealogy] HTTP server running on http://localhost:{}", http_port);
+                    info!(module="lib", "HTTP server running on http://localhost:{}", http_port);
                     axum::serve(listener, app).await.expect("HTTP server error");
                 });
             });

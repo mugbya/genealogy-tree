@@ -13,6 +13,7 @@ use std::collections::HashMap;
 use crate::api::router::AppState;
 use crate::auth::verify_token;
 use crate::models::{CreateMemberRequest, Member, UpdateMemberRequest, ROLE_ADMIN};
+use tracing::{warn, debug};
 
 /// 从请求头中提取用户认证信息，返回 (user_id, role, member_id)
 fn extract_user_info(headers: &HeaderMap) -> Result<(i64, String, Option<i64>), StatusCode> {
@@ -44,26 +45,27 @@ fn can_edit_member(
     current_user_member_id: Option<i64>,
     target_member_id: i64,
 ) -> bool {
-    eprintln!("[PERMISSION] can_edit_member called:");
-    eprintln!("[PERMISSION]   current_user_role: {}", current_user_role);
-    eprintln!("[PERMISSION]   current_user_member_id: {:?}", current_user_member_id);
-    eprintln!("[PERMISSION]   target_member_id: {}", target_member_id);
+    debug!(module="members", "[PERMISSION] can_edit_member called:");
+    debug!(module="members", "  current_user_role: {}", current_user_role);
+    debug!(module="members", "  current_user_member_id: {:?}", current_user_member_id);
+    debug!(module="members", "  target_member_id: {}", target_member_id);
+    debug!(module="members", "Result: ALLOW (admin)");
 
     // Admin可以编辑所有成员
     if current_user_role == ROLE_ADMIN {
-        eprintln!("[PERMISSION] Result: ALLOW (admin)");
+        debug!(module="members", "Result: ALLOW (admin)");
         return true;
     }
 
     // 没有关联成员ID的用户不能编辑任何成员
     let Some(my_member_id) = current_user_member_id else {
-        eprintln!("[PERMISSION] Result: DENY (no member_id bound)");
+        debug!(module="members", "Result: DENY (no member_id bound)");
         return false;
     };
 
     // 只能编辑自己绑定的成员
     let result = my_member_id == target_member_id;
-    eprintln!("[PERMISSION] Result: {}", if result { "ALLOW (self)" } else { "DENY" });
+    debug!(module="members", "Result: {}", if result { "ALLOW (self)" } else { "DENY" });
     result
 }
 
@@ -409,18 +411,18 @@ pub async fn import_members(
     };
 
     // Decode base64 to bytes
-    eprintln!("[import] Starting import, file_content length: {}", data.file_content.len());
+    debug!(module="members", "[import] Starting import, file_content length: {}", data.file_content.len());
     let bytes = match STANDARD.decode(&data.file_content) {
         Ok(b) => b,
         Err(e) => {
-            eprintln!("[import] Failed to decode base64: {}", e);
+            debug!(module="members", "[import] Failed to decode base64: {}", e);
             return (StatusCode::BAD_REQUEST, Json(json!({ "error": format!("Failed to decode file: {}", e) })));
         }
     };
-    eprintln!("[import] Decoded {} bytes", bytes.len());
+    debug!(module="members", "[import] Decoded {} bytes", bytes.len());
 
     // Check if it's CSV or Excel
-    eprintln!("[import] is_csv_content: {}", is_csv_content(&bytes));
+    debug!(module="members", "[import] is_csv_content: {}", is_csv_content(&bytes));
     let rows = if is_csv_content(&bytes) {
         // Try to parse as CSV
         let content = match String::from_utf8(bytes.clone()) {
@@ -438,7 +440,7 @@ pub async fn import_members(
             Err(e) => return (StatusCode::BAD_REQUEST, Json(json!({ "error": format!("Failed to parse Excel: {}", e) }))),
         }
     };
-    eprintln!("[import] Parsed {} rows", rows.len());
+    debug!(module="members", "[import] Parsed {} rows", rows.len());
 
     if rows.is_empty() {
         return (StatusCode::BAD_REQUEST, Json(json!({ "error": "No data found in file" })));
@@ -591,7 +593,7 @@ pub async fn import_members(
 
     // 重新计算所有成员的代数
     if let Err(e) = recalculate_generations(&conn) {
-        eprintln!("[import] Warning: failed to recalculate generations: {}", e);
+        warn!(module="members", "[import] Warning: failed to recalculate generations: {}", e);
     }
 
     let result = ImportResult {
@@ -659,8 +661,8 @@ fn trim_bom(s: &str) -> &str {
 }
 
 fn parse_csv(content: &str) -> Result<Vec<ImportMemberRow>, String> {
-    eprintln!("[import] parse_csv called, content length: {}", content.len());
-    eprintln!("[import] First 200 chars: {:?}", &content.chars().take(200).collect::<String>());
+    debug!(module="members", "[import] parse_csv called, content length: {}", content.len());
+    debug!(module="members", "[import] First 200 chars: {:?}", &content.chars().take(200).collect::<String>());
     let mut rows: Vec<ImportMemberRow> = Vec::new();
     let mut lines = content.lines();
 
@@ -672,7 +674,7 @@ fn parse_csv(content: &str) -> Result<Vec<ImportMemberRow>, String> {
                 .collect()
         })
         .unwrap_or_default();
-    eprintln!("[import] CSV headers: {:?}", headers);
+    debug!(module="members", "[import] CSV headers: {:?}", headers);
 
     // Parse data rows
     for line in lines {
@@ -689,16 +691,16 @@ fn parse_csv(content: &str) -> Result<Vec<ImportMemberRow>, String> {
         }
 
         let member = parse_row_from_map(&map);
-        eprintln!("[import] Row {}: name='{}', gender='{}', surname='{:?}'", rows.len(), member.姓名, member.性别, member.姓氏);
+        debug!(module="members", "[import] Row {}: name='{}', gender='{}', surname='{:?}'", rows.len(), member.姓名, member.性别, member.姓氏);
         // Debug: check if name is empty
         if member.姓名.trim().is_empty() {
-            eprintln!("[import] WARNING: name is empty! map keys: {:?}", map.keys().collect::<Vec<_>>());
-            eprintln!("[import] map content: {:?}", map);
+            warn!(module="members", "[import] WARNING: name is empty! map keys: {:?}", map.keys().collect::<Vec<_>>());
+            debug!(module="members", "[import] map content: {:?}", map);
         }
         rows.push(member);
     }
 
-    eprintln!("[import] Total CSV rows parsed: {}", rows.len());
+    debug!(module="members", "[import] Total CSV rows parsed: {}", rows.len());
     Ok(rows)
 }
 
@@ -756,14 +758,14 @@ fn is_csv_content(content: &[u8]) -> bool {
     }
     // Check first few bytes - xlsx starts with PK (ZIP format)
     if content.len() >= 2 && content[0] == 0x50 && content[1] == 0x4B {
-        eprintln!("[import] Detected xlsx (starts with PK)");
+        debug!(module="members", "[import] Detected xlsx (starts with PK)");
         return false;
     }
     // Check if content starts with printable ASCII or BOM
     let starts_valid = content[0] == 0xEF && content.len() >= 3 && content[1] == 0xBB && content[2] == 0xBF  // UTF-8 BOM
         || content[0] >= 0x20 && content[0] <= 0x7E  // Printable ASCII
         || content[0] >= 0xA0;  // High ASCII (likely UTF-8)
-    eprintln!("[import] is_csv_content check: first bytes {:?}, result: {}", &content[..content.len().min(10)], starts_valid);
+    debug!(module="members", "[import] is_csv_content check: first bytes {:?}, result: {}", &content[..content.len().min(10)], starts_valid);
     starts_valid
 }
 
@@ -920,7 +922,7 @@ pub async fn update_member(
         Err(status) => return (status, Json(json!({ "error": "Unauthorized" }))),
     };
 
-    eprintln!("[UPDATE_MEMBER] user_id: {}, user_role: {}", user_id, user_role);
+    debug!(module="members", "[UPDATE_MEMBER] user_id: {}, user_role: {}", user_id, user_role);
 
     // 获取用户关联的成员ID
     let user_member_id: Option<i64> = conn
@@ -931,7 +933,7 @@ pub async fn update_member(
         )
         .ok();
 
-    eprintln!("[UPDATE_MEMBER] target_id: {}, user_member_id: {:?}", id, user_member_id);
+    debug!(module="members", "[UPDATE_MEMBER] target_id: {}, user_member_id: {:?}", id, user_member_id);
 
     // 检查权限
     if !can_edit_member(&conn, user_id, &user_role, user_member_id, id) {
@@ -1041,7 +1043,7 @@ pub async fn delete_member(
         Err(status) => return (status, Json(json!({ "error": "Unauthorized" }))),
     };
 
-    eprintln!("[UPDATE_MEMBER] user_id: {}, user_role: {}", user_id, user_role);
+    debug!(module="members", "[UPDATE_MEMBER] user_id: {}, user_role: {}", user_id, user_role);
 
     // 获取用户关联的成员ID
     let user_member_id: Option<i64> = conn
@@ -1052,7 +1054,7 @@ pub async fn delete_member(
         )
         .ok();
 
-    eprintln!("[UPDATE_MEMBER] target_id: {}, user_member_id: {:?}", id, user_member_id);
+    debug!(module="members", "[UPDATE_MEMBER] target_id: {}, user_member_id: {:?}", id, user_member_id);
 
     // 检查权限
     if !can_edit_member(&conn, user_id, &user_role, user_member_id, id) {
@@ -1085,7 +1087,7 @@ pub async fn get_editable_member_ids(
         Err(status) => return (status, Json(json!({ "error": "Unauthorized" }))),
     };
 
-    eprintln!("[EDITABLE_IDS] user_id: {}, role: {}", user_id, user_role);
+    debug!(module="members", "[EDITABLE_IDS] user_id: {}, role: {}", user_id, user_role);
 
     // Admin可以编辑所有成员
     if user_role == ROLE_ADMIN {
@@ -1108,13 +1110,13 @@ pub async fn get_editable_member_ids(
         )
         .ok();
 
-    eprintln!("[EDITABLE_IDS] user_member_id: {:?}", user_member_id);
+    debug!(module="members", "[EDITABLE_IDS] user_member_id: {:?}", user_member_id);
 
     // 普通用户只能编辑自己绑定的成员
     let editable_ids: Vec<i64> = user_member_id.map(|id| vec![id])
         .unwrap_or_default();
 
-    eprintln!("[EDITABLE_IDS] editable_ids: {:?}", editable_ids);
+    debug!(module="members", "[EDITABLE_IDS] editable_ids: {:?}", editable_ids);
 
     (StatusCode::OK, Json(json!({ "data": editable_ids })))
 }
