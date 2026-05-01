@@ -1,3 +1,5 @@
+#![allow(unknown_lints)]
+
 mod api;
 mod auth;
 mod constants;
@@ -9,7 +11,6 @@ use std::sync::{Arc, Mutex};
 use std::path::PathBuf;
 use tauri::Manager;
 use serde::Serialize;
-use sysinfo::{System, Disks};
 
 pub use models::*;
 pub use api::*;
@@ -51,71 +52,6 @@ pub struct SystemInfo {
     pub used_memory: u64,
     pub disks: Vec<DiskInfo>,
     pub platform: String,
-}
-
-// 获取系统信息命令
-#[tauri::command]
-fn get_system_info() -> SystemInfo {
-    let mut sys = System::new_all();
-    sys.refresh_all();
-
-    // CPU 核心信息
-    let cpus = sys.cpus();
-    let cpu_cores: Vec<CpuCore> = cpus.iter().enumerate().map(|(i, cpu)| {
-        CpuCore {
-            name: format!("Core {}", i),
-            usage: cpu.cpu_usage(),
-        }
-    }).collect();
-
-    // 内存使用率
-    let total_memory = sys.total_memory();
-    let used_memory = sys.used_memory();
-    let memory_usage = if total_memory > 0 {
-        (used_memory as f32 / total_memory as f32) * 100.0
-    } else {
-        0.0
-    };
-
-    // 磁盘信息 (所有磁盘，去重)
-    let disks = Disks::new_with_refreshed_list();
-    let mut seen_mount_points: std::collections::HashSet<String> = std::collections::HashSet::new();
-    let disk_list: Vec<DiskInfo> = disks.list().iter()
-        .filter(|disk| {
-            let mount = disk.mount_point().to_string_lossy().to_string();
-            seen_mount_points.insert(mount)
-        })
-        .map(|disk| {
-            let total = disk.total_space();
-            let available = disk.available_space();
-            let used = total.saturating_sub(available);
-            let usage = if total > 0 {
-                (used as f32 / total as f32) * 100.0
-            } else {
-                0.0
-            };
-            DiskInfo {
-                name: disk.name().to_string_lossy().to_string(),
-                mount_point: disk.mount_point().to_string_lossy().to_string(),
-                total,
-                used,
-                usage,
-            }
-        }).collect();
-
-    // 平台
-    let platform = System::name().unwrap_or_else(|| "Unknown".to_string());
-    let os_version = System::os_version().unwrap_or_else(|| "Unknown".to_string());
-
-    SystemInfo {
-        version: env!("CARGO_PKG_VERSION").to_string(),
-        cpu_cores,
-        memory_usage,
-        total_memory,
-        used_memory,
-        disks: disk_list,
-        platform: format!("{} {}", platform, os_version),
-    }
 }
 
 // 获取网络接口信息
@@ -195,7 +131,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
-        .invoke_handler(tauri::generate_handler![get_system_info, get_network_interfaces, get_download_path, get_database_path, download_template])
+        .invoke_handler(tauri::generate_handler![get_network_interfaces, get_download_path, get_database_path, download_template])
         .setup(|app| {
             // 获取应用数据目录，使用绝对路径初始化数据库
             let app_data_dir = app.path().app_data_dir().expect("Failed to get app data dir");
