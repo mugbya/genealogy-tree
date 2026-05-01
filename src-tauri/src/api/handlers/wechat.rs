@@ -91,7 +91,7 @@ pub async fn generate_qrcode(
     }
 
     // 生成随机场景字符串（state 参数）
-    let scene = format!("{:032x}", rand::thread_rng().gen::<u128>());
+    let scene = format!("{:032x}", rand::thread_rng().r#gen::<u128>());
     let expire_seconds = 300u64; // 5分钟过期
 
     let login_state = WechatLoginState {

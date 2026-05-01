@@ -68,6 +68,7 @@ fn can_edit_member(
 }
 
 /// 获取祖先成员IDs（向上追溯n代）
+#[allow(dead_code)]
 fn get_ancestors(conn: &rusqlite::Connection, member_id: i64, generations: i32) -> Vec<i64> {
     let mut result = Vec::new();
     let mut current_ids = vec![member_id];
@@ -122,6 +123,7 @@ fn get_ancestors(conn: &rusqlite::Connection, member_id: i64, generations: i32) 
 /// 获取后代成员IDs（向下追溯n代）
 /// 注意：member_relations 表中 from_member_id=孩子, to_member_id=父母
 /// 要找后代，就是找以当前成员为父母的人，即 to_member_id = 当前成员
+#[allow(dead_code)]
 fn get_descendants(conn: &rusqlite::Connection, member_id: i64, generations: i32) -> Vec<i64> {
     let mut result = Vec::new();
     let mut current_ids = vec![member_id];

@@ -10,7 +10,6 @@ use std::path::PathBuf;
 use tauri::Manager;
 use serde::Serialize;
 use sysinfo::{System, Disks};
-use tauri_plugin_updater::UpdaterExt;
 
 pub use models::*;
 pub use api::*;
@@ -256,7 +255,7 @@ pub fn run() {
             };
 
             // 获取 HTTPS 端口配置（暂未启用，为将来扩展留用）
-            let https_port = {
+            let _https_port = {
                 let conn = db.lock().unwrap();
                 let result: Result<String, _> = conn.query_row(
                     "SELECT value FROM family_config WHERE key = 'https_port'",

@@ -1,7 +1,6 @@
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
 use rusqlite::Connection;
 use sysinfo::System;
 
@@ -21,6 +20,7 @@ pub const CONFIG_LICENSE_ACTIVATED_AT: &str = "license_activated_at";
 pub const CONFIG_LICENSE_VERIFIED_AT: &str = "license_verified_at";
 
 // Trial license constants
+#[allow(dead_code)]
 const TRIAL_DAYS: i64 = 30;
 
 // 授权服务器地址（代码层面配置）
@@ -124,7 +124,7 @@ fn decode_auth_code(encoded: &str) -> Option<LicenseData> {
     }
 
     // Get the JWT part after prefix
-    let prefix = parts[0];
+    let _prefix = parts[0];
     let jwt_part = parts[1..].join("-");
 
     // Split into header.payload.signature
@@ -212,10 +212,15 @@ pub async fn request_trial_license_from_server(machine_code: &str) -> Result<(St
 
     #[derive(Deserialize)]
     struct TrialData {
+        #[allow(dead_code)]
         license_key: String,
+        #[allow(dead_code)]
         auth_code: String,
+        #[allow(dead_code)]
         license_type: String,
+        #[allow(dead_code)]
         expires_at: Option<String>,
+        #[allow(dead_code)]
         is_existing: bool,
     }
 
@@ -473,7 +478,7 @@ fn generate_machine_code() -> String {
     }
 
     // Fallback: use system name and hostname
-    let sys = System::new();
+    let _sys = System::new();
     hasher.update(System::name().unwrap_or_default().as_bytes());
     hasher.update(System::host_name().unwrap_or_default().as_bytes());
 
@@ -510,7 +515,7 @@ pub fn get_license_info(db: &Mutex<Connection>) -> Result<LicenseInfo, String> {
     let activated_at = get_config(CONFIG_LICENSE_ACTIVATED_AT);
 
     // Decode auth_code to get expires_at
-    let (expires_at, start_at) = if let Some(ref code) = auth_code {
+    let (expires_at, _start_at) = if let Some(ref code) = auth_code {
         if let Some(data) = decode_auth_code(code) {
             if data.exp > 0 {
                 // Convert timestamp to datetime string
@@ -612,15 +617,21 @@ pub async fn activate_license(
 
     #[derive(Deserialize)]
     struct ActivateData {
+        #[allow(dead_code)]
         license_key: String,  // Short format for display
+        #[allow(dead_code)]
         auth_code: String,  // RSA encrypted for local verification
+        #[allow(dead_code)]
         license_type: String,
+        #[allow(dead_code)]
         activated_at: String,
+        #[allow(dead_code)]
         expires_at: Option<String>,
     }
 
     #[derive(Deserialize)]
     struct ActivateResponse {
+        #[allow(dead_code)]
         success: bool,
         data: Option<ActivateData>,
     }
@@ -639,15 +650,15 @@ pub async fn activate_license(
         ];
 
         for (key, value) in updates {
-            if let Err(e) = conn.execute(
+            match conn.execute(
                 "INSERT INTO family_config (key, value) VALUES (?1, ?2)
                  ON CONFLICT(key) DO UPDATE SET value = excluded.value",
                 [key, value]
-            ) {
+            ) { Err(e) => {
                 eprintln!("Failed to save {}: {}", key, e);
-            } else {
+            } _ => {
                 println!("[License] Saved {} = {}", key, value);
-            }
+            }}
         }
 
         // Decode auth_code to get expires_at
@@ -711,15 +722,20 @@ pub async fn verify_license(
 
     #[derive(Deserialize)]
     struct VerifyResponse {
+        #[allow(dead_code)]
         success: bool,
         data: Option<VerifyData>,
     }
 
     #[derive(Deserialize)]
     struct VerifyData {
+        #[allow(dead_code)]
         valid: bool,
+        #[allow(dead_code)]
         license_type: Option<String>,
+        #[allow(dead_code)]
         expires_at: Option<String>,
+        #[allow(dead_code)]
         auth_code: Option<String>,
     }
 
