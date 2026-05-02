@@ -20,6 +20,7 @@ interface LicenseDialogProps {
     license_key: string
     license_type: string
     expires_at?: string
+    activated_at?: string
   }) => void
 }
 
@@ -67,7 +68,8 @@ export function LicenseDialog({ open, onOpenChange, onSuccess }: LicenseDialogPr
           onSuccess({
             license_key: licenseKey,
             license_type: response.data?.license_type || 'year',
-            expires_at: response.data?.expires_at
+            expires_at: response.data?.expires_at,
+            activated_at: response.data?.activated_at
           })
         }, 1500)
       } else if (response.error) {

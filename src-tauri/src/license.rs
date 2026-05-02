@@ -5,6 +5,10 @@ use rusqlite::Connection;
 use sysinfo::System;
 use tracing::{info, warn, debug};
 
+/// RSA Public Key for license verification (2048-bit)
+/// This is the public key corresponding to the server's private key
+use crate::constants::LICENSE_PUBLIC_KEY_PEM;
+
 // NTP server for time synchronization (国内可用的 NTP 服务器)
 const NTP_SERVERS: &[&str] = &[
     "ntp.aliyun.com:123",
@@ -102,17 +106,7 @@ fn is_expired_by_ntp(expires_at: &str) -> bool {
     current_time >= exp_timestamp
 }
 
-/// RSA Public Key for license verification (2048-bit)
-/// This is the public key corresponding to the server's private key
-const LICENSE_PUBLIC_KEY_PEM: &str = r#"-----BEGIN PUBLIC KEY-----
-MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAtvuj0QcMQ6KNIqgI7d+8
-AbULb0awuSupwB6gqubJSvOyOkQTuOKy9TBKsLF72AcHLS0J1E0LhNx+hHcIC2iz
-ZIhk9aSQlnywgxm67WxE6e78UVP3PYNmO/ZTywhjj3IdSuTdAShFjKPo3JkGes8w
-gvuiRPtnbnGW6kDfKWyXSl8Eeh8bBaYMoO//hYTlosjnZinSL4XGu+Vc1MG+15Es
-fOkWt02dO1oW9BfmN6aKs2jdyS5Mlje5yvK9dYT2bQaM1YtnAOP8+W71l8MzaWBV
-FBgZCcmcuFVZQyjRS2mICxXKKwkMCgDNaPdQ49INIwxdXx3yWf4NTkMXnFKMG4a5
-QQIDAQAB
------END PUBLIC KEY-----"#;
+
 
 /// Decode auth code and verify RSA signature (JWT format RS256)
 /// Format: GLY-{base64url(header)}.{base64url(payload)}.{base64url(signature)}
@@ -121,19 +115,25 @@ QQIDAQAB
 fn decode_auth_code(encoded: &str) -> Option<LicenseData> {
     use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD as BASE64URL};
 
-    // Parse JWT format: prefix-part.part.part
+    debug!(module="license", "decode_auth_code: input length = {}", encoded.len());
+
+    // Parse JWT format: prefix-part.part.part (prefix can be GLY, GLC, etc.)
     let parts: Vec<&str> = encoded.split('-').collect();
+    debug!(module="license", "decode_auth_code: split into {} parts", parts.len());
+
     if parts.len() < 2 {
         warn!(module="license", "decode_auth_code: invalid format (no prefix)");
         return None;
     }
 
-    // Get the JWT part after prefix
-    let _prefix = parts[0];
+    // Skip the prefix (first part) and join the rest to form the JWT
     let jwt_part = parts[1..].join("-");
+    debug!(module="license", "decode_auth_code: jwt_part = {}...", &jwt_part[..jwt_part.len().min(50)]);
 
     // Split into header.payload.signature
     let jwt_parts: Vec<&str> = jwt_part.split('.').collect();
+    debug!(module="license", "decode_auth_code: jwt has {} parts", jwt_parts.len());
+
     if jwt_parts.len() != 3 {
         warn!(module="license", "decode_auth_code: JWT should have 3 parts, got {}", jwt_parts.len());
         return None;
@@ -184,6 +184,8 @@ fn decode_auth_code(encoded: &str) -> Option<LicenseData> {
     };
 
     let payload_str = String::from_utf8(payload_bytes).map_err(|e| e.to_string()).ok()?;
+    debug!(module="license", "decode_auth_code: payload_str = {}", payload_str);
+
     let json: serde_json::Value = match serde_json::from_str(&payload_str) {
         Ok(j) => j,
         Err(e) => {
@@ -195,6 +197,8 @@ fn decode_auth_code(encoded: &str) -> Option<LicenseData> {
     let exp = json.get("exp").and_then(|v| v.as_i64()).unwrap_or(0);
     let jti = json.get("jti").and_then(|v| v.as_str()).unwrap_or("").to_string();
     let start_at = json.get("start_at").and_then(|v| v.as_str()).unwrap_or("").to_string();
+
+    debug!(module="license", "decode_auth_code: exp={}, start_at={}", exp, start_at);
 
     Some(LicenseData {
         exp,
@@ -391,6 +395,7 @@ pub struct LicenseStatus {
     pub valid: bool,
     pub license_type: Option<String>,
     pub expires_at: Option<String>,
+    pub activated_at: Option<String>,
     pub error: Option<String>,
 }
 
@@ -681,6 +686,7 @@ pub async fn activate_license(
             valid: true,
             license_type: Some(data.license_type),
             expires_at,
+            activated_at: Some(data.activated_at),
             error: None,
         });
     }
@@ -769,6 +775,7 @@ pub async fn verify_license(
             valid: data.valid,
             license_type: data.license_type,
             expires_at: data.expires_at,
+            activated_at: None,
             error: None,
         });
     }

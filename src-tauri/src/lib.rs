@@ -12,6 +12,8 @@ use std::path::PathBuf;
 use tauri::Manager;
 use serde::Serialize;
 use tracing::{info, warn};
+use tracing_subscriber::{fmt, prelude::*, registry};
+use tracing_appender::rolling::{RollingFileAppender, Rotation};
 
 pub use models::*;
 pub use api::*;
@@ -129,6 +131,29 @@ fn get_database_path(app: tauri::AppHandle) -> Result<DatabasePathInfo, String> 
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Initialize tracing with file logging
+    let app_data_dir = dirs_next::data_dir()
+        .unwrap_or_else(|| PathBuf::from("."))
+        .join("com.mugbya.genealogy")
+        .join("logs");
+    std::fs::create_dir_all(&app_data_dir).ok();
+
+    let file_appender = RollingFileAppender::new(
+        Rotation::DAILY,
+        &app_data_dir,
+        "genealogy.log",
+    );
+    let (non_blocking, _guard) = tracing_appender::non_blocking(file_appender);
+
+    let file_layer = fmt::layer()
+        .with_writer(non_blocking)
+        .with_ansi(false);
+
+    registry()
+        .with(fmt::layer().with_writer(std::io::stderr))
+        .with(file_layer)
+        .init();
+
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_updater::Builder::new().build())

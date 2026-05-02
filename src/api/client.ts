@@ -154,6 +154,7 @@ export interface LicenseStatus {
   valid: boolean
   license_type?: string
   expires_at?: string
+  activated_at?: string
   error?: string
 }
 
