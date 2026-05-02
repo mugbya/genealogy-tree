@@ -527,9 +527,9 @@ pub fn get_license_info(db: &Mutex<Connection>) -> Result<LicenseInfo, String> {
     let (expires_at, _start_at) = if let Some(ref code) = auth_code {
         if let Some(data) = decode_auth_code(code) {
             if data.exp > 0 {
-                // Convert timestamp to datetime string
+                // Convert timestamp to datetime string (interpret as UTC, convert to local)
                 let dt = chrono::DateTime::from_timestamp(data.exp, 0)
-                    .map(|dt| dt.format("%Y-%m-%d %H:%M:%S").to_string())
+                    .map(|dt| dt.with_timezone(&chrono::Local).format("%Y-%m-%d %H:%M:%S").to_string())
                     .unwrap_or_default();
                 (Some(dt), Some(data.start_at))
             } else {
@@ -674,7 +674,7 @@ pub async fn activate_license(
         let expires_at = if let Some(license_data) = decode_auth_code(&data.auth_code) {
             if license_data.exp > 0 {
                 chrono::DateTime::from_timestamp(license_data.exp, 0)
-                    .map(|dt| dt.format("%Y-%m-%d %H:%M:%S").to_string())
+                    .map(|dt| dt.with_timezone(&chrono::Local).format("%Y-%m-%d %H:%M:%S").to_string())
             } else {
                 None // Permanent
             }
