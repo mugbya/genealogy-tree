@@ -1060,9 +1060,9 @@ function LicenseSettings() {
     if (expired) return <Badge variant="danger">已过期</Badge>
     if (isTrial) return <Badge variant="warning">试用期</Badge>
     switch (licenseType) {
-      case 'year': return <Badge variant="success">年度授权</Badge>
-      case 'permanent': return <Badge variant="success">永久授权</Badge>
-      case 'custom': return <Badge variant="warning">自定义授权</Badge>
+      case 'year': return <Badge variant="success">年度版</Badge>
+      case 'permanent': return <Badge variant="success">永久版</Badge>
+      case 'custom': return <Badge variant="warning">自定义</Badge>
       default: return <Badge variant="outline">未激活</Badge>
     }
   }

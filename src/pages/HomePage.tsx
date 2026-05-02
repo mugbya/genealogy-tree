@@ -416,11 +416,11 @@ export function HomePage() {
                     : licenseInfo?.is_trial
                       ? "试用版"
                       : licenseInfo?.license_type === "year"
-                        ? "年度授权"
+                        ? "年度版"
                         : licenseInfo?.license_type === "permanent"
-                          ? "永久授权"
+                          ? "永久版"
                           : licenseInfo?.license_type === "custom"
-                            ? "自定义授权"
+                            ? "自定义"
                             : licenseInfo?.is_valid
                               ? "已激活"
                               : "已过期"}
