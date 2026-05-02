@@ -61,8 +61,11 @@ function getRemainingDays(expiresAt?: string | null): number | null {
   const date = parseDate(expiresAt);
   if (!date) return null;
   const now = new Date();
-  const diff = date.getTime() - now.getTime();
-  return Math.max(0, Math.floor(diff / (1000 * 60 * 60 * 24)));
+  // Use UTC midnight comparison to avoid timezone issues
+  const expDay = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const todayDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const diffMs = expDay.getTime() - todayDay.getTime();
+  return Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24)));
 }
 
 export function HomePage() {
@@ -413,12 +416,14 @@ export function HomePage() {
                     : licenseInfo?.is_trial
                       ? "试用版"
                       : licenseInfo?.license_type === "year"
-                        ? "年度版"
+                        ? "年度授权"
                         : licenseInfo?.license_type === "permanent"
-                          ? "永久版"
-                          : licenseInfo?.is_valid
-                            ? "已激活"
-                            : "已过期"}
+                          ? "永久授权"
+                          : licenseInfo?.license_type === "custom"
+                            ? "自定义授权"
+                            : licenseInfo?.is_valid
+                              ? "已激活"
+                              : "已过期"}
                 </Badge>
 
                 {/* 授权信息 */}

@@ -140,7 +140,7 @@ export function LicenseDialog({ open, onOpenChange, onSuccess }: LicenseDialogPr
           {result?.valid && (
             <div className="flex items-center gap-2 text-green-600 text-sm">
               <CheckCircle className="w-4 h-4 shrink-0" />
-              <span>激活成功！授权类型：{result.license_type}</span>
+              <span>激活成功！</span>
             </div>
           )}
         </div>

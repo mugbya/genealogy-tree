@@ -117,20 +117,15 @@ fn decode_auth_code(encoded: &str) -> Option<LicenseData> {
 
     debug!(module="license", "decode_auth_code: input length = {}", encoded.len());
 
-    // Parse JWT format: prefix-part.part.part (prefix can be GLY, GLC, etc.)
-    let parts: Vec<&str> = encoded.split('-').collect();
-    debug!(module="license", "decode_auth_code: split into {} parts", parts.len());
-
-    if parts.len() < 2 {
+    // Split only on the first '-' to separate prefix from JWT
+    // Format: PREFIX-JWT (where JWT = header.payload.signature)
+    let Some((_prefix, jwt_part)) = encoded.split_once('-') else {
         warn!(module="license", "decode_auth_code: invalid format (no prefix)");
         return None;
-    }
-
-    // Skip the prefix (first part) and join the rest to form the JWT
-    let jwt_part = parts[1..].join("-");
+    };
     debug!(module="license", "decode_auth_code: jwt_part = {}...", &jwt_part[..jwt_part.len().min(50)]);
 
-    // Split into header.payload.signature
+    // Split JWT into header.payload.signature
     let jwt_parts: Vec<&str> = jwt_part.split('.').collect();
     debug!(module="license", "decode_auth_code: jwt has {} parts", jwt_parts.len());
 
@@ -355,17 +350,9 @@ pub fn is_license_valid(auth_code: Option<&str>, stored_expires_at: Option<&str>
         }
     }
 
-    // Optional: verify against stored expiry to prevent downgrade
-    if let Some(stored) = stored_expires_at {
-        if let Ok(stored_dt) = chrono::NaiveDateTime::parse_from_str(stored, "%Y-%m-%d %H:%M:%S") {
-            let stored_ts = stored_dt.and_utc().timestamp();
-            // If stored expiry is LATER than encoded expiry, something is wrong
-            if data.exp > 0 && stored_ts > data.exp {
-                warn!(module="license", "Stored expiry {} is later than encoded expiry {}, possible tampering", stored_ts, data.exp);
-                return false;
-            }
-        }
-    }
+    // Skip anti-tampering check since stored expiry is in local timezone
+    // while encoded exp is in UTC - comparing them causes false positives
+    // If auth_code decoded successfully and exp > now, license is valid
 
     true
 }

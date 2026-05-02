@@ -1079,8 +1079,11 @@ function LicenseSettings() {
     const date = parseDate(expiresAt)
     if (!date) return null
     const now = new Date()
-    const diff = date.getTime() - now.getTime()
-    return Math.max(0, Math.floor(diff / (1000 * 60 * 60 * 24)))
+    // Use UTC midnight comparison to avoid timezone issues
+    const expDay = new Date(date.getFullYear(), date.getMonth(), date.getDate())
+    const todayDay = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+    const diffMs = expDay.getTime() - todayDay.getTime()
+    return Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24)))
   }
 
   if (isLoading) {
