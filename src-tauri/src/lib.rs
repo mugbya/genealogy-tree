@@ -210,8 +210,8 @@ pub fn run() {
                         port
                     }
                     Err(e) => {
-                        warn!(module="lib", "Failed to load http_port from config: {}, using default 8080", e);
-                        "8080".to_string()
+                        warn!(module="lib", "Failed to load http_port from config: {}, using default 8089", e);
+                        "8089".to_string()
                     }
                 }
             };

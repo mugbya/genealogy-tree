@@ -41,7 +41,7 @@ export default defineConfig(async () => ({
     proxy: {
       // 开发模式下将 /api 请求代理到后端服务器
       '/api': {
-        target: 'http://localhost:8081',
+        target: 'http://localhost:8089',
         changeOrigin: true,
       },
     },

@@ -167,6 +167,16 @@ pub fn init_database(db_path: &Path) -> Result<Connection> {
         [],
     )?;
 
+    // 初始化默认的 HTTP 和 HTTPS 端口配置
+    conn.execute(
+        "INSERT OR IGNORE INTO family_config (key, value) VALUES ('http_port', '8089')",
+        [],
+    )?;
+    conn.execute(
+        "INSERT OR IGNORE INTO family_config (key, value) VALUES ('https_port', '8443')",
+        [],
+    )?;
+
     conn.execute(
         "CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
