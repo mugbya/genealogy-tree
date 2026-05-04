@@ -461,8 +461,8 @@ export function HomePage() {
                     </div>
                   )}
                   {licenseInfo?.is_trial &&
-                    licenseInfo?.trial_remaining_days !== undefined &&
-                    licenseInfo?.trial_remaining_days !== null && (
+                    licenseInfo?.remaining_days !== undefined &&
+                    licenseInfo?.remaining_days !== null && (
                       <div className="flex justify-between items-center p-2 rounded-lg bg-gray-50">
                         <span className="text-gray-500">剩余</span>
                         <span
@@ -473,7 +473,7 @@ export function HomePage() {
                           )}
                         >
                           {licenseInfo.is_valid
-                            ? `${licenseInfo.trial_remaining_days} 天`
+                            ? `${licenseInfo.remaining_days} 天`
                             : "已过期"}
                         </span>
                       </div>
@@ -483,12 +483,12 @@ export function HomePage() {
                       <span className="text-gray-500">剩余天数</span>
                       <span
                         className={cn(
-                          licenseInfo?.remaining_days !== undefined && licenseInfo?.remaining_days > 0
+                          licenseInfo?.remaining_days != null && licenseInfo.remaining_days > 0
                             ? "text-green-600 font-medium"
                             : "text-red-600",
                         )}
                       >
-                        {licenseInfo?.remaining_days !== undefined && licenseInfo?.remaining_days > 0
+                        {licenseInfo?.remaining_days != null && licenseInfo.remaining_days > 0
                           ? `${licenseInfo.remaining_days} 天`
                           : "已过期"}
                       </span>

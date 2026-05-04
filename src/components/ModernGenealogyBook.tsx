@@ -51,7 +51,7 @@ export function ModernGenealogyBook({
   })
   const [licenseValid, setLicenseValid] = useState(false)
   const [isTrial, setIsTrial] = useState(false)
-  const [trialRemainingDays, setTrialRemainingDays] = useState<number | null>(null)
+  const [remainingDays, setRemainingDays] = useState<number | null>(null)
 
   // 检查授权功能
   useEffect(() => {
@@ -75,11 +75,11 @@ export function ModernGenealogyBook({
 
         // Set trial status
         setIsTrial(info?.is_trial ?? false)
-        setTrialRemainingDays(info?.trial_remaining_days ?? null)
+        setRemainingDays(info?.remaining_days ?? null)
 
         console.log('[License] Trial status:', {
           is_trial: info?.is_trial,
-          trial_remaining_days: info?.trial_remaining_days,
+          remaining_days: info?.remaining_days,
           is_valid: info?.is_valid
         })
       } catch (err) {
@@ -92,7 +92,7 @@ export function ModernGenealogyBook({
         })
         setLicenseValid(false)
         setIsTrial(false)
-        setTrialRemainingDays(null)
+        setRemainingDays(null)
       }
     }
 
@@ -957,9 +957,9 @@ ${membersHtml}
           </div>
         )}
         {/* 试用期提示 */}
-        {isTrial && trialRemainingDays !== null && trialRemainingDays > 0 && (
+        {isTrial && remainingDays !== null && remainingDays > 0 && (
           <div className="flex-1 flex items-center gap-2 px-3 py-1 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-700 animate-fade-in">
-            <span className="font-medium">试用期剩余 {trialRemainingDays} 天</span>
+            <span className="font-medium">试用期剩余 {remainingDays} 天</span>
             <span className="text-blue-600">，到期后导出功能将不可用</span>
           </div>
         )}
@@ -972,7 +972,7 @@ ${membersHtml}
           </div>
         )}
         {/* 试用期已过期提示 */}
-        {!licenseValid && isTrial && trialRemainingDays === 0 && (
+        {!licenseValid && isTrial && remainingDays === 0 && (
           <div className="flex-1 flex items-center gap-2 px-3 py-1 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700 animate-fade-in">
             <AlertTriangle className="w-4 h-4 shrink-0" />
             <span className="font-medium">试用期已结束</span>

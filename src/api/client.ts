@@ -155,7 +155,6 @@ export interface LicenseInfo {
   expires_at?: string
   is_valid: boolean
   is_trial?: boolean
-  trial_remaining_days?: number | null
   remaining_days?: number | null
 }
 
