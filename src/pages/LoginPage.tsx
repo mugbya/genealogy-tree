@@ -168,7 +168,6 @@ export function LoginPage() {
             <TreeDeciduous className="w-8 h-8 text-white" />
           </div>
           <h1 className="text-3xl font-bold text-white mb-2">祖谱</h1>
-          {/* <p className="text-white/80">Family Tree Management</p> */}
         </div>
 
         <Card className="border-0 shadow-2xl">
