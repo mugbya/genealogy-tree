@@ -1,6 +1,6 @@
 [package]
 name = "genealogy"
-version = "0.1.1"
+version = "1.0.0"
 description = "祖谱软件"
 authors = ["mugbya"]
 edition = "2021"
