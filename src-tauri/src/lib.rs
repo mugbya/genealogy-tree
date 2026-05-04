@@ -129,6 +129,24 @@ fn get_database_path(app: tauri::AppHandle) -> Result<DatabasePathInfo, String> 
     })
 }
 
+// 获取 HTTP 端口配置（供前端使用）
+#[tauri::command]
+fn get_http_port(app: tauri::AppHandle) -> String {
+    let app_data_dir = app.path().app_data_dir().expect("Failed to get app data dir");
+    let db_path = app_data_dir.join(".genealogy.db");
+
+    if let Ok(conn) = rusqlite::Connection::open(&db_path) {
+        let result: Result<String, _> = conn.query_row(
+            "SELECT value FROM family_config WHERE key = 'http_port'",
+            [],
+            |row| row.get::<_, String>(0),
+        );
+        result.unwrap_or_else(|_| "8089".to_string())
+    } else {
+        "8089".to_string()
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // Initialize tracing with file logging
@@ -157,7 +175,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
-        .invoke_handler(tauri::generate_handler![get_network_interfaces, get_download_path, get_database_path, download_template])
+        .invoke_handler(tauri::generate_handler![get_network_interfaces, get_download_path, get_database_path, download_template, get_http_port])
         .setup(|app| {
             // 获取应用数据目录，使用绝对路径初始化数据库
             let app_data_dir = app.path().app_data_dir().expect("Failed to get app data dir");

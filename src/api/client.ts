@@ -1,5 +1,28 @@
-// 使用相对路径，自动适配当前域名（支持内网穿透和公网访问）
-const API_BASE = ''
+import { invoke } from '@tauri-apps/api/core'
+
+// 通过自定义 User-Agent 检测是否为桌面端（WebView）
+const isDesktop = typeof window !== 'undefined' &&
+  navigator.userAgent.includes('GenealogyDesktop')
+
+// 动态 API_BASE（桌面端从后端获取端口，浏览器端使用相对路径）
+let apiBasePromise: Promise<string> | null = null
+
+async function getApiBase(): Promise<string> {
+  if (!isDesktop) return ''
+
+  if (!apiBasePromise) {
+    apiBasePromise = (async () => {
+      try {
+        const port = await invoke<string>('get_http_port')
+        return `http://localhost:${port}`
+      } catch (e) {
+        console.error('Failed to get HTTP port:', e)
+        return 'http://localhost:8089' // fallback
+      }
+    })()
+  }
+  return apiBasePromise
+}
 
 interface ApiResponse<T> {
   data?: T
@@ -38,14 +61,16 @@ async function getHeaders(): Promise<HeadersInit> {
 export const api = {
   async get<T>(path: string): Promise<ApiResponse<T>> {
     const headers = await getHeaders()
-    const res = await fetch(`${API_BASE}${path}`, { headers })
+    const base = await getApiBase()
+    const res = await fetch(`${base}${path}`, { headers })
     return handleResponse<T>(res)
   },
 
   async post<T>(path: string, data?: unknown): Promise<ApiResponse<T>> {
     const headers = await getHeaders()
-    console.log('POST request:', `${API_BASE}${path}`, data)
-    const res = await fetch(`${API_BASE}${path}`, {
+    const base = await getApiBase()
+    console.log('POST request:', `${base}${path}`, data)
+    const res = await fetch(`${base}${path}`, {
       method: 'POST',
       headers,
       body: data ? JSON.stringify(data) : undefined,
@@ -55,7 +80,8 @@ export const api = {
 
   async put<T>(path: string, data?: unknown): Promise<ApiResponse<T>> {
     const headers = await getHeaders()
-    const res = await fetch(`${API_BASE}${path}`, {
+    const base = await getApiBase()
+    const res = await fetch(`${base}${path}`, {
       method: 'PUT',
       headers,
       body: data ? JSON.stringify(data) : undefined,
@@ -65,7 +91,8 @@ export const api = {
 
   async delete<T>(path: string): Promise<ApiResponse<T>> {
     const headers = await getHeaders()
-    const res = await fetch(`${API_BASE}${path}`, { method: 'DELETE', headers })
+    const base = await getApiBase()
+    const res = await fetch(`${base}${path}`, { method: 'DELETE', headers })
     return handleResponse<T>(res)
   },
 }
