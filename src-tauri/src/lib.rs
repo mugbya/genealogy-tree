@@ -6,6 +6,7 @@ mod constants;
 mod db;
 mod license;
 mod models;
+mod utils;
 
 use std::sync::{Arc, Mutex};
 use std::path::PathBuf;

@@ -10,6 +10,7 @@ use crate::models::usage_report::{UsageReport, PendingReport};
 
 /// 上报地址 - 编译时确定，与授权服务器地址一致
 use crate::constants::USAGE_REPORT_URL;
+use crate::utils::machine_code::generate_machine_code;
 
 /// Get all pending reports from database
 fn get_pending_reports(db: &Mutex<Connection>) -> Result<Vec<PendingReport>, String> {
@@ -107,7 +108,7 @@ fn get_ip_geo_info(ip: &str) -> (String, String, String) {
 }
 
 /// Collect system usage information
-fn collect_usage_info() -> UsageReport {
+fn collect_usage_info(machine_code: &str) -> UsageReport {
     let app_version = env!("CARGO_PKG_VERSION").to_string();
 
     let os_name = System::name().unwrap_or_else(|| "Unknown".to_string());
@@ -121,6 +122,7 @@ fn collect_usage_info() -> UsageReport {
     UsageReport {
         project: "zupu".to_string(),
         app_version,
+        machine_code: machine_code.to_string(),
         os_name,
         os_version,
         public_ip,
@@ -159,8 +161,10 @@ pub fn check_and_report(db: Arc<Mutex<Connection>>) {
     info!(module="usage_report", "Starting usage report check...");
     info!(module="usage_report", "Report URL: {}", USAGE_REPORT_URL);
 
-    let current_report = collect_usage_info();
-    info!(module="usage_report", "Collected info - IP: {}, Country: {}, Region: {}, City: {}", current_report.public_ip, current_report.country, current_report.region, current_report.city);
+    let machine_code = generate_machine_code();
+
+    let current_report = collect_usage_info(&machine_code);
+    info!(module="usage_report", "Collected info - Machine: {}, IP: {}, Country: {}, Region: {}, City: {}", current_report.machine_code, current_report.public_ip, current_report.country, current_report.region, current_report.city);
 
     let pending = match get_pending_reports(&db) {
         Ok(p) => p,

@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 pub struct UsageReport {
     pub project: String,
     pub app_version: String,
+    pub machine_code: String,
     pub os_name: String,
     pub os_version: String,
     pub public_ip: String,
