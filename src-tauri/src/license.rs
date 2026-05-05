@@ -9,7 +9,6 @@ use tracing::{info, warn, debug};
 /// This is the public key corresponding to the server's private key
 use crate::constants::LICENSE_PUBLIC_KEY_PEM;
 use crate::utils::machine_code::generate_machine_code;
-
 // NTP server for time synchronization (国内可用的 NTP 服务器)
 const NTP_SERVERS: &[&str] = &[
     "ntp.aliyun.com:123",
