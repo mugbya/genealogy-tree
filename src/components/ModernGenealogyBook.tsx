@@ -76,12 +76,6 @@ export function ModernGenealogyBook({
         // Set trial status
         setIsTrial(info?.is_trial ?? false)
         setRemainingDays(info?.remaining_days ?? null)
-
-        console.log('[License] Trial status:', {
-          is_trial: info?.is_trial,
-          remaining_days: info?.remaining_days,
-          is_valid: info?.is_valid
-        })
       } catch (err) {
         console.error('检查授权失败:', err)
         // On error, assume not licensed

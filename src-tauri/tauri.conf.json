@@ -45,7 +45,7 @@
       "endpoints": [
         "https://zupu-1256812051.cos.ap-chengdu.myqcloud.com/updates/latest.json"
       ],
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEI3NkI4MzJCMTk3NTI5QzUKUldURktYVVpLNE5ydDBRa2YrNFlVQkNMK0RFVzlBZ05UcTBFalZkMFI1TnhON2czdEdoM2dpMWQK"
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDVBNzNEOTA0NDQwODQ0ODgKUldTSVJBaEVCTmx6V204UlBVZHRKNGJYeSs5Ry9ocjdVY0loTEN0MkdBVUY4NnJmZjd2cG9pbWMK"
     }
   }
 }

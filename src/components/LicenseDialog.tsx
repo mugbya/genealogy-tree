@@ -58,7 +58,6 @@ export function LicenseDialog({ open, onOpenChange, onSuccess }: LicenseDialogPr
 
     try {
       const response = await licenseApi.activate(licenseKey)
-      console.log('激活响应:', response)
 
       // 直接检查 response 对象的结构
       if (response.data && 'valid' in response.data && response.data.valid) {

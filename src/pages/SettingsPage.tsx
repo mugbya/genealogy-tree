@@ -21,12 +21,9 @@ import {
   Copy,
   Key,
 } from 'lucide-react'
-import { wechatApi, configApi } from '@/api/client'
+import { wechatApi, configApi, licenseApi, LicenseInfo, systemApi } from '@/api/client'
 import { useAuthStore } from '@/stores'
 import { useUpdateChecker } from '@/hooks/useUpdateChecker'
-import { getVersion } from '@tauri-apps/api/app'
-import { invoke } from '@tauri-apps/api/core'
-import { licenseApi, LicenseInfo } from '@/api/client'
 import { LicenseDialog } from '@/components/LicenseDialog'
 import { MessageDialog, useMessageDialog } from '@/components/MessageDialog'
 
@@ -106,8 +103,10 @@ function GeneralSettings() {
   useEffect(() => {
     const fetchDbPath = async () => {
       try {
-        const info = await invoke<DatabasePathInfo>('get_database_path')
-        setDbPathInfo(info)
+        const result = await systemApi.getDatabasePath()
+        if (result.data) {
+          setDbPathInfo(result.data)
+        }
       } catch (err) {
         console.error('获取数据库路径失败:', err)
       }
@@ -153,17 +152,14 @@ function GeneralSettings() {
 
   const handleSave = async () => {
     setIsSaving(true)
-    console.log('开始保存端口设置:', { httpPort, httpsPort })
     try {
       const httpResult = await configApi.set('http_port', httpPort)
-      console.log('HTTP 端口保存结果:', httpResult)
       if (httpResult.error) {
         showMessage({ title: '保存失败', description: `保存 HTTP 端口失败: ${httpResult.error}`, type: 'error' })
         setIsSaving(false)
         return
       }
       const httpsResult = await configApi.set('https_port', httpsPort)
-      console.log('HTTPS 端口保存结果:', httpsResult)
       if (httpsResult.error) {
         showMessage({ title: '保存失败', description: `保存 HTTPS 端口失败: ${httpsResult.error}`, type: 'error' })
         setIsSaving(false)
@@ -311,7 +307,6 @@ function IntranetPenetration() {
   const [frpcInstalled] = useState(false) // TODO: 从后端获取
 
   const handleConnect = () => {
-    console.log('连接内网穿透服务...')
   }
 
   const handleDisconnect = () => {
@@ -529,7 +524,9 @@ function UpdateSettings() {
   const [isChecking, setIsChecking] = useState(false)
 
   useEffect(() => {
-    getVersion().then(version => setCurrentVersion(version)).catch(() => {})
+    systemApi.getVersion().then(result => {
+        if (result.data) setCurrentVersion(result.data)
+      }).catch(() => {})
   }, [])
 
   const handleCheckUpdate = async () => {
@@ -984,9 +981,7 @@ function LicenseSettings() {
     setError(null)
     try {
       const result = await licenseApi.getInfo()
-      console.log('[Settings] fetchLicenseInfo result:', result)
       if (result.data) {
-        console.log('[Settings] Setting licenseInfo:', result.data)
         setLicenseInfo(result.data)
       } else if (result.error) {
         setError(result.error)
@@ -1044,7 +1039,6 @@ function LicenseSettings() {
       date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day), parseInt(hour), parseInt(minute), parseInt(second))
       if (!isNaN(date.getTime())) return date
     }
-    console.log('[License] parseDate failed:', dateStr)
     return null
   }
 

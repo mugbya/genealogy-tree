@@ -366,7 +366,6 @@ export const GenealogyTree = forwardRef<GenealogyTreeRef, GenealogyTreeProps>(fu
     // Build tree recursively
     // Only follows the main family branch (same surname as family surname)
     const buildTree = (member: Member, visited = new Set<number>(), labelParent?: { name: string; surname?: string; gender: string; relation: string }): TreeNode => {
-      console.log('buildTree called for:', member.name, 'id:', member.id, 'children count:', parentToChildrenMap.get(member.id)?.length);
       if (visited.has(member.id)) {
         return {
           name: member.name,
@@ -486,7 +485,6 @@ export const GenealogyTree = forwardRef<GenealogyTreeRef, GenealogyTreeProps>(fu
     // Handle roots - prefer main family root
     const mainFamilyRoots = rootMembers.filter(m => isMainFamily(m))
     const effectiveRoots = mainFamilyRoots.length > 0 ? mainFamilyRoots : rootMembers
-    console.log('mainFamilyRoots:', mainFamilyRoots.map(m => m.name), 'effectiveRoots:', effectiveRoots.map(m => m.name));
 
     // Build the root node with family name
     const rootName = familySurname
@@ -496,7 +494,6 @@ export const GenealogyTree = forwardRef<GenealogyTreeRef, GenealogyTreeProps>(fu
     // If rootMemberId is specified, build tree from that member (showing their descendants)
     if (rootMemberId) {
       const rootMember = memberMap.get(rootMemberId)
-      console.log('rootMemberId:', rootMemberId, 'rootMember:', rootMember?.name);
       if (rootMember) {
         const tree = {
           name: rootName,
@@ -505,12 +502,6 @@ export const GenealogyTree = forwardRef<GenealogyTreeRef, GenealogyTreeProps>(fu
           children: [buildTree(rootMember)],
           isVirtualRoot: true,
         }
-        console.log('Built tree with rootMemberId, tree:', JSON.stringify(tree, (key, value) => {
-          if (key === 'children' || key === 'spouses') {
-            return value?.map((c: any) => c?.name)
-          }
-          return value
-        }));
         return tree
       }
     }
@@ -539,13 +530,6 @@ export const GenealogyTree = forwardRef<GenealogyTreeRef, GenealogyTreeProps>(fu
   // Calculate positions using a bottom-up layout
   const positionedTree = useMemo(() => {
     if (!treeData) return null
-
-    console.log('positionedTree treeData:', JSON.stringify(treeData, (key, value) => {
-      if (key === 'children' || key === 'spouses') {
-        return value?.map((c: any) => c?.name)
-      }
-      return value
-    }));
 
     // Calculate subtree width
     const calcWidth = (node: TreeNode): number => {
@@ -619,7 +603,7 @@ export const GenealogyTree = forwardRef<GenealogyTreeRef, GenealogyTreeProps>(fu
   const logNodePositions = (node: TreeNode, depth = 0) => {
     const indent = '  '.repeat(depth)
     if (node.x !== undefined && node.y !== undefined) {
-      console.log(`${indent}${node.name} (id:${node.memberId}): x=${node.x}, y=${node.y}, generation=${node.generation}`)
+      // Debug logging disabled
     }
     node.children?.forEach(child => logNodePositions(child, depth + 1))
   }
@@ -627,19 +611,15 @@ export const GenealogyTree = forwardRef<GenealogyTreeRef, GenealogyTreeProps>(fu
   // Export tree as SVG string (for full tree screenshot)
   const exportSvgAsDataUrl = (): string => {
     if (!positionedTree) {
-      console.log('positionedTree is null')
       return ''
     }
 
-    console.log('positionedTree children:', positionedTree.children?.length)
     logNodePositions(positionedTree)
 
     const bounds = getTreeBounds(positionedTree)
-    console.log('Export bounds:', bounds)
     const padding = 100
     const svgWidth = bounds.maxX - bounds.minX + padding * 2
     const svgHeight = bounds.maxY - bounds.minY + padding * 2
-    console.log('SVG size:', svgWidth, 'x', svgHeight)
     const offsetX = bounds.minX - padding
     const offsetY = bounds.minY - padding
 

@@ -1,8 +1,16 @@
-use axum::{http::StatusCode, Json};
+use axum::{extract::Extension, http::StatusCode, Json};
+use rusqlite::Connection;
 use serde_json::{json, Value};
 use sysinfo::{System, Disks};
+use tauri::{AppHandle, Manager};
 
-use crate::{CpuCore, DiskInfo, NetworkInterface, SystemInfo};
+use crate::{CpuCore, DatabasePathInfo, DiskInfo, NetworkInterface, SystemInfo};
+
+// 获取版本信息
+pub async fn get_version() -> (StatusCode, Json<Value>) {
+    let version = env!("CARGO_PKG_VERSION").to_string();
+    (StatusCode::OK, Json(json!({ "data": version })))
+}
 
 // 获取系统信息
 pub async fn get_system_info() -> (StatusCode, Json<Value>) {
@@ -88,4 +96,75 @@ pub async fn get_network_interfaces() -> (StatusCode, Json<Value>) {
     }
 
     (StatusCode::OK, Json(json!({ "data": interfaces })))
+}
+
+// 获取数据库路径信息
+pub async fn get_database_info(
+    Extension(app_handle): Extension<AppHandle>,
+) -> (StatusCode, Json<Value>) {
+    let app_data_dir = match app_handle.path().app_data_dir() {
+        Ok(dir) => dir,
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({ "error": format!("Failed to get app data dir: {}", e) })),
+            );
+        }
+    };
+    let db_path = app_data_dir.join(".genealogy.db");
+
+    // 判断操作系统类型
+    let os_type = if cfg!(target_os = "macos") {
+        "macos"
+    } else if cfg!(target_os = "linux") {
+        "linux"
+    } else if cfg!(target_os = "windows") {
+        "windows"
+    } else {
+        "unknown"
+    };
+
+    let db_info = DatabasePathInfo {
+        path: db_path.to_string_lossy().to_string(),
+        os_type: os_type.to_string(),
+    };
+
+    (StatusCode::OK, Json(json!({ "data": db_info })))
+}
+
+// 获取 HTTP 端口配置（供前端使用）
+pub async fn get_http_port(
+    Extension(app_handle): Extension<AppHandle>,
+) -> (StatusCode, Json<Value>) {
+    let app_data_dir = match app_handle.path().app_data_dir() {
+        Ok(dir) => dir,
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({ "error": format!("Failed to get app data dir: {}", e) })),
+            );
+        }
+    };
+    let db_path = app_data_dir.join(".genealogy.db");
+
+    let port: String = if let Ok(conn) = rusqlite::Connection::open(&db_path) {
+        let result: Result<String, _> = conn.query_row(
+            "SELECT value FROM family_config WHERE key = 'http_port'",
+            [],
+            |row| row.get::<_, String>(0),
+        );
+        result.unwrap_or_else(|_| "8089".to_string())
+    } else {
+        "8089".to_string()
+    };
+
+    (StatusCode::OK, Json(json!({ "data": port })))
+}
+
+// 获取下载目录路径
+pub async fn get_download_path() -> (StatusCode, Json<Value>) {
+    let path = dirs_next::download_dir()
+        .map(|p| p.to_string_lossy().to_string())
+        .unwrap_or_else(|| "下载文件夹".to_string());
+    (StatusCode::OK, Json(json!({ "data": path })))
 }

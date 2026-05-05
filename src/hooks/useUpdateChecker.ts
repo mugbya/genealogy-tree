@@ -3,8 +3,9 @@ import { check } from '@tauri-apps/plugin-updater'
 
 const DISMISSED_VERSION_KEY = 'dismissed_update_version'
 
-// 检测是否为 Tauri 桌面环境
-const isTauri = typeof window !== 'undefined' && 'chrome' in window
+// 检测是否为 Tauri 桌面环境（使用 User-Agent 检测，与其他模块一致）
+const isTauri = typeof window !== 'undefined' &&
+  navigator.userAgent.includes('GenealogyDesktop')
 
 interface UpdateInfo {
   version: string
@@ -43,7 +44,7 @@ export function useUpdateChecker() {
       })
     } catch (err) {
       console.error('检查更新失败:', err)
-      // 静默失败，不影响用户使用
+      setError(err instanceof Error ? err.message : '检查更新失败')
     }
   }, [])
 

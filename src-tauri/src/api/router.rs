@@ -18,6 +18,7 @@ use crate::api::handlers::wechat::SharedWechatStore;
 pub struct AppState {
     pub db: Arc<Mutex<Connection>>,
     pub wechat_store: SharedWechatStore,
+    pub app_handle: Option<AppHandle>,
 }
 
 pub fn create_router(
@@ -26,7 +27,9 @@ pub fn create_router(
     dist_path: Option<PathBuf>,
     app_handle: Option<AppHandle>,
 ) -> Router {
-    let state = AppState { db, wechat_store };
+    let app_handle_clone = app_handle.clone();
+
+    let state = AppState { db, wechat_store, app_handle: app_handle_clone };
 
     let cors = CorsLayer::new()
         .allow_origin(Any)
@@ -83,25 +86,34 @@ pub fn create_router(
         // System info (public - no auth required)
         .route("/api/system/info", get(handlers::get_system_info))
         .route("/api/system/network-interfaces", get(handlers::get_network_interfaces))
+        .route("/api/system/database-path", get(handlers::system::get_database_info))
+        .route("/api/system/http-port", get(handlers::system::get_http_port))
+        .route("/api/system/download-path", get(handlers::system::get_download_path))
+        .route("/api/system/version", get(handlers::system::get_version))
         // License (public - no auth required)
         .route("/api/license/info", get(handlers::get_license_info))
         .route("/api/license/activate", post(handlers::activate_license))
         .route("/api/license/verify", post(handlers::verify_license))
-        .route("/api/license/check-feature", post(handlers::check_feature))
-        .layer(cors)
-        .with_state(state);
+        .route("/api/license/check-feature", post(handlers::check_feature));
 
-    // 如果有 AppHandle，注入到 Extension 中用于模板下载
-    if let Some(app) = app_handle {
+    // 如果有 AppHandle，注入到 Extension 中用于模板下载和数据库路径获取
+    let app_for_extension = app_handle.clone();
+    let app_for_templates = app_handle.clone();
+    if let Some(app) = app_for_extension {
         api_router = api_router.layer(Extension(app));
+    }
+
+    if let Some(app) = app_for_templates {
         // Templates 需要 AppHandle
         api_router = api_router.route("/api/templates/:name", get(handlers::download_template));
     }
 
-    if let Some(dist_path) = dist_path {
+    let api_router = if let Some(dist_path) = dist_path {
         let static_service = get_service(ServeDir::new(dist_path));
-        api_router.fallback(static_service)
+        api_router.layer(cors).fallback(static_service)
     } else {
-        api_router
-    }
+        api_router.layer(cors)
+    };
+
+    api_router.with_state(state)
 }

@@ -1,5 +1,3 @@
-import { invoke } from '@tauri-apps/api/core'
-
 // 通过自定义 User-Agent 检测是否为桌面端（WebView）
 const isDesktop = typeof window !== 'undefined' &&
   navigator.userAgent.includes('GenealogyDesktop')
@@ -13,8 +11,10 @@ async function getApiBase(): Promise<string> {
   if (!apiBasePromise) {
     apiBasePromise = (async () => {
       try {
-        const port = await invoke<string>('get_http_port')
-        return `http://localhost:${port}`
+        // 直接通过当前 origin 获取端口
+        const res = await fetch('/api/system/http-port')
+        const json = await res.json()
+        return `http://localhost:${json.data ?? 8089}`
       } catch (e) {
         console.error('Failed to get HTTP port:', e)
         return 'http://localhost:8089' // fallback
@@ -30,9 +30,7 @@ interface ApiResponse<T> {
 }
 
 async function handleResponse<T>(res: Response): Promise<ApiResponse<T>> {
-  console.log('API Response:', res.status, res.url)
   const body = await res.json().catch(() => ({}))
-  console.log('API Response body:', body)
 
   // 检查业务层面的 success 字段（即使 HTTP 状态码是 200）
   if (body.success === false) {
@@ -45,7 +43,6 @@ async function handleResponse<T>(res: Response): Promise<ApiResponse<T>> {
     return { error: body.error || body.message || `HTTP ${res.status}` }
   }
 
-  console.log('API Success Response:', body)
   return { data: body.data }
 }
 
@@ -69,7 +66,6 @@ export const api = {
   async post<T>(path: string, data?: unknown): Promise<ApiResponse<T>> {
     const headers = await getHeaders()
     const base = await getApiBase()
-    console.log('POST request:', `${base}${path}`, data)
     const res = await fetch(`${base}${path}`, {
       method: 'POST',
       headers,
@@ -121,7 +117,6 @@ export const configApi = {
   list: () => api.get<Config[]>('/api/config'),
   get: (key: string) => api.get<Config>(`/api/config/${key}`),
   set: (key: string, value: string) => {
-    console.log('configApi.set called:', key, value)
     return api.post('/api/config', { key, value })
   },
   setBatch: (configs: { key: string; value: string }[]) => api.post('/api/config/batch', configs),
@@ -193,10 +188,19 @@ export interface LicenseStatus {
   error?: string
 }
 
-// 系统信息 API - 通过 HTTP API 获取（网页版使用）
+// 系统信息 API - 通过 HTTP API 获取
 export const systemApi = {
   getSystemInfo: () => api.get<SystemInfo>('/api/system/info'),
   getNetworkInterfaces: () => api.get<NetworkInterface[]>('/api/system/network-interfaces'),
+  getDatabasePath: () => api.get<DatabasePathInfo>('/api/system/database-path'),
+  getHttpPort: () => api.get<string>('/api/system/http-port'),
+  getDownloadPath: () => api.get<string>('/api/system/download-path'),
+  getVersion: () => api.get<string>('/api/system/version'),
+}
+
+export interface DatabasePathInfo {
+  path: string
+  os_type: string  // macos, linux, windows
 }
 
 export interface SystemInfo {

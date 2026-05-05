@@ -1,5 +1,4 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react'
-import { invoke } from "@tauri-apps/api/core";
 import { useMembers, useCreateMember, useUpdateMember, useDeleteMember, useMemberRelations, useCreateMemberRelation, useDeleteMemberRelation, useEditableMemberIds } from '@/hooks/useMembers'
 import { useAuthStore } from '@/stores'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -13,7 +12,7 @@ import { GenealogyTree } from '@/components/TreeNode'
 import { TraditionalGenealogy } from '@/components/TraditionalGenealogy'
 import { TraditionalGenealogyBook } from '@/components/TraditionalGenealogyBook'
 import { ModernGenealogyBook } from '@/components/ModernGenealogyBook'
-import { membersApi, relationTagsApi, configApi, type Member, type RelationTag, type CreateMemberInput } from '@/api/client'
+import { membersApi, relationTagsApi, configApi, systemApi, type Member, type RelationTag, type CreateMemberInput } from '@/api/client'
 import {
   Dialog,
   DialogContent,
@@ -683,7 +682,6 @@ export function TreePage() {
       }
 
       const result = await membersApi.import(base64)
-      console.log('Import result:', result)
       if (result.error) {
         alert('导入失败: ' + result.error)
       } else if (result.data) {
@@ -713,19 +711,12 @@ export function TreePage() {
     try {
       let blob: Blob;
 
-      if (isDesktop && typeof invoke !== 'undefined') {
-        // 桌面端：使用Tauri命令获取模板文件内容
-        const fileBytes = await invoke<number[]>('download_template', { templateName: templateFileName });
-        const uint8Array = new Uint8Array(fileBytes);
-        blob = new Blob([uint8Array], { type: 'text/csv;charset=utf-8;' });
-      } else {
-        // 浏览器端：使用HTTP API获取模板文件
-        const response = await fetch(`/api/templates/${templateFileName}`);
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        blob = await response.blob();
+      // 下载模板
+      const response = await fetch(`/api/templates/${templateFileName}`);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
+      blob = await response.blob();
 
       // 创建下载链接
       const url = URL.createObjectURL(blob);
@@ -736,13 +727,11 @@ export function TreePage() {
       URL.revokeObjectURL(url);
       setDownloadSuccess(true);
 
-      if (isDesktop && typeof invoke !== 'undefined') {
-        try {
-          const path = await invoke<string>('get_download_path');
-          setDownloadPath(path);
-        } catch {
-          setDownloadPath('');
-        }
+      try {
+        const result = await systemApi.getDownloadPath();
+        setDownloadPath(result.data || '');
+      } catch {
+        setDownloadPath('');
       }
     } catch (err) {
       console.error('下载模板失败:', err);
