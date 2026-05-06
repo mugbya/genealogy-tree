@@ -18,6 +18,7 @@ export function useUpdateChecker() {
   const [downloading, setDownloading] = useState(false)
   const [downloadProgress, setDownloadProgress] = useState(0)
   const [error, setError] = useState<string | null>(null)
+  const [needsRestart, setNeedsRestart] = useState(false)
 
   const checkForUpdates = useCallback(async () => {
     // 仅在 Tauri 桌面环境检查更新
@@ -56,6 +57,7 @@ export function useUpdateChecker() {
     try {
       setDownloading(true)
       setDownloadProgress(0)
+      setError(null)
 
       const update = await check()
       if (!update) {
@@ -67,17 +69,31 @@ export function useUpdateChecker() {
       let totalBytes = 0
       let downloadedBytes = 0
 
-      await update.downloadAndInstall((event) => {
+      console.log('[Updater] Starting downloadAndInstall')
+      await update.downloadAndInstall((event: any) => {
+        console.log('[Updater] Event:', event.event)
         if (event.event === 'Started') {
           totalBytes = event.data.contentLength || 0
+          console.log('[Updater] Download started, total bytes:', totalBytes)
         } else if (event.event === 'Progress') {
           downloadedBytes += event.data.chunkLength
           if (totalBytes > 0) {
-            setDownloadProgress((downloadedBytes / totalBytes) * 100)
+            setDownloadProgress(Math.min((downloadedBytes / totalBytes) * 100, 99))
           }
+        } else if (event.event === 'Finished') {
+          console.log('[Updater] Download finished')
+          setDownloadProgress(100)
+        } else if (event.event === 'Installed') {
+          console.log('[Updater] Installed event, clearing states')
+          setUpdateInfo(null)
+          setDownloading(false)
         }
       })
 
+      console.log('[Updater] downloadAndInstall promise resolved')
+      // 下载和安装完成，需要重启应用才能生效
+      setDownloadProgress(100)
+      setNeedsRestart(true)
       setDownloading(false)
     } catch (err) {
       console.error('更新失败:', err)
@@ -92,6 +108,7 @@ export function useUpdateChecker() {
       localStorage.setItem(DISMISSED_VERSION_KEY, updateInfo.version)
     }
     setUpdateInfo(null)
+    setNeedsRestart(false)
   }, [updateInfo])
 
   // 清除已忽略的版本记录（用于重新提示更新）
@@ -112,6 +129,7 @@ export function useUpdateChecker() {
     downloading,
     downloadProgress,
     error,
+    needsRestart,
     checkForUpdates,
     startUpdate,
     dismissUpdate,

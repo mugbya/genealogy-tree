@@ -3,25 +3,44 @@ const isDesktop = typeof window !== 'undefined' &&
   navigator.userAgent.includes('GenealogyDesktop')
 
 // 动态 API_BASE（桌面端从后端获取端口，浏览器端使用相对路径）
-let apiBasePromise: Promise<string> | null = null
+let cachedApiBase: string | null = null
 
 async function getApiBase(): Promise<string> {
+  // 非桌面端使用相对路径
   if (!isDesktop) return ''
 
-  if (!apiBasePromise) {
-    apiBasePromise = (async () => {
-      try {
-        // 直接通过当前 origin 获取端口
-        const res = await fetch('/api/system/http-port')
+  // 如果已经获取过端口，直接返回缓存值
+  if (cachedApiBase) return cachedApiBase
+
+  // 尝试多个可能的端口
+  const ports = [8089, 8080]
+
+  for (const port of ports) {
+    try {
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 2000)
+
+      const res = await fetch(`http://localhost:${port}/api/system/http-port`, {
+        signal: controller.signal
+      })
+
+      clearTimeout(timeoutId)
+
+      if (res.ok) {
         const json = await res.json()
-        return `http://localhost:${json.data ?? 8089}`
-      } catch (e) {
-        console.error('Failed to get HTTP port:', e)
-        return 'http://localhost:8089' // fallback
+        cachedApiBase = `http://localhost:${json.data ?? port}`
+        console.log('[API] Connected to HTTP server on port:', port)
+        return cachedApiBase
       }
-    })()
+    } catch (e) {
+      console.warn(`[API] Failed to connect on port ${port}:`, e)
+    }
   }
-  return apiBasePromise
+
+  // 所有端口都失败，使用默认端口
+  console.error('[API] Could not connect to HTTP server, using fallback port 8089')
+  cachedApiBase = 'http://localhost:8089'
+  return cachedApiBase
 }
 
 interface ApiResponse<T> {

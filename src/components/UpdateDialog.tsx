@@ -21,6 +21,7 @@ interface UpdateDialogProps {
   onLater: () => void
   downloading?: boolean
   downloadProgress?: number
+  needsRestart?: boolean
 }
 
 export function UpdateDialog({
@@ -31,27 +32,34 @@ export function UpdateDialog({
   onLater,
   downloading = false,
   downloadProgress = 0,
+  needsRestart = false,
 }: UpdateDialogProps) {
-  if (!updateInfo) return null
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>发现新版本</DialogTitle>
+          <DialogTitle>{needsRestart ? '更新已下载' : '发现新版本'}</DialogTitle>
           <p className="text-sm text-muted-foreground">
-            {updateInfo.version
+            {needsRestart
+              ? '请重启应用以完成更新'
+              : updateInfo?.version
               ? `版本 ${updateInfo.version} 现已可用`
               : '新版本现已可用'}
           </p>
         </DialogHeader>
 
         <div className="py-4">
-          {updateInfo.notes && (
+          {needsRestart ? (
             <div className="text-sm text-muted-foreground">
-              <p className="font-medium mb-2">更新内容：</p>
-              <p className="whitespace-pre-wrap">{updateInfo.notes}</p>
+              <p>更新已下载完成，请在方便时重启应用以使用新版本。</p>
             </div>
+          ) : (
+            updateInfo?.notes && (
+              <div className="text-sm text-muted-foreground">
+                <p className="font-medium mb-2">更新内容：</p>
+                <p className="whitespace-pre-wrap">{updateInfo.notes}</p>
+              </div>
+            )
           )}
 
           {downloading && (
@@ -71,12 +79,18 @@ export function UpdateDialog({
         </div>
 
         <DialogFooter className="gap-2 sm:gap-0">
-          <Button variant="outline" onClick={onLater} disabled={downloading}>
-            稍后更新
-          </Button>
-          <Button onClick={onUpdate} disabled={downloading}>
-            {downloading ? '下载中...' : '立即更新'}
-          </Button>
+          {needsRestart ? (
+            <Button onClick={onLater}>知道了</Button>
+          ) : (
+            <>
+              <Button variant="outline" onClick={onLater} disabled={downloading}>
+                稍后更新
+              </Button>
+              <Button onClick={onUpdate} disabled={downloading}>
+                {downloading ? '下载中...' : '立即更新'}
+              </Button>
+            </>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

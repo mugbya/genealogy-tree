@@ -28,7 +28,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 }
 
 function App() {
-  const { updateInfo, downloading, downloadProgress, startUpdate, dismissUpdate } = useUpdateChecker()
+  const { updateInfo, downloading, downloadProgress, needsRestart, startUpdate, dismissUpdate } = useUpdateChecker()
 
   return (
     <QueryClientProvider client={queryClient}>
@@ -65,13 +65,14 @@ function App() {
         </Routes>
       </BrowserRouter>
       <UpdateDialog
-        open={!!updateInfo}
+        open={!!updateInfo || needsRestart}
         onOpenChange={(open) => !open && dismissUpdate()}
         updateInfo={updateInfo}
         onUpdate={startUpdate}
         onLater={dismissUpdate}
         downloading={downloading}
         downloadProgress={downloadProgress}
+        needsRestart={needsRestart}
       />
     </QueryClientProvider>
   )
