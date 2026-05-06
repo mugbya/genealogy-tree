@@ -493,11 +493,12 @@ pub async fn import_members(
 
         if let Some(id) = existing_id {
             // Update existing
+            // 注意：generation 由系统根据父子关系自动计算，不允许导入时手动设置
             let weight_val = row.排序.unwrap_or(0);
             let result = conn.execute(
-                "UPDATE family_members SET surname = ?, gender = ?, generation = ?, generation_word = ?, weight = ?, birth_date = ?, death_date = ?, is_deceased = ?,
+                "UPDATE family_members SET surname = ?, gender = ?, generation = NULL, generation_word = ?, weight = ?, birth_date = ?, death_date = ?, is_deceased = ?,
                  birth_place = ?, occupation = ?, biography = ?, remarkable_deeds = ?, is_matrilocal = ?, is_adopted_son = ? WHERE id = ?",
-                params![row.姓氏, gender, row.字辈, row.字辈, weight_val, row.出生日期, row.逝世日期, is_deceased, row.籍贯, row.职业, row.生平简介, row.突出事迹, is_matrilocal, is_adopted_son, id],
+                params![row.姓氏, gender, row.字辈, weight_val, row.出生日期, row.逝世日期, is_deceased, row.籍贯, row.职业, row.生平简介, row.突出事迹, is_matrilocal, is_adopted_son, id],
             );
             match result {
                 Ok(_) => updated += 1,
@@ -505,11 +506,12 @@ pub async fn import_members(
             }
         } else {
             // Insert new
+            // 注意：generation 由系统根据父子关系自动计算，不允许导入时手动设置
             let weight_val = row.排序.unwrap_or(0);
             let result = conn.execute(
                 "INSERT INTO family_members (name, surname, gender, generation, generation_word, weight, birth_date, death_date, is_deceased,
-                 birth_place, occupation, biography, remarkable_deeds, is_matrilocal, is_adopted_son) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                params![name, row.姓氏, gender, row.字辈, row.字辈, weight_val, row.出生日期, row.逝世日期, is_deceased, row.籍贯, row.职业, row.生平简介, row.突出事迹, is_matrilocal, is_adopted_son],
+                 birth_place, occupation, biography, remarkable_deeds, is_matrilocal, is_adopted_son) VALUES (?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                params![name, row.姓氏, gender, row.字辈, weight_val, row.出生日期, row.逝世日期, is_deceased, row.籍贯, row.职业, row.生平简介, row.突出事迹, is_matrilocal, is_adopted_son],
             );
             match result {
                 Ok(_) => {
@@ -875,12 +877,11 @@ pub async fn create_member(
 
     let result = conn.execute(
         "INSERT INTO family_members (name, surname, gender, generation, generation_word, weight, birth_date, death_date, is_deceased,
-         birth_place, occupation, photo_path, biography, remarkable_deeds, is_matrilocal, is_adopted_son) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)",
+         birth_place, occupation, photo_path, biography, remarkable_deeds, is_matrilocal, is_adopted_son) VALUES (?1, ?2, ?3, NULL, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)",
         params![
             req.name,
             req.surname,
             req.gender,
-            req.generation,
             req.generation_word,
             req.weight.unwrap_or(0),
             req.birth_date,
@@ -955,10 +956,7 @@ pub async fn update_member(
         updates.push("gender = ?");
         values.push(Box::new(gender.clone()));
     }
-    if let Some(ref generation) = req.generation {
-        updates.push("generation = ?");
-        values.push(Box::new(generation.clone()));
-    }
+    // 注意：generation 不允许手动更新，由系统根据父子关系自动计算
     if let Some(ref generation_word) = req.generation_word {
         updates.push("generation_word = ?");
         values.push(Box::new(generation_word.clone()));
