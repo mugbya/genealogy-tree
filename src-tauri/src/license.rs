@@ -478,32 +478,6 @@ pub fn get_license_info(db: &Mutex<Connection>) -> Result<LicenseInfo, String> {
     })
 }
 
-fn check_local_license_validity(
-    license_type: Option<&str>,
-    expires_at: Option<&str>,
-) -> bool {
-    let Some(lt) = license_type else {
-        warn!(module="license", "check_local_license_validity: no license_type");
-        return false;
-    };
-
-    // If has license type but no expiry, it's permanent
-    if expires_at.is_none() {
-        warn!(module="license", "check_local_license_validity: {} has no expiry, valid", lt);
-        return true;
-    }
-
-    // Check expiration - use NTP time to prevent local clock manipulation
-    if let Some(exp) = expires_at {
-        let is_expired = is_expired_by_ntp(exp);
-        warn!(module="license", "check_local_license_validity: {} expires_at={}, is_expired={}",
-              lt, exp, is_expired);
-        return !is_expired;
-    }
-
-    warn!(module="license", "check_local_license_validity: default returning false");
-    false
-}
 
 // Activate license with key (user only provides license key)
 pub async fn activate_license(
