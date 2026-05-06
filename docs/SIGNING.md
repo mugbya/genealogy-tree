@@ -6,81 +6,69 @@
 
 ## 前置条件
 
-1. 已在 `.tauri/` 目录下准备好签名密钥：
+1. 使用 `pnpm tauri signer generate` 生成签名密钥对：
    - `.tauri/keys` - 私钥文件（加密）
    - `.tauri/keys.pub` - 公钥文件
 
 2. `tauri.conf.json` 中的 `pubkey` 已配置对应的公钥
 
+3. 安装 `direnv` 并配置（用于安全管理私钥密码）
+
+## 使用 direnv 管理签名密码
+
+### 1. 安装 direnv
+
+```bash
+# macOS
+brew install direnv
+
+# Linux
+sudo apt install direnv
+```
+
+### 2. 配置 shell
+
+在 `~/.zshrc` 或 `~/.bashrc` 中添加：
+```bash
+eval "$(direnv hook zsh)"  # zsh
+# 或
+eval "$(direnv hook bash)" # bash
+```
+
+
+### 3. 创建 .envrc
+
+在项目根目录创建 `.envrc`：
+
+```bash
+export TAURI_SIGNING_PRIVATE_KEY="$(cat .tauri/keys)"
+```
+
+### 4. 允许 direnv
+
+```bash
+direnv allow .
+```
+
+之后签名时会自动加载密码，无需手动输入。
+
 ## 签名步骤
 
-### 1. 编译打包
+### 1. 编译打包 
 
 ```bash
 ./build.sh
 ```
+> 现在因为在 tauri.conf.json 增加了 "createUpdaterArtifacts": true, 会自动签名
 
 构建产物位于：
 - App: `src-tauri/target/release/bundle/macos/genealogy.app`
 - DMG: `src-tauri/target/release/bundle/dmg/genealogy_1.0.0_aarch64.dmg`
+- 更新文件: `src-tauri/target/release/bundle/macos/genealogy.app.tar.gz (updater)`
+- 签名文件: `src-tauri/target/release/bundle/macos/genealogy.app.tar.gz.sig`
 
 ### 2. 对 DMG 进行签名
 
-```bash
-pnpm tauri signer sign -f .tauri/keys -p <密码> src-tauri/target/release/bundle/dmg/genealogy_1.0.0_aarch64.dmg
-```
+现在已不需要单独进行签名了
 
-签名成功后会在同级目录生成 `.sig` 文件：
-```
-src-tauri/target/release/bundle/dmg/genealogy_1.0.0_aarch64.dmg.sig
-```
-
-终端会输出公钥签名，类似：
-```
-Public signature:
-dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkK...
-```
-
-### 3. 上传文件到 COS
-
-1. 上传 DMG 文件到更新服务器：
-   ```
-   <COS_BUCKET_URL>/updates/genealogy_1.0.0_aarch64.dmg
-   ```
-
-2. 上传 `.sig` 签名文件到同一目录
-
-### 4. 更新 latest.json
-
-在更新服务器的 `updates/` 目录下创建或更新 `latest.json`：
-
-```json
-{
-  "version": "1.0.0",
-  "date": "2026-05-05",
-  "body": "更新说明...",
-  "path": "<COS_BUCKET_URL>/updates/genealogy_1.0.0_aarch64.dmg",
-  "signature": "上一步得到的公钥签名字符串"
-}
-```
-
-## 重置签名密钥
-
-如果忘记了私钥密码，需要重新生成密钥：
-
-```bash
-pnpm tauri signer generate
-```
-
-新密钥生成后需要：
-1. 更新 `tauri.conf.json` 中的 `pubkey` 为新的公钥
-2. 重新编译打包
-3. 使用新密钥签名
-
-## 签名验证
-
-签名会自动被 Tauri 的 updater 插件验证，无需手动验证。
-
----
-
-最后更新: 2026-05-05
+最后更新: 2026-05-06
