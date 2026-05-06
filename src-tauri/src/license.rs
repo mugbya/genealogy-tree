@@ -88,8 +88,20 @@ pub fn get_ntp_time() -> i64 {
     }
 
     // NTP 全部失败，回退到系统时间
-    warn!("NTP sync failed, falling back to system time");
-    chrono::Utc::now().timestamp()
+    // 但使用 system_time_millis() 而不是直接返回系统时间戳
+    // 这样可以检测用户是否把系统时间调到很远的历史
+    let system_time = chrono::Utc::now().timestamp();
+    warn!("NTP sync failed, falling back to system time: {}", system_time);
+
+    // 如果系统时间小于 2024年1月1日，认为是异常的（可能是用户调整了系统时间）
+    const MIN_VALID_TIMESTAMP: i64 = 1704067200; // 2024-01-01 00:00:00 UTC
+
+    if system_time < MIN_VALID_TIMESTAMP {
+        warn!("System time {} is too far in the past, using minimum valid time", system_time);
+        return MIN_VALID_TIMESTAMP;
+    }
+
+    system_time
 }
 
 /// Check if license is expired using NTP time
@@ -336,41 +348,38 @@ pub async fn get_or_generate_trial_license_async(db: Arc<Mutex<Connection>>) -> 
 
 /// Check if a license is valid (not expired)
 /// The auth_code is the RSA encrypted code for local verification
+/// Default returns false - only returns true when we can verify the license is valid
 pub fn is_license_valid(auth_code: Option<&str>, stored_expires_at: Option<&str>, license_type: Option<&str>) -> bool {
     let Some(code) = auth_code else {
-        warn!(module="license", "is_license_valid: no auth_code");
+        debug!(module="license", "is_license_valid: no auth_code, returning false");
         return false;
     };
 
-    warn!(module="license", "is_license_valid: code={}, type={:?}, expires_at={:?}", code, license_type, stored_expires_at);
+    debug!(module="license", "is_license_valid: checking license validity");
 
-    // Try to decode the auth code
+    // Decode the auth code to get expiration time
     let data = match decode_auth_code(code) {
-        Some(d) => {
-            warn!(module="license", "is_license_valid: decoded exp={}", d.exp);
-            d
-        },
+        Some(d) => d,
         None => {
-            // Fallback: if decode fails, use stored expiry time
-            warn!(module="license", "is_license_valid: decode failed, using stored expiry");
-            return check_local_license_validity(license_type, stored_expires_at);
+            // Decode failed - license is invalid
+            debug!(module="license", "is_license_valid: decode failed, returning false");
+            return false;
         }
     };
 
-    // Check if expired (0 means permanent)
-    // Use NTP time to prevent local clock manipulation
+    // Check if expired (0 means permanent license - never expires)
     if data.exp > 0 {
         let now = get_ntp_time();
         if data.exp < now {
-            warn!(module="license", "License expired at {} (NTP now: {})", data.exp, now);
+            debug!(module="license", "is_license_valid: license expired at {}, NTP now: {}, returning false", data.exp, now);
             return false;
         }
+        debug!(module="license", "is_license_valid: license valid (exp={}, now={})", data.exp, now);
+        return true;
     }
 
-    // Skip anti-tampering check since stored expiry is in local timezone
-    // while encoded exp is in UTC - comparing them causes false positives
-    // If auth_code decoded successfully and exp > now, license is valid
-
+    // exp == 0 means permanent license
+    debug!(module="license", "is_license_valid: permanent license, returning true");
     true
 }
 
