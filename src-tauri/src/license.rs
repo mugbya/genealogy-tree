@@ -113,11 +113,17 @@ pub fn is_expired_by_ntp(expires_at: &str) -> bool {
 }
 
 /// Get remaining days using NTP time (returns 0 if expired or NTP unavailable)
+/// 注意：expires_at 是本地时间字符串，需要转成 UTC 时间戳来比较
 pub fn get_remaining_days_by_ntp(expires_at: &str) -> i64 {
     // expires_at 是本地时间字符串，格式为 "%Y-%m-%d %H:%M:%S"
-    // 直接解析为 NaiveDateTime 然后获取时间戳（本地时间戳）
+    // 需要转成 UTC Unix 时间戳来与 NTP 时间比较
     let exp_timestamp = match chrono::NaiveDateTime::parse_from_str(expires_at, "%Y-%m-%d %H:%M:%S") {
-        Ok(dt) => dt.timestamp(),
+        Ok(dt) => {
+            // 先转成本地 DateTime，再转成 UTC 时间戳
+            let local_dt = dt.and_local_timezone(chrono::Local).unwrap();
+            let utc_dt = local_dt.with_timezone(&chrono::Utc);
+            utc_dt.timestamp()
+        },
         Err(e) => {
             warn!("Failed to parse expires_at '{}': {}", expires_at, e);
             return 0;
