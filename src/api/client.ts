@@ -2,7 +2,7 @@
 const isDesktop = typeof window !== 'undefined' &&
   navigator.userAgent.includes('GenealogyDesktop')
 
-// 动态 API_BASE（桌面端从后端获取端口，浏览器端使用相对路径）
+// 动态 API_BASE（桌面端通过 invoke 获取端口，浏览器端使用相对路径）
 let cachedApiBase: string | null = null
 
 async function getApiBase(): Promise<string> {
@@ -12,34 +12,21 @@ async function getApiBase(): Promise<string> {
   // 如果已经获取过端口，直接返回缓存值
   if (cachedApiBase) return cachedApiBase
 
-  // 尝试多个可能的端口
-  const ports = [8089, 8080]
-
-  for (const port of ports) {
-    try {
-      const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), 2000)
-
-      const res = await fetch(`http://localhost:${port}/api/system/http-port`, {
-        signal: controller.signal
-      })
-
-      clearTimeout(timeoutId)
-
-      if (res.ok) {
-        const json = await res.json()
-        cachedApiBase = `http://localhost:${json.data ?? port}`
-        console.log('[API] Connected to HTTP server on port:', port)
-        return cachedApiBase
-      }
-    } catch (e) {
-      console.warn(`[API] Failed to connect on port ${port}:`, e)
-    }
+  // 桌面端：通过 invoke 获取 HTTP 端口（只在启动时调用一次）
+  try {
+    const { invoke } = await import('@tauri-apps/api/core')
+    const httpPort = await invoke<string>('get_http_port')
+    cachedApiBase = `http://localhost:${httpPort || 8089}`
+    console.log('[API] Got HTTP port via invoke:', cachedApiBase)
+  } catch (e) {
+    // 详细错误日志，帮助调试
+    const tauriInternals = (window as any).__TAURI_INTERNALS__
+    console.error('[API] Failed to get HTTP port:', e)
+    console.error('[API] window.__TAURI_INTERNALS__:', tauriInternals)
+    console.error('[API] window.__TAURI__:', (window as any).__TAURI__)
+    cachedApiBase = 'http://localhost:8089'
   }
 
-  // 所有端口都失败，使用默认端口
-  console.error('[API] Could not connect to HTTP server, using fallback port 8089')
-  cachedApiBase = 'http://localhost:8089'
   return cachedApiBase
 }
 
