@@ -4,7 +4,7 @@ use rusqlite::Connection;
 use serde_json::json;
 use chrono::{Local, Timelike};
 use sysinfo::System;
-use tracing::{info, warn};
+use tracing::{info, warn, debug};
 
 use crate::models::usage_report::{UsageReport, PendingReport};
 
@@ -54,53 +54,163 @@ fn save_pending_report(db: &Mutex<Connection>, report: &UsageReport) -> Result<(
     Ok(())
 }
 
-/// Get public IP address
-fn get_public_ip() -> String {
+/// IP and geo info result
+struct IpGeoResult {
+    ip: String,
+    country: String,
+    region: String,
+    city: String,
+}
+
+/// Get public IP address and geo info (combined to avoid duplicate requests)
+fn get_public_ip_with_geo() -> IpGeoResult {
     let services = [
-        "https://api.ipify.org",
-        "https://checkip.amazonaws.com",
-        "https://icanhazip.com",
+        // 国内服务 - 直接返回 IP 和地理位置
+        ("https://myip.ipip.net", true),   // 返回格式: "IP  来自于：中国 四川 成都  电信"
+        ("https://ip.cn", true),            // 返回格式: "IP  来自于：中国 广东 佛山  电信"
+        ("https://ip.sb", false),          // 只返回 IP
+        // 国外服务 - 只返回 IP
+        ("https://checkip.amazonaws.com", false),
     ];
 
-    for service in &services {
-        if let Ok(response) = reqwest::blocking::Client::builder()
-            .timeout(Duration::from_secs(5))
-            .build()
-            .and_then(|client| client.get(*service).send())
-        {
-            if let Ok(ip) = response.text() {
-                let ip = ip.trim().to_string();
-                if !ip.is_empty() && ip.parse::<std::net::IpAddr>().is_ok() {
-                    return ip;
+    let client = match reqwest::blocking::Client::builder()
+        .timeout(Duration::from_secs(5))
+        .build()
+    {
+        Ok(c) => c,
+        Err(e) => {
+            debug!(module="usage_report", "Failed to create HTTP client: {}", e);
+            return IpGeoResult { ip: "unknown".to_string(), country: "unknown".to_string(), region: "unknown".to_string(), city: "unknown".to_string() };
+        }
+    };
+
+    for (service, has_geo) in &services {
+        debug!(module="usage_report", "Trying to get IP from: {}", service);
+
+        let response = client
+            .get(*service)
+            .header("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+            .send();
+
+        match response {
+            Ok(resp) => {
+                let status = resp.status();
+                debug!(module="usage_report", "Service {} returned status: {}", service, status);
+
+                match resp.text() {
+                    Ok(text) => {
+                        let text = text.trim().to_string();
+
+                        // 遍历所有单词，找到第一个有效的 IP 地址
+                        for word in text.split_whitespace() {
+                            // 先去除可能的前缀（如 "IP："、"当前 IP：" 等）
+                            let clean_word = word
+                                .trim_start_matches("当前 IP：")
+                                .trim_start_matches("当前 IP:")
+                                .trim_start_matches("IP：")
+                                .trim_start_matches("IP:");
+
+                            if clean_word.parse::<std::net::IpAddr>().is_ok() {
+                                debug!(module="usage_report", "Service {} returned valid IP: {}", service, clean_word);
+
+                                // 如果服务提供地理位置信息，解析它
+                                if *has_geo {
+                                    // 格式: "当前 IP：171.216.136.142  来自于：中国 四川 成都  电信"
+                                    // 找 "来自于：" 之后的内容（支持全角冒号和半角冒号）
+                                    let geo_markers = ["来自于：", "来自于:"];
+                                    for marker in &geo_markers {
+                                        if let Some(pos) = text.find(*marker) {
+                                            let geo_part = &text[pos + marker.len()..];
+                                            let parts: Vec<&str> = geo_part.split_whitespace().collect();
+                                            if parts.len() >= 3 {
+                                                let country = parts[0].to_string();
+                                                let region = parts[1].to_string();
+                                                let city = parts[2].to_string();
+                                                debug!(module="usage_report", "Parsed geo from {}: country={}, region={}, city={}", service, country, region, city);
+                                                return IpGeoResult {
+                                                    ip: clean_word.to_string(),
+                                                    country,
+                                                    region,
+                                                    city,
+                                                };
+                                            }
+                                        }
+                                    }
+                                }
+
+                                // 只返回 IP，地理位置需要后续查询
+                                return IpGeoResult {
+                                    ip: clean_word.to_string(),
+                                    country: "unknown".to_string(),
+                                    region: "unknown".to_string(),
+                                    city: "unknown".to_string(),
+                                };
+                            }
+                        }
+                        debug!(module="usage_report", "Service {} returned no valid IP", service);
+                    }
+                    Err(e) => {
+                        debug!(module="usage_report", "Service {} failed to read response: {}", service, e);
+                    }
                 }
+            }
+            Err(e) => {
+                debug!(module="usage_report", "Service {} request failed: {}", service, e);
             }
         }
     }
 
-    "unknown".to_string()
+    debug!(module="usage_report", "All IP services failed, returning 'unknown'");
+    IpGeoResult { ip: "unknown".to_string(), country: "unknown".to_string(), region: "unknown".to_string(), city: "unknown".to_string() }
 }
 
 /// Get IP location/geo info, returns (country, region, city)
 fn get_ip_geo_info(ip: &str) -> (String, String, String) {
     if ip == "unknown" {
+        debug!(module="usage_report", "IP is 'unknown', skipping geo lookup");
         return ("unknown".to_string(), "unknown".to_string(), "unknown".to_string());
     }
 
     let url = format!("http://ip-api.com/json/{}?fields=status,country,regionName,city", ip);
+    debug!(module="usage_report", "Getting geo info for IP: {} from {}", ip, url);
 
-    if let Ok(response) = reqwest::blocking::Client::builder()
+    match reqwest::blocking::Client::builder()
         .timeout(Duration::from_secs(5))
         .build()
-        .and_then(|client| client.get(&url).header("Accept", "application/json").send())
     {
-        if let Ok(json_response) = response.json::<serde_json::Value>() {
-            if json_response.get("status").and_then(|s| s.as_str()) == Some("success") {
-                let country = json_response.get("country").and_then(|c| c.as_str()).unwrap_or("").to_string();
-                let region = json_response.get("regionName").and_then(|r| r.as_str()).unwrap_or("").to_string();
-                let city = json_response.get("city").and_then(|c| c.as_str()).unwrap_or("").to_string();
+        Ok(client) => {
+            match client.get(&url).header("Accept", "application/json").send() {
+                Ok(response) => {
+                    let status = response.status();
+                    debug!(module="usage_report", "Geo API returned status: {}", status);
 
-                return (country, region, city);
+                    match response.json::<serde_json::Value>() {
+                        Ok(json_response) => {
+                            debug!(module="usage_report", "Geo API response: {:?}", json_response);
+
+                            if json_response.get("status").and_then(|s| s.as_str()) == Some("success") {
+                                let country = json_response.get("country").and_then(|c| c.as_str()).unwrap_or("").to_string();
+                                let region = json_response.get("regionName").and_then(|r| r.as_str()).unwrap_or("").to_string();
+                                let city = json_response.get("city").and_then(|c| c.as_str()).unwrap_or("").to_string();
+
+                                debug!(module="usage_report", "Geo info: country={}, region={}, city={}", country, region, city);
+                                return (country, region, city);
+                            } else {
+                                debug!(module="usage_report", "Geo API returned failure status");
+                            }
+                        }
+                        Err(e) => {
+                            debug!(module="usage_report", "Failed to parse geo API response: {}", e);
+                        }
+                    }
+                }
+                Err(e) => {
+                    debug!(module="usage_report", "Geo API request failed: {}", e);
+                }
             }
+        }
+        Err(e) => {
+            debug!(module="usage_report", "Failed to create geo API client: {}", e);
         }
     }
 
@@ -114,8 +224,14 @@ fn collect_usage_info(machine_code: &str) -> UsageReport {
     let os_name = System::name().unwrap_or_else(|| "Unknown".to_string());
     let os_version = System::os_version().unwrap_or_else(|| "Unknown".to_string());
 
-    let public_ip = get_public_ip();
-    let (country, region, city) = get_ip_geo_info(&public_ip);
+    // 获取 IP 和地理位置（优先使用 IP 服务返回的地理位置）
+    let ip_geo = get_public_ip_with_geo();
+    let (country, region, city) = if ip_geo.country == "unknown" {
+        // 如果 IP 服务没有提供地理位置，使用备用服务
+        get_ip_geo_info(&ip_geo.ip)
+    } else {
+        (ip_geo.country, ip_geo.region, ip_geo.city)
+    };
 
     let report_date = Local::now().format("%Y-%m-%d").to_string();
 
@@ -125,7 +241,7 @@ fn collect_usage_info(machine_code: &str) -> UsageReport {
         machine_code: machine_code.to_string(),
         os_name,
         os_version,
-        public_ip,
+        public_ip: ip_geo.ip,
         country,
         region,
         city,

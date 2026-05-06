@@ -171,6 +171,7 @@ pub fn run() {
     registry()
         .with(fmt::layer().with_writer(std::io::stderr))
         .with(file_layer)
+        .with(tracing_subscriber::EnvFilter::from_default_env().add_directive(tracing::Level::DEBUG.into()))
         .init();
 
     tauri::Builder::default()
