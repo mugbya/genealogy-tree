@@ -651,7 +651,26 @@ pub async fn verify_license(
 
     // Check if success is false, return error message if present
     if !result.success {
-        return Err(result.error.unwrap_or_else(|| "验证失败".to_string()));
+        let error_msg = result.error.unwrap_or_else(|| "验证失败".to_string());
+
+        // 如果是解绑相关的错误，清除本地授权记录
+        if error_msg.contains("解绑") || error_msg.contains("已失效") || error_msg.contains("已被注销") {
+            if let Ok(conn) = db.lock() {
+                let keys = [
+                    CONFIG_LICENSE_KEY,
+                    CONFIG_LICENSE_AUTH_CODE,
+                    CONFIG_LICENSE_TYPE,
+                    CONFIG_LICENSE_ACTIVATED_AT,
+                    CONFIG_LICENSE_VERIFIED_AT,
+                ];
+                for key in keys {
+                    let _ = conn.execute("DELETE FROM family_config WHERE key = ?1", [key]);
+                }
+                tracing::warn!("License unbound, local records cleared");
+            }
+        }
+
+        return Err(error_msg);
     }
 
     if let Some(data) = result.data {
