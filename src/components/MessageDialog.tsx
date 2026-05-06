@@ -14,11 +14,12 @@ interface MessageDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   title: string
-  description: string
+  description?: string
   type?: 'info' | 'success' | 'error'
+  onOk?: () => void
 }
 
-export function MessageDialog({ open, onOpenChange, title, description, type = 'info' }: MessageDialogProps) {
+export function MessageDialog({ open, onOpenChange, title, description, type = 'info', onOk }: MessageDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md max-w-[90vw]">
@@ -29,10 +30,13 @@ export function MessageDialog({ open, onOpenChange, title, description, type = '
             {type === 'error' && <AlertCircle className="w-5 h-5 text-red-600" />}
             {title}
           </DialogTitle>
-          <DialogDescription>{description}</DialogDescription>
+          {description && <DialogDescription>{description}</DialogDescription>}
         </DialogHeader>
         <DialogFooter>
-          <Button onClick={() => onOpenChange(false)}>确定</Button>
+          <Button onClick={() => {
+            onOk?.()
+            onOpenChange(false)
+          }}>确定</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -65,6 +69,7 @@ export function useMessageDialog() {
       title={dialogState.title}
       description={dialogState.description}
       type={dialogState.type}
+      onOk={(dialogState as any).onOk}
     />
   )
 

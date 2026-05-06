@@ -519,9 +519,11 @@ function IntranetPenetration() {
 }
 
 function UpdateSettings() {
-  const { updateInfo, downloading, downloadProgress, checkForUpdates, startUpdate, clearDismissedVersion, error } = useUpdateChecker()
+  const { updateInfo, downloading, downloadProgress, needsRestart, checkForUpdates, startUpdate, dismissUpdate, clearDismissedVersion, error } = useUpdateChecker()
   const [currentVersion, setCurrentVersion] = useState('0.0.0')
   const [isChecking, setIsChecking] = useState(false)
+  const { showMessage, MessageDialogComponent } = useMessageDialog()
+  const hasShownRestartMessage = useRef(false)
 
   useEffect(() => {
     systemApi.getVersion().then(result => {
@@ -531,6 +533,7 @@ function UpdateSettings() {
 
   const handleCheckUpdate = async () => {
     setIsChecking(true)
+    hasShownRestartMessage.current = false
     try {
       clearDismissedVersion()
       await checkForUpdates()
@@ -538,6 +541,21 @@ function UpdateSettings() {
       setIsChecking(false)
     }
   }
+
+  // 下载完成后提示用户重启（使用 ref 避免无限循环）
+  useEffect(() => {
+    if (needsRestart && !hasShownRestartMessage.current) {
+      hasShownRestartMessage.current = true
+      showMessage({
+        title: '更新已下载',
+        description: '更新已下载完成，请在方便时重启应用以使用新版本。',
+        onOk: () => {
+          hasShownRestartMessage.current = false
+          dismissUpdate()
+        }
+      })
+    }
+  }, [needsRestart, showMessage, dismissUpdate])
 
   return (
     <Card className="border-0 shadow-sm">
@@ -626,10 +644,11 @@ function UpdateSettings() {
             <li>• 启动时会自动检查更新</li>
             <li>• 点击"稍后更新"将跳过本次更新提示</li>
             <li>• 可随时点击"检查更新"手动检查</li>
-            <li>• 下载完成后将自动安装并重启</li>
+            <li>• 下载完成后需重启应用以使用新版本</li>
           </ul>
         </div>
       </CardContent>
+      {MessageDialogComponent}
     </Card>
   )
 }
