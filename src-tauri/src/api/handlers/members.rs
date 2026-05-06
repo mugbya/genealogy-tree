@@ -210,7 +210,8 @@ pub fn recalculate_generations(conn: &rusqlite::Connection) -> Result<(), String
     // 获取每个成员的代数
     let mut member_generation: HashMap<i64, i32> = HashMap::new();
 
-    // 找出第1代成员：没有父母且没有配偶的成员
+    // 找出第1代成员：没有父母关系的成员（即不知道父母的成员）
+    // 对于导入的数据，很多成员的父辈信息是未知的，应该把他们当作根节点（第一代）
     for &member_id in &all_member_ids {
         let has_father: bool = conn
             .query_row(
@@ -228,18 +229,9 @@ pub fn recalculate_generations(conn: &rusqlite::Connection) -> Result<(), String
             )
             .unwrap_or(false);
 
-        // 检查是否有配偶
-        let has_spouse: bool = conn
-            .query_row(
-                "SELECT 1 FROM member_relations
-                 WHERE (from_member_id = ? OR to_member_id = ?) AND relation_type = 'spouse' LIMIT 1",
-                params![member_id, member_id],
-                |_| Ok(true),
-            )
-            .unwrap_or(false);
-
-        // 如果既没有父亲也没有母亲也没有配偶，则是第1代
-        if !has_father && !has_mother && !has_spouse {
+        // 如果没有父亲或母亲，则是第1代（不知道自己的父辈，就当作根节点）
+        // 这样可以正确处理导入数据中两兄弟都是第1代的情况
+        if !has_father && !has_mother {
             member_generation.insert(member_id, 1);
         }
     }
