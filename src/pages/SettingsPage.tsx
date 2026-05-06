@@ -1175,16 +1175,16 @@ function LicenseSettings() {
             {licenseInfo?.is_trial && licenseInfo?.expires_at && (
               <div className="flex justify-between text-sm">
                 <span className="text-zinc-500">试用期剩余</span>
-                <span className={licenseInfo.remaining_days != null && licenseInfo.remaining_days > 0 ? 'font-medium text-blue-600' : 'text-red-600'}>
-                  {licenseInfo.remaining_days != null && licenseInfo.remaining_days > 0 ? `${licenseInfo.remaining_days} 天` : '已过期'}
+                <span className={licenseInfo.is_valid ? 'font-medium text-blue-600' : 'text-red-600'}>
+                  {licenseInfo.is_valid ? `${licenseInfo.remaining_days ?? 0} 天` : '已过期'}
                 </span>
               </div>
             )}
             {licenseInfo?.license_type === 'custom' && licenseInfo?.expires_at && (
               <div className="flex justify-between text-sm">
                 <span className="text-zinc-500">剩余天数</span>
-                <span className={licenseInfo.remaining_days != null && licenseInfo.remaining_days > 0 ? 'font-medium text-green-600' : 'text-red-600'}>
-                  {licenseInfo.remaining_days != null && licenseInfo.remaining_days > 0 ? `${licenseInfo.remaining_days} 天` : '已过期'}
+                <span className={licenseInfo.is_valid ? 'font-medium text-green-600' : 'text-red-600'}>
+                  {licenseInfo.is_valid ? `${licenseInfo.remaining_days ?? 0} 天` : '已过期'}
                 </span>
               </div>
             )}
@@ -1192,11 +1192,11 @@ function LicenseSettings() {
         )}
 
         <div className="flex gap-3 flex-wrap">
-          {licenseInfo?.is_trial && !isExpired(licenseInfo.expires_at) ? (
+          {licenseInfo?.is_trial && licenseInfo.is_valid ? (
             <div className="text-sm text-zinc-500">
               试用期授权已自动激活，如需正式授权请联系客服购买
             </div>
-          ) : licenseInfo?.is_trial && isExpired(licenseInfo.expires_at) ? (
+          ) : licenseInfo?.is_trial && !licenseInfo.is_valid ? (
             <>
               <div className="text-sm text-red-600">
                 试用期已过期，请购买正式授权

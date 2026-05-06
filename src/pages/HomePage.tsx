@@ -475,13 +475,13 @@ export function HomePage() {
                       <span className="text-gray-500">剩余天数</span>
                       <span
                         className={cn(
-                          licenseInfo?.remaining_days != null && licenseInfo.remaining_days > 0
+                          licenseInfo.is_valid
                             ? "text-green-600 font-medium"
                             : "text-red-600",
                         )}
                       >
-                        {licenseInfo?.remaining_days != null && licenseInfo.remaining_days > 0
-                          ? `${licenseInfo.remaining_days} 天`
+                        {licenseInfo.is_valid
+                          ? `${licenseInfo.remaining_days ?? 0} 天`
                           : "已过期"}
                       </span>
                     </div>
