@@ -168,6 +168,124 @@ export const licenseApi = {
   checkFeature: (feature: string) => api.post<FeatureCheckResult>('/api/license/check-feature', { feature }),
 }
 
+// Export API - 调用后端API导出文件（后端会进行授权校验）
+export interface ExportVolumeRequest {
+  start_generation?: number
+  end_generation?: number
+}
+
+export const exportApi = {
+  // 导出HTML（全部成员）
+  exportHtml: async (): Promise<{ success: boolean; error?: string }> => {
+    const base = await getApiBase()
+    const token = localStorage.getItem('token')
+
+    try {
+      const response = await fetch(`${base}/api/export/html`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({}),
+      })
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        console.error('Export failed:', response.status, errorText)
+        return { success: false, error: `导出失败: ${response.status}` }
+      }
+
+      // 获取文件名从 Content-Disposition header（支持 RFC 5987 filename* 编码）
+      const contentDisposition = response.headers.get('Content-Disposition')
+      let filename = '族谱.html'
+      if (contentDisposition) {
+        // 先尝试匹配 filename*=UTF-8''xxx 格式（RFC 5987）
+        const filenameStarMatch = contentDisposition.match(/filename\*=UTF-8''([^;\n]+)/i)
+        if (filenameStarMatch) {
+          // URL decode the filename
+          filename = decodeURIComponent(filenameStarMatch[1])
+        } else {
+          // 回退到普通 filename="xxx" 格式
+          const match = contentDisposition.match(/filename="?([^";\n]+)"?/i)
+          if (match) filename = match[1]
+        }
+      }
+
+      // 下载文件
+      const blob = await response.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = filename
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+
+      return { success: true }
+    } catch (error) {
+      console.error('Export error:', error)
+      return { success: false, error: `导出失败: ${error}` }
+    }
+  },
+
+  // 导出HTML（分册）
+  exportHtmlVolume: async (volume: ExportVolumeRequest): Promise<{ success: boolean; error?: string }> => {
+    const base = await getApiBase()
+    const token = localStorage.getItem('token')
+
+    try {
+      const response = await fetch(`${base}/api/export/html`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ volume }),
+      })
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        console.error('Export failed:', response.status, errorText)
+        return { success: false, error: `导出失败: ${response.status}` }
+      }
+
+      // 获取文件名（支持 RFC 5987 filename* 编码）
+      const contentDisposition = response.headers.get('Content-Disposition')
+      let filename = '族谱.html'
+      if (contentDisposition) {
+        // 先尝试匹配 filename*=UTF-8''xxx 格式（RFC 5987）
+        const filenameStarMatch = contentDisposition.match(/filename\*=UTF-8''([^;\n]+)/i)
+        if (filenameStarMatch) {
+          // URL decode the filename
+          filename = decodeURIComponent(filenameStarMatch[1])
+        } else {
+          // 回退到普通 filename="xxx" 格式
+          const match = contentDisposition.match(/filename="?([^";\n]+)"?/i)
+          if (match) filename = match[1]
+        }
+      }
+
+      // 下载文件
+      const blob = await response.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = filename
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+
+      return { success: true }
+    } catch (error) {
+      console.error('Export error:', error)
+      return { success: false, error: `导出失败: ${error}` }
+    }
+  },
+}
+
 export interface FeatureCheckResult {
   feature: string
   allowed: boolean

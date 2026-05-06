@@ -94,7 +94,9 @@ pub fn create_router(
         .route("/api/license/info", get(handlers::get_license_info))
         .route("/api/license/activate", post(handlers::activate_license))
         .route("/api/license/verify", post(handlers::verify_license))
-        .route("/api/license/check-feature", post(handlers::check_feature));
+        .route("/api/license/check-feature", post(handlers::check_feature))
+        // Export (with license check)
+        .route("/api/export/html", post(handlers::export_html));
 
     // 如果有 AppHandle，注入到 Extension 中用于模板下载和数据库路径获取
     let app_for_extension = app_handle.clone();

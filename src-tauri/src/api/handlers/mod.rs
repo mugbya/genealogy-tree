@@ -1,5 +1,6 @@
 pub mod auth;
 pub mod config;
+pub mod export;
 pub mod health;
 pub mod license;
 pub mod members;
@@ -11,6 +12,7 @@ pub mod usage_report;
 pub mod wechat;
 
 // Explicitly re-export instead of glob to avoid shadowing warnings
+pub use export::export_html;
 pub use health::health_check;
 pub use license::{get_license_info, activate_license, verify_license, check_feature};
 pub use members::{
