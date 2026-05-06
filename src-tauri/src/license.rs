@@ -58,8 +58,8 @@ impl LicenseFeature {
 }
 
 /// Get current time from NTP server (returns Unix timestamp)
-/// Falls back to system time if NTP fails
-pub fn get_ntp_time() -> i64 {
+/// Returns None if NTP fails - caller should treat None as authorization invalid
+pub fn get_ntp_time() -> Option<i64> {
     for server in NTP_SERVERS {
         debug!("Trying NTP server: {}", server);
         match ntp::request(*server) {
@@ -76,7 +76,7 @@ pub fn get_ntp_time() -> i64 {
                 if unix_time > 1000000000 && unix_time < 10000000000 {
                     // Sanity check: Unix timestamp should be between 2001 and 2286
                     info!("NTP time synced: {} (server: {})", unix_time, server);
-                    return unix_time;
+                    return Some(unix_time);
                 } else {
                     warn!("NTP timestamp out of range: {}", unix_time);
                 }
@@ -87,24 +87,13 @@ pub fn get_ntp_time() -> i64 {
         }
     }
 
-    // NTP 全部失败，回退到系统时间
-    // 但使用 system_time_millis() 而不是直接返回系统时间戳
-    // 这样可以检测用户是否把系统时间调到很远的历史
-    let system_time = chrono::Utc::now().timestamp();
-    warn!("NTP sync failed, falling back to system time: {}", system_time);
-
-    // 如果系统时间小于 2024年1月1日，认为是异常的（可能是用户调整了系统时间）
-    const MIN_VALID_TIMESTAMP: i64 = 1704067200; // 2024-01-01 00:00:00 UTC
-
-    if system_time < MIN_VALID_TIMESTAMP {
-        warn!("System time {} is too far in the past, using minimum valid time", system_time);
-        return MIN_VALID_TIMESTAMP;
-    }
-
-    system_time
+    // NTP 全部失败，返回 None
+    warn!("NTP sync failed, returning None");
+    None
 }
 
 /// Check if license is expired using NTP time
+/// Returns true if expired or if NTP time is unavailable
 pub fn is_expired_by_ntp(expires_at: &str) -> bool {
     let exp_timestamp = match chrono::NaiveDateTime::parse_from_str(expires_at, "%Y-%m-%d %H:%M:%S") {
         Ok(dt) => dt.and_utc().timestamp(),
@@ -114,11 +103,16 @@ pub fn is_expired_by_ntp(expires_at: &str) -> bool {
         }
     };
 
-    let current_time = get_ntp_time();
+    // If NTP time is unavailable, treat as expired
+    let Some(current_time) = get_ntp_time() else {
+        debug!("NTP time unavailable, treating as expired");
+        return true;
+    };
+
     current_time >= exp_timestamp
 }
 
-/// Get remaining days using NTP time (returns negative if expired)
+/// Get remaining days using NTP time (returns 0 if expired or NTP unavailable)
 pub fn get_remaining_days_by_ntp(expires_at: &str) -> i64 {
     // expires_at 是本地时间字符串，格式为 "%Y-%m-%d %H:%M:%S"
     // 直接解析为 NaiveDateTime 然后获取时间戳（本地时间戳）
@@ -130,7 +124,12 @@ pub fn get_remaining_days_by_ntp(expires_at: &str) -> i64 {
         }
     };
 
-    let current_time = get_ntp_time();
+    // If NTP time is unavailable, return 0 (can't calculate remaining days)
+    let Some(current_time) = get_ntp_time() else {
+        debug!("NTP time unavailable, returning 0 days");
+        return 0;
+    };
+
     let diff = exp_timestamp - current_time;
     diff / 86400 // Convert seconds to days
 }
@@ -369,7 +368,12 @@ pub fn is_license_valid(auth_code: Option<&str>, stored_expires_at: Option<&str>
 
     // Check if expired (0 means permanent license - never expires)
     if data.exp > 0 {
-        let now = get_ntp_time();
+        // If NTP time is unavailable, license is invalid
+        let Some(now) = get_ntp_time() else {
+            debug!(module="license", "is_license_valid: NTP time unavailable, returning false");
+            return false;
+        };
+
         if data.exp < now {
             debug!(module="license", "is_license_valid: license expired at {}, NTP now: {}, returning false", data.exp, now);
             return false;
