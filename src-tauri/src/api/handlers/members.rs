@@ -212,7 +212,22 @@ pub fn recalculate_generations(conn: &rusqlite::Connection) -> Result<(), String
 
     // 找出第1代成员：没有父母关系的成员（即不知道父母的成员）
     // 对于导入的数据，很多成员的父辈信息是未知的，应该把他们当作根节点（第一代）
+    // 但入赘成员的代数由配偶决定，不在这里标记
     for &member_id in &all_member_ids {
+        // 检查是否是入赘成员
+        let is_matrilocal: bool = conn
+            .query_row(
+                "SELECT is_matrilocal FROM family_members WHERE id = ?",
+                params![member_id],
+                |row| row.get::<_, i32>(0),
+            )
+            .unwrap_or(0) != 0;
+
+        // 入赘成员的代数由配偶决定，不在这里标记为根节点
+        if is_matrilocal {
+            continue;
+        }
+
         let has_father: bool = conn
             .query_row(
                 "SELECT 1 FROM member_relations WHERE from_member_id = ? AND relation_type = 'father' LIMIT 1",
@@ -244,6 +259,20 @@ pub fn recalculate_generations(conn: &rusqlite::Connection) -> Result<(), String
         for &member_id in &all_member_ids {
             if member_generation.contains_key(&member_id) {
                 continue; // 已经有代数了
+            }
+
+            // 检查是否是入赘成员
+            let is_matrilocal: bool = conn
+                .query_row(
+                    "SELECT is_matrilocal FROM family_members WHERE id = ?",
+                    params![member_id],
+                    |row| row.get::<_, i32>(0),
+                )
+                .unwrap_or(0) != 0;
+
+            // 如果是入赘成员，跳过根据父母计算代数的逻辑，由后续的"继承配偶代数"来处理
+            if is_matrilocal {
+                continue;
             }
 
             // 获取父亲的代数
@@ -296,26 +325,39 @@ pub fn recalculate_generations(conn: &rusqlite::Connection) -> Result<(), String
                 continue; // 已经有代数了
             }
 
-            // 获取配偶的代数
-            let spouse_generation: Option<i32> = conn
+            // 检查是否是入赘成员
+            let is_matrilocal: bool = conn
                 .query_row(
-                    "SELECT mr.to_member_id FROM member_relations mr
-                     WHERE mr.from_member_id = ? AND mr.relation_type = 'spouse'
-                     UNION
-                     SELECT mr.from_member_id FROM member_relations mr
-                     WHERE mr.to_member_id = ? AND mr.relation_type = 'spouse'",
-                    params![member_id, member_id],
-                    |row| {
-                        let spouse_id: i64 = row.get(0)?;
-                        Ok(member_generation.get(&spouse_id).copied())
-                    },
+                    "SELECT is_matrilocal FROM family_members WHERE id = ?",
+                    params![member_id],
+                    |row| row.get::<_, i32>(0),
                 )
-                .ok()
-                .flatten();
+                .unwrap_or(0) != 0;
 
-            if let Some(spouse_gen) = spouse_generation {
-                member_generation.insert(member_id, spouse_gen);
-                made_progress = true;
+            // 入赘成员：如果没有代数但有配偶，则继承配偶的代数
+            // 非入赘成员：如果没有代数但有配偶且配偶有代数，则继承配偶的代数
+            if is_matrilocal || member_generation.is_empty() {
+                // 获取配偶的代数
+                let spouse_generation: Option<i32> = conn
+                    .query_row(
+                        "SELECT mr.to_member_id FROM member_relations mr
+                         WHERE mr.from_member_id = ? AND mr.relation_type = 'spouse'
+                         UNION
+                         SELECT mr.from_member_id FROM member_relations mr
+                         WHERE mr.to_member_id = ? AND mr.relation_type = 'spouse'",
+                        params![member_id, member_id],
+                        |row| {
+                            let spouse_id: i64 = row.get(0)?;
+                            Ok(member_generation.get(&spouse_id).copied())
+                        },
+                    )
+                    .ok()
+                    .flatten();
+
+                if let Some(spouse_gen) = spouse_generation {
+                    member_generation.insert(member_id, spouse_gen);
+                    made_progress = true;
+                }
             }
         }
 
@@ -586,8 +628,14 @@ pub async fn import_members(
     }
 
     // 重新计算所有成员的代数
-    if let Err(e) = recalculate_generations(&conn) {
-        warn!(module="members", "[import] Warning: failed to recalculate generations: {}", e);
+    tracing::info!("[import] Starting recalculate_generations...");
+    match recalculate_generations(&conn) {
+        Ok(_) => {
+            tracing::info!("[import] recalculate_generations completed successfully");
+        },
+        Err(e) => {
+            tracing::error!("[import] Error in recalculate_generations: {}", e);
+        }
     }
 
     let result = ImportResult {
