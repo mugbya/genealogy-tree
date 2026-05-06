@@ -165,7 +165,13 @@ export const licenseApi = {
   getInfo: () => api.get<LicenseInfo>('/api/license/info'),
   activate: (licenseKey: string) => api.post<LicenseStatus>('/api/license/activate', { license_key: licenseKey }),
   verify: () => api.post<LicenseStatus>('/api/license/verify'),
-  checkFeature: (feature: string) => api.post<FeatureCheckResult>('/api/license/check-feature', { feature }),
+  // 检查功能授权 - 支持单个 feature 或多个 features 数组
+  checkFeature: (feature: string | string[]) => {
+    const data = Array.isArray(feature)
+      ? { features: feature }
+      : { feature }
+    return api.post<FeatureCheckResult>('/api/license/check-feature', data)
+  },
 }
 
 // Export API - 调用后端API导出文件（后端会进行授权校验）
@@ -286,7 +292,19 @@ export const exportApi = {
   },
 }
 
+export interface FeatureCheckResultItem {
+  feature: string
+  allowed?: boolean
+  is_valid?: boolean
+  expires_at?: string
+  is_trial_expired?: boolean
+  error?: string
+}
+
 export interface FeatureCheckResult {
+  // 新格式：数组返回
+  results?: FeatureCheckResultItem[]
+  // 旧格式：单个返回（兼容）
   feature: string
   allowed: boolean
   is_valid: boolean

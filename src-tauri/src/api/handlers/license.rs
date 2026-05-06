@@ -117,7 +117,9 @@ pub async fn check_feature(
 ) -> (StatusCode, Json<Value>) {
     #[derive(serde::Deserialize)]
     struct CheckFeatureRequest {
-        feature: String,
+        // 支持单个 feature 或多个 features 数组
+        feature: Option<String>,
+        features: Option<Vec<String>>,
     }
 
     let req: CheckFeatureRequest = match serde_json::from_value(req) {
@@ -125,12 +127,13 @@ pub async fn check_feature(
         Err(_) => return (StatusCode::BAD_REQUEST, Json(json!({ "error": "无效的请求" }))),
     };
 
-    // Parse feature
-    let feature = match req.feature.as_str() {
-        "export_html" => LicenseFeature::ExportHtml,
-        "export_word" => LicenseFeature::ExportWord,
-        "export_volume" => LicenseFeature::ExportVolume,
-        _ => return (StatusCode::BAD_REQUEST, Json(json!({ "error": "未知的功能" }))),
+    // 获取要检查的 feature 列表
+    let features_to_check: Vec<String> = if let Some(features) = req.features {
+        features
+    } else if let Some(feature) = req.feature {
+        vec![feature]
+    } else {
+        return (StatusCode::BAD_REQUEST, Json(json!({ "error": "缺少 feature 或 features 参数" })));
     };
 
     // Get license info
@@ -157,27 +160,46 @@ pub async fn check_feature(
         (license_info.license_key.clone(), license_info.auth_code.clone(), license_info.expires_at.clone(), license_info.license_type.clone())
     };
 
-    // Use auth_code for local verification
-    let allowed = license_module::is_feature_allowed(
-        feature,
-        auth_code.as_deref(),
-        expires_at.as_deref(),
-        license_type.as_deref(),
-    );
+    // Check each feature
+    let mut results: Vec<Value> = Vec::new();
+    for feature_str in features_to_check {
+        let feature = match feature_str.as_str() {
+            "export_html" => LicenseFeature::ExportHtml,
+            "export_word" => LicenseFeature::ExportWord,
+            "export_volume" => LicenseFeature::ExportVolume,
+            _ => {
+                results.push(json!({
+                    "feature": feature_str,
+                    "error": "未知的功能"
+                }));
+                continue;
+            }
+        };
 
-    // Check if it's a trial license that expired
-    let is_trial_expired = license_key.as_ref()
-        .map(|k| k.starts_with("GLT-"))
-        .unwrap_or(false)
-        && !allowed;
+        let allowed = license_module::is_feature_allowed(
+            feature,
+            auth_code.as_deref(),
+            expires_at.as_deref(),
+            license_type.as_deref(),
+        );
 
-    (StatusCode::OK, Json(json!({
-        "data": {
-            "feature": req.feature,
+        let is_trial_expired = license_key.as_ref()
+            .map(|k| k.starts_with("GLT-"))
+            .unwrap_or(false)
+            && !allowed;
+
+        results.push(json!({
+            "feature": feature_str,
             "allowed": allowed,
             "is_valid": allowed,
             "expires_at": expires_at,
             "is_trial_expired": is_trial_expired
+        }));
+    }
+
+    (StatusCode::OK, Json(json!({
+        "data": {
+            "results": results
         }
     })))
 }

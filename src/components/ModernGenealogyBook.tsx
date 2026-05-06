@@ -57,25 +57,24 @@ export function ModernGenealogyBook({
   useEffect(() => {
     const checkLicenseFeatures = async () => {
       try {
-        // Get license info first to check trial status
-        const infoResult = await licenseApi.getInfo()
-        const info = infoResult.data
+        // 一次调用检查所有 feature
+        const result = await licenseApi.checkFeature(['export_html', 'export_volume'])
+        const results = result.data?.results || []
 
-        // Check export_html feature
-        const htmlResult = await licenseApi.checkFeature('export_html')
-        // Check export_volume feature
-        const volumeResult = await licenseApi.checkFeature('export_volume')
+        // 解析结果
+        const htmlResult = results.find((r: any) => r.feature === 'export_html')
+        const volumeResult = results.find((r: any) => r.feature === 'export_volume')
 
         setLicenseFeatures({
-          exportHtml: htmlResult.data?.allowed ?? false,
+          exportHtml: htmlResult?.allowed ?? false,
           exportWord: false, // Word export not yet implemented
-          exportVolume: volumeResult.data?.allowed ?? false,
+          exportVolume: volumeResult?.allowed ?? false,
         })
-        setLicenseValid(htmlResult.data?.is_valid ?? false)
+        setLicenseValid(htmlResult?.is_valid ?? false)
 
-        // Set trial status
-        setIsTrial(info?.is_trial ?? false)
-        setRemainingDays(info?.remaining_days ?? null)
+        // trial 相关状态暂时设为默认值
+        setIsTrial(false)
+        setRemainingDays(null)
       } catch (err) {
         console.error('检查授权失败:', err)
         // On error, assume not licensed
