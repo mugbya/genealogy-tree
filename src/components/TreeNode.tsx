@@ -942,6 +942,10 @@ export const GenealogyTree = forwardRef<GenealogyTreeRef, GenealogyTreeProps>(fu
     if (textMode) {
       // 文字模式：只显示文字，无背景，名字竖排
       const nameChars = node.name.split('')
+      const charSpacing = 32  // 每个字符的间距
+      const nameStartY = 30   // 名字起始Y位置
+      const nameEndY = nameStartY + (nameChars.length - 1) * charSpacing  // 最后一个字符的Y位置
+      const nameX = NODE_WIDTH / 2  // 名字X位置居中
 
       return (
         <g
@@ -955,44 +959,45 @@ export const GenealogyTree = forwardRef<GenealogyTreeRef, GenealogyTreeProps>(fu
           }}
           style={{ cursor: 'pointer' }}
         >
-          {/* 名字竖排 - 从上到下 */}
+          {/* 代数 - 显示在节点名字的左边 */}
+          {node.generation > 0 && (
+            <text
+              x={5}
+              y={15}
+              textAnchor="start"
+              fontSize="12"
+              fontWeight="bold"
+              fill="#d97706"
+            >
+              {node.generation}代
+            </text>
+          )}
+
+          {/* 名字竖排 - 从上到下，居中 */}
           {nameChars.map((char, idx) => (
             <text
               key={`char-${idx}`}
-              x={NODE_WIDTH / 2}
-              y={20 + idx * 18}
+              x={nameX}
+              y={nameStartY + idx * charSpacing}
               textAnchor="middle"
-              fontSize="14"
-              fontWeight="normal"
+              fontSize="28"
+              fontWeight="bold"
               fill={textColor}
             >
               {char}
             </text>
           ))}
 
-          {/* 配偶 - 横排（如果未隐藏） */}
+          {/* 配偶 - 显示在节点名字的右边（如果未隐藏） */}
           {node.spouses && node.spouses.length > 0 && !hideSpouse && (
             <text
-              x={NODE_WIDTH / 2}
-              y={NODE_HEIGHT - 8}
-              textAnchor="middle"
-              fontSize="10"
+              x={nameX + 22}
+              y={(nameStartY + nameEndY) / 2 + 6}
+              textAnchor="start"
+              fontSize="13"
               fill="#9ca3af"
             >
-              ({node.spouses.map(s => s.name).join('、')})
-            </text>
-          )}
-
-          {/* 代数 */}
-          {node.generation > 0 && (
-            <text
-              x={NODE_WIDTH - 5}
-              y={15}
-              textAnchor="end"
-              fontSize="10"
-              fill="#d97706"
-            >
-              {node.generation}代
+              {node.spouses.map(s => s.name).join('、')}
             </text>
           )}
         </g>
