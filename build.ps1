@@ -1,10 +1,6 @@
 #!/usr/bin/env pwsh
 $ErrorActionPreference = "Stop"
 
-# 设置控制台编码为 UTF-8
-[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
-$OutputEncoding = [System.Text.Encoding]::UTF8
-
 Write-Host "=== 祖谱软件编译脚本 ===" -ForegroundColor Cyan
 
 # 进入项目根目录
