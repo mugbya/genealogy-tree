@@ -557,32 +557,50 @@ export const GenealogyTree = forwardRef<GenealogyTreeRef, GenealogyTreeProps>(fu
 
     // Calculate positions recursively
     const calcPositions = (node: TreeNode, x: number, y: number): TreeNode => {
-      const width = calcWidth(node)
+      // x is the CENTER of this node (not the left edge)
+      const nodeLeft = x - NODE_WIDTH / 2
 
       if (!node.children || node.children.length === 0) {
         return {
           ...node,
-          x: x - NODE_WIDTH / 2,
+          x: nodeLeft,
           y,
           width: NODE_WIDTH,
           height: NODE_HEIGHT,
         }
       }
 
-      let childX = x - width / 2
       const childY = y + NODE_HEIGHT + V_GAP
+
+      // For single child, position directly under parent center
+      if (node.children.length === 1) {
+        const childPos = calcPositions(node.children[0], x, childY)
+        return {
+          ...node,
+          x: nodeLeft,
+          y,
+          width: NODE_WIDTH,
+          height: NODE_HEIGHT,
+          children: [childPos],
+        }
+      }
+
+      // Multiple children: calculate total width and position them
+      const totalWidth = node.children.reduce((sum, child) => sum + calcWidth(child), 0) + (node.children.length - 1) * H_GAP
+      let childX = x - totalWidth / 2
 
       const positionedChildren: TreeNode[] = []
       node.children.forEach((child) => {
         const childWidth = calcWidth(child)
-        const childPos = calcPositions(child, childX + childWidth / 2, childY)
+        const childCenterX = childX + childWidth / 2
+        const childPos = calcPositions(child, childCenterX, childY)
         positionedChildren.push(childPos)
         childX += childWidth + H_GAP
       })
 
       return {
         ...node,
-        x: x - NODE_WIDTH / 2,
+        x: nodeLeft,
         y,
         width: NODE_WIDTH,
         height: NODE_HEIGHT,
@@ -636,7 +654,7 @@ export const GenealogyTree = forwardRef<GenealogyTreeRef, GenealogyTreeProps>(fu
     const offsetY = bounds.minY - padding
 
     // Generate SVG content
-    const renderConnectionsSVG = (node: TreeNode): string => {
+    const renderConnectionsSVG = (node: TreeNode, hideLineName: boolean): string => {
       if (!node.children) return ''
 
       let svg = ''
@@ -649,12 +667,20 @@ export const GenealogyTree = forwardRef<GenealogyTreeRef, GenealogyTreeProps>(fu
         const childY = child.y - offsetY
         const midY = (parentY + childY) / 2
 
-        svg += `<line x1="${parentX}" y1="${parentY}" x2="${parentX}" y2="${midY}" stroke="#94a3b8" stroke-width="2"/>`
-        svg += `<line x1="${childX}" y1="${midY}" x2="${childX}" y2="${childY}" stroke="#94a3b8" stroke-width="2"/>`
-        svg += `<line x1="${parentX}" y1="${midY}" x2="${childX}" y2="${midY}" stroke="#94a3b8" stroke-width="2"/>`
+        // Check if single child with direct alignment - draw straight line
+        const isSingleChild = node.children!.length === 1
+        const isAligned = Math.abs(parentX - childX) < 2
 
-        // Label background and text
-        if (child.labelParent) {
+        if (isSingleChild && isAligned) {
+          svg += `<line x1="${parentX}" y1="${parentY}" x2="${childX}" y2="${childY}" stroke="#94a3b8" stroke-width="2"/>`
+        } else {
+          svg += `<line x1="${parentX}" y1="${parentY}" x2="${parentX}" y2="${midY}" stroke="#94a3b8" stroke-width="2"/>`
+          svg += `<line x1="${childX}" y1="${midY}" x2="${childX}" y2="${childY}" stroke="#94a3b8" stroke-width="2"/>`
+          svg += `<line x1="${parentX}" y1="${midY}" x2="${childX}" y2="${midY}" stroke="#94a3b8" stroke-width="2"/>`
+        }
+
+        // Label background and text (only for broken lines)
+        if (child.labelParent && !hideLineName && (!isSingleChild || !isAligned)) {
           const isLabelParentMother = child.labelParent.relation === 'mother'
           const labelText = isLabelParentMother ? `母: ${child.labelParent.name}` : `父: ${child.labelParent.name}`
           const textWidth = labelText.length * 18 + 24
@@ -666,7 +692,7 @@ export const GenealogyTree = forwardRef<GenealogyTreeRef, GenealogyTreeProps>(fu
           svg += `<text x="${childX}" y="${midY + 5}" text-anchor="middle" font-size="14" fill="${textColor}" font-weight="500">${labelText}</text>`
         }
 
-        svg += renderConnectionsSVG(child)
+        svg += renderConnectionsSVG(child, hideLineName)
       })
 
       return svg
@@ -733,7 +759,7 @@ export const GenealogyTree = forwardRef<GenealogyTreeRef, GenealogyTreeProps>(fu
       return svg
     }
 
-    const connectionsSVG = renderConnectionsSVG(positionedTree)
+    const connectionsSVG = renderConnectionsSVG(positionedTree, hideLineName)
     const nodesSVG = renderAllNodesSVG(positionedTree)
 
     const svgContent = `<?xml version="1.0" encoding="UTF-8"?>
@@ -768,44 +794,64 @@ export const GenealogyTree = forwardRef<GenealogyTreeRef, GenealogyTreeProps>(fu
 
       const midY = (parentY + childY) / 2
 
-      // Draw vertical line from parent
-      elements.push(
-        <line
-          key={`${node.memberId}-${child.memberId}-v`}
-          x1={parentX}
-          y1={parentY}
-          x2={parentX}
-          y2={midY}
-          stroke="#94a3b8"
-          strokeWidth="2"
-        />
-      )
+      // Check if single child with direct alignment - draw straight line
+      const isSingleChild = node.children!.length === 1
+      const isAligned = Math.abs(parentX - childX) < 2
 
-      // Draw vertical line to child
-      elements.push(
-        <line
-          key={`${node.memberId}-${child.memberId}-v2`}
-          x1={childX}
-          y1={midY}
-          x2={childX}
-          y2={childY}
-          stroke="#94a3b8"
-          strokeWidth="2"
-        />
-      )
+      if (isSingleChild && isAligned) {
+        // Draw single straight vertical line
+        elements.push(
+          <line
+            key={`${node.memberId}-${child.memberId}-v`}
+            x1={parentX}
+            y1={parentY}
+            x2={childX}
+            y2={childY}
+            stroke="#94a3b8"
+            strokeWidth="2"
+          />
+        )
+      } else {
+        // Draw broken line (vertical + horizontal + vertical)
+        // Draw vertical line from parent
+        elements.push(
+          <line
+            key={`${node.memberId}-${child.memberId}-v`}
+            x1={parentX}
+            y1={parentY}
+            x2={parentX}
+            y2={midY}
+            stroke="#94a3b8"
+            strokeWidth="2"
+          />
+        )
 
-      // Draw horizontal line
-      elements.push(
-        <line
-          key={`${node.memberId}-${child.memberId}-h`}
-          x1={parentX}
-          y1={midY}
-          x2={childX}
-          y2={midY}
-          stroke="#94a3b8"
-          strokeWidth="2"
-        />
-      )
+        // Draw vertical line to child
+        elements.push(
+          <line
+            key={`${node.memberId}-${child.memberId}-v2`}
+            x1={childX}
+            y1={midY}
+            x2={childX}
+            y2={childY}
+            stroke="#94a3b8"
+            strokeWidth="2"
+          />
+        )
+
+        // Draw horizontal line
+        elements.push(
+          <line
+            key={`${node.memberId}-${child.memberId}-h`}
+            x1={parentX}
+            y1={midY}
+            x2={childX}
+            y2={midY}
+            stroke="#94a3b8"
+            strokeWidth="2"
+          />
+        )
+      }
 
       // Draw label parent on the connection line (only if not hidden)
       if (child.labelParent && !hideLineName) {
