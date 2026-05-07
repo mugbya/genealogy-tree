@@ -28,3 +28,4 @@ dist/
 .vite/
 license-server
 license-server.tar.gz
+.genealogy.db

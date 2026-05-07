@@ -212,19 +212,26 @@ pub fn recalculate_generations(conn: &rusqlite::Connection) -> Result<(), String
 
     // 找出第1代成员：没有父母关系的成员（即不知道父母的成员）
     // 对于导入的数据，很多成员的父辈信息是未知的，应该把他们当作根节点（第一代）
-    // 但入赘成员的代数由配偶决定，不在这里标记
+    // 但入赘成员和招夫养子的代数由配偶决定，不在这里标记
+    tracing::info!("[generation] Step 1: Marking generation 1 members (excluding matrilocal/adopted sons):");
     for &member_id in &all_member_ids {
-        // 检查是否是入赘成员
-        let is_matrilocal: bool = conn
+        // 检查是否是入赘成员或招夫养子
+        let (member_name, is_matrilocal, is_adopted_son) = conn
             .query_row(
-                "SELECT is_matrilocal FROM family_members WHERE id = ?",
+                "SELECT name, is_matrilocal, is_adopted_son FROM family_members WHERE id = ?",
                 params![member_id],
-                |row| row.get::<_, i32>(0),
+                |row| Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, i32>(1)? != 0,
+                    row.get::<_, i32>(2)? != 0,
+                )),
             )
-            .unwrap_or(0) != 0;
+            .unwrap_or((String::new(), false, false));
 
-        // 入赘成员的代数由配偶决定，不在这里标记为根节点
-        if is_matrilocal {
+        // 入赘成员或招夫养子的代数由配偶决定，不在这里标记为根节点
+        if is_matrilocal || is_adopted_son {
+            tracing::info!("[generation]   {} (matrilocal={}, adopted={}) - skipped (handled by spouse)",
+                member_name, is_matrilocal, is_adopted_son);
             continue;
         }
 
@@ -248,97 +255,45 @@ pub fn recalculate_generations(conn: &rusqlite::Connection) -> Result<(), String
         // 这样可以正确处理导入数据中两兄弟都是第1代的情况
         if !has_father && !has_mother {
             member_generation.insert(member_id, 1);
+            tracing::info!("[generation]   {} - marked as generation 1", member_name);
+        } else {
+            tracing::info!("[generation]   {} - skipped (has parent: father={}, mother={})",
+                member_name, has_father, has_mother);
         }
     }
 
-    // 迭代计算其他成员的代数（基于父母关系）
-    // 最多迭代 all_member_ids.len() 次
-    for _ in 0..all_member_ids.len() {
+    // 合并 Step 2 和 Step 3，交替迭代直到没有进展
+    // 每次迭代都重新计算所有成员的代数（取父母+1和配偶代数的最大值）
+    // 这样当父亲的代数增加时，子女的代数也会自动增加
+    tracing::info!("[generation] Step 2+3: Combined parent/spouse inheritance");
+    for iteration in 0..all_member_ids.len() {
+        tracing::info!("[generation] === Iteration {} ===", iteration);
         let mut made_progress = false;
 
         for &member_id in &all_member_ids {
-            if member_generation.contains_key(&member_id) {
-                continue; // 已经有代数了
-            }
-
-            // 检查是否是入赘成员
-            let is_matrilocal: bool = conn
+            // 获取成员信息
+            let (member_name, gender, is_matrilocal, is_adopted_son) = conn
                 .query_row(
-                    "SELECT is_matrilocal FROM family_members WHERE id = ?",
+                    "SELECT name, gender, is_matrilocal, is_adopted_son FROM family_members WHERE id = ?",
                     params![member_id],
-                    |row| row.get::<_, i32>(0),
+                    |row| Ok((
+                        row.get::<_, String>(0)?,
+                        row.get::<_, String>(1)?,
+                        row.get::<_, i32>(2)? != 0,
+                        row.get::<_, i32>(3)? != 0,
+                    )),
                 )
-                .unwrap_or(0) != 0;
+                .unwrap_or((String::new(), String::new(), false, false));
 
-            // 如果是入赘成员，跳过根据父母计算代数的逻辑，由后续的"继承配偶代数"来处理
-            if is_matrilocal {
-                continue;
-            }
+            let old_gen = member_generation.get(&member_id).copied();
 
-            // 获取父亲的代数
-            let father_generation: Option<i32> = conn
-                .query_row(
-                    "SELECT mr.to_member_id FROM member_relations mr
-                     WHERE mr.from_member_id = ? AND mr.relation_type = 'father'",
-                    params![member_id],
-                    |row| {
-                        let parent_id: i64 = row.get(0)?;
-                        Ok(member_generation.get(&parent_id).copied())
-                    },
-                )
-                .ok()
-                .flatten();
+            // 计算新的代数
+            let mut new_gen: Option<i32> = None;
 
-            // 获取母亲的代数
-            let mother_generation: Option<i32> = conn
-                .query_row(
-                    "SELECT mr.to_member_id FROM member_relations mr
-                     WHERE mr.from_member_id = ? AND mr.relation_type = 'mother'",
-                    params![member_id],
-                    |row| {
-                        let parent_id: i64 = row.get(0)?;
-                        Ok(member_generation.get(&parent_id).copied())
-                    },
-                )
-                .ok()
-                .flatten();
-
-            // 如果至少有一个父母的代数已知，则计算该成员的代数
-            if let Some(parent_gen) = father_generation.or(mother_generation) {
-                member_generation.insert(member_id, parent_gen + 1);
-                made_progress = true;
-            }
-        }
-
-        if !made_progress {
-            break; // 没有进展，退出循环
-        }
-    }
-
-    // 处理没有代数但有配偶的成员（继承配偶的代数）
-    // 迭代直到所有成员都有代数
-    for _ in 0..all_member_ids.len() {
-        let mut made_progress = false;
-
-        for &member_id in &all_member_ids {
-            if member_generation.contains_key(&member_id) {
-                continue; // 已经有代数了
-            }
-
-            // 检查是否是入赘成员
-            let is_matrilocal: bool = conn
-                .query_row(
-                    "SELECT is_matrilocal FROM family_members WHERE id = ?",
-                    params![member_id],
-                    |row| row.get::<_, i32>(0),
-                )
-                .unwrap_or(0) != 0;
-
-            // 入赘成员：如果没有代数但有配偶，则继承配偶的代数
-            // 非入赘成员：如果没有代数但有配偶且配偶有代数，则继承配偶的代数
-            if is_matrilocal || member_generation.is_empty() {
-                // 获取配偶的代数
-                let spouse_generation: Option<i32> = conn
+            // 入赘/招夫养子：只从配偶继承
+            if is_matrilocal || is_adopted_son {
+                // 获取所有配偶的代数
+                let spouse_gens: Vec<i32> = conn
                     .query_row(
                         "SELECT mr.to_member_id FROM member_relations mr
                          WHERE mr.from_member_id = ? AND mr.relation_type = 'spouse'
@@ -352,10 +307,89 @@ pub fn recalculate_generations(conn: &rusqlite::Connection) -> Result<(), String
                         },
                     )
                     .ok()
+                    .into_iter()
+                    .flatten()
+                    .collect();
+                new_gen = spouse_gens.into_iter().max();
+            } else {
+                // 普通成员：尝试从父母计算，也考虑配偶
+                // 获取父亲的代数（from_member_id = 子女, to_member_id = 父亲）
+                let father_gen: Option<i32> = conn
+                    .query_row(
+                        "SELECT mr.to_member_id FROM member_relations mr
+                         WHERE mr.from_member_id = ? AND mr.relation_type = 'father'",
+                        params![member_id],
+                        |row| {
+                            let parent_id: i64 = row.get(0)?;
+                            Ok(member_generation.get(&parent_id).copied())
+                        },
+                    )
+                    .ok()
                     .flatten();
 
-                if let Some(spouse_gen) = spouse_generation {
-                    member_generation.insert(member_id, spouse_gen);
+                // 获取母亲的代数
+                let mother_gen: Option<i32> = conn
+                    .query_row(
+                        "SELECT mr.to_member_id FROM member_relations mr
+                         WHERE mr.from_member_id = ? AND mr.relation_type = 'mother'",
+                        params![member_id],
+                        |row| {
+                            let parent_id: i64 = row.get(0)?;
+                            Ok(member_generation.get(&parent_id).copied())
+                        },
+                    )
+                    .ok()
+                    .flatten();
+
+                // 父母代数 + 1
+                let parent_based_gen = father_gen.or(mother_gen).map(|g| g + 1);
+
+                // 获取所有配偶的代数
+                let spouse_gens: Vec<i32> = conn
+                    .query_row(
+                        "SELECT mr.to_member_id FROM member_relations mr
+                         WHERE mr.from_member_id = ? AND mr.relation_type = 'spouse'
+                         UNION
+                         SELECT mr.from_member_id FROM member_relations mr
+                         WHERE mr.to_member_id = ? AND mr.relation_type = 'spouse'",
+                        params![member_id, member_id],
+                        |row| {
+                            let spouse_id: i64 = row.get(0)?;
+                            Ok(member_generation.get(&spouse_id).copied())
+                        },
+                    )
+                    .ok()
+                    .into_iter()
+                    .flatten()
+                    .collect();
+                let spouse_based_gen = spouse_gens.into_iter().max();
+
+                // 取父母和配偶的最大值
+                new_gen = match (parent_based_gen, spouse_based_gen) {
+                    (Some(p), Some(s)) => Some(p.max(s)),
+                    (Some(p), None) => Some(p),
+                    (None, Some(s)) => Some(s),
+                    (None, None) => None,
+                };
+            }
+
+            // 如果计算出的代数比当前更高，则更新
+            if let Some(calc_gen) = new_gen {
+                let should_update = match old_gen {
+                    Some(old) if calc_gen > old => {
+                        member_generation.insert(member_id, calc_gen);
+                        tracing::info!("[generation] {} updated gen from {:?} to {}",
+                            member_name, old_gen, calc_gen);
+                        true
+                    }
+                    None => {
+                        member_generation.insert(member_id, calc_gen);
+                        tracing::info!("[generation] {} gen set to {}", member_name, calc_gen);
+                        true
+                    }
+                    _ => false,
+                };
+                if should_update {
                     made_progress = true;
                 }
             }
@@ -364,6 +398,17 @@ pub fn recalculate_generations(conn: &rusqlite::Connection) -> Result<(), String
         if !made_progress {
             break;
         }
+    }
+
+    // 打印最终结果
+    tracing::info!("[generation] Final generation assignment:");
+    for (member_id, gen) in &member_generation {
+        let name = conn.query_row(
+            "SELECT name FROM family_members WHERE id = ?",
+            params![member_id],
+            |row| row.get::<_, String>(0),
+        ).unwrap_or_else(|_| "unknown".to_string());
+        tracing::info!("  {} -> {}", name, gen);
     }
 
     // 更新数据库
@@ -611,17 +656,24 @@ pub async fn import_members(
 
         // Spouse relation (comma or Chinese comma separated)
         if let Some(ref spouse_str) = row.配偶 {
-            // Split by both ',' and '、'
-            let spouses: Vec<&str> = spouse_str.split(|c| c == ',' || c == '、')
+            // Split by ',', '，'(full-width comma), and '、'
+            let spouses: Vec<&str> = spouse_str.split(|c| c == ',' || c == '，' || c == '、')
                 .map(|s| s.trim())
                 .filter(|s| !s.is_empty())
                 .collect();
+            tracing::info!("[import] Processing {} spouses for {}: {:?}", spouses.len(), name, spouses);
             for spouse_name in spouses {
                 if let Some(&spouse_id) = name_to_id.get(spouse_name) {
-                    let _ = conn.execute(
+                    let result = conn.execute(
                         "INSERT OR IGNORE INTO member_relations (from_member_id, to_member_id, relation_type) VALUES (?, ?, ?)",
                         params![member_id, spouse_id, "spouse"],
                     );
+                    match result {
+                        Ok(count) => tracing::info!("[import] Inserted spouse relation: {} -> {} (affected: {})", member_id, spouse_id, count),
+                        Err(e) => tracing::error!("[import] Failed to insert spouse relation: {}", e),
+                    }
+                } else {
+                    tracing::warn!("[import] Spouse not found in name_to_id: {}", spouse_name);
                 }
             }
         }
