@@ -283,24 +283,26 @@ export function TreePage() {
     spouseRelations.forEach(rel => {
       if (rel.from_member_id === rel.to_member_id) return
 
-      let member: Member | undefined
-      let spouseId: number
-
-      if (rel.from_member_id < rel.to_member_id) {
-        member = memberMap.get(rel.from_member_id)
-        spouseId = rel.to_member_id
-      } else {
-        member = memberMap.get(rel.to_member_id)
-        spouseId = rel.from_member_id
+      // 尝试从两个方向都获取配偶
+      // 方向1: from -> to (from是丈夫或妻子)
+      if (rel.from_member_id !== rel.to_member_id) {
+        const entry1 = result.get(rel.from_member_id)
+        if (entry1) {
+          const spouse1 = memberMap.get(rel.to_member_id)
+          if (spouse1?.name && !entry1.spouses.includes(spouse1.name)) {
+            entry1.spouses.push(spouse1.name)
+          }
+        }
       }
-
-      if (!member) return
-      const entry = result.get(member.id)
-      if (!entry) return
-
-      const spouse = memberMap.get(spouseId)
-      if (spouse && spouse.name && !entry.spouses.includes(spouse.name)) {
-        entry.spouses.push(spouse.name)
+      // 方向2: to -> from (to是丈夫或妻子)
+      if (rel.to_member_id !== rel.from_member_id) {
+        const entry2 = result.get(rel.to_member_id)
+        if (entry2) {
+          const spouse2 = memberMap.get(rel.from_member_id)
+          if (spouse2?.name && !entry2.spouses.includes(spouse2.name)) {
+            entry2.spouses.push(spouse2.name)
+          }
+        }
       }
     })
 
