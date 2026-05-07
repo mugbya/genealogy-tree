@@ -29,6 +29,7 @@ interface GenealogyTreeProps {
   familyName?: string
   familySurname?: string
   rootMemberId?: number | null  // 指定从哪个成员开始展示
+  textMode?: boolean  // 文字模式，不显示图形背景
   onNodeClick?: (member: Member) => void
 }
 
@@ -42,7 +43,7 @@ const NODE_HEIGHT = 100
 const H_GAP = 60
 const V_GAP = 140
 
-export const GenealogyTree = forwardRef<GenealogyTreeRef, GenealogyTreeProps>(function GenealogyTree({ members, relations, familyName, familySurname, rootMemberId, onNodeClick }, ref) {
+export const GenealogyTree = forwardRef<GenealogyTreeRef, GenealogyTreeProps>(function GenealogyTree({ members, relations, familyName, familySurname, rootMemberId, textMode = false, onNodeClick }, ref) {
   const containerRef = useRef<HTMLDivElement>(null)
 
   // Expose container ref and methods to parent
@@ -853,6 +854,37 @@ export const GenealogyTree = forwardRef<GenealogyTreeRef, GenealogyTreeProps>(fu
 
     // Virtual root node styling
     if (node.isVirtualRoot) {
+      if (textMode) {
+        // 文字模式：只显示文字，无背景
+        return (
+          <g
+            key={key}
+            transform={`translate(${node.x}, ${node.y})`}
+          >
+            <text
+              x={(NODE_WIDTH + 40) / 2}
+              y={(NODE_HEIGHT + 20) / 2}
+              textAnchor="middle"
+              fontSize="18"
+              fontWeight="bold"
+              fill="#92400e"
+            >
+              {node.name}
+            </text>
+            {node.surname && (
+              <text
+                x={(NODE_WIDTH + 40) / 2}
+                y={(NODE_HEIGHT + 20) / 2 + 20}
+                textAnchor="middle"
+                fontSize="12"
+                fill="#b45309"
+              >
+                {node.surname}氏宗谱
+              </text>
+            )}
+          </g>
+        )
+      }
       return (
         <g
           key={key}
@@ -898,10 +930,71 @@ export const GenealogyTree = forwardRef<GenealogyTreeRef, GenealogyTreeProps>(fu
 
     const isMale = node.gender === 'male'
     const isDeceased = node.memberId ? members.find(m => m.id === node.memberId)?.is_deceased : false
-    // 离世人员节点变灰
+    const textColor = isDeceased ? '#9ca3af' : '#4b5563'
+
+    if (textMode) {
+      // 文字模式：只显示文字，无背景，名字竖排
+      const nameChars = node.name.split('')
+
+      return (
+        <g
+          key={key}
+          transform={`translate(${node.x}, ${node.y})`}
+          onClick={() => {
+            if (onNodeClick && node.memberId) {
+              const member = members.find(m => m.id === node.memberId)
+              if (member) onNodeClick(member)
+            }
+          }}
+          style={{ cursor: 'pointer' }}
+        >
+          {/* 名字竖排 - 从上到下 */}
+          {nameChars.map((char, idx) => (
+            <text
+              key={`char-${idx}`}
+              x={NODE_WIDTH / 2}
+              y={20 + idx * 18}
+              textAnchor="middle"
+              fontSize="14"
+              fontWeight="normal"
+              fill={textColor}
+            >
+              {char}
+            </text>
+          ))}
+
+          {/* 配偶 - 横排 */}
+          {node.spouses && node.spouses.length > 0 && (
+            <text
+              x={NODE_WIDTH / 2}
+              y={NODE_HEIGHT - 8}
+              textAnchor="middle"
+              fontSize="10"
+              fill="#9ca3af"
+            >
+              ({node.spouses.map(s => s.name).join('、')})
+            </text>
+          )}
+
+          {/* 代数 */}
+          {node.generation > 0 && (
+            <text
+              x={NODE_WIDTH - 5}
+              y={15}
+              textAnchor="end"
+              fontSize="10"
+              fill="#d97706"
+            >
+              {node.generation}代
+            </text>
+          )}
+        </g>
+      )
+    }
+
+    // 图形模式：显示带背景的节点
     const bgColor = isDeceased ? '#d1d5db' : (isMale ? '#93c5fd' : '#f9a8d4')
     const borderColor = isDeceased ? '#9ca3af' : (isMale ? '#3b82f6' : '#ec4899')
-    const textColor = isDeceased ? '#6b7280' : '#1f2937'
 
     return (
       <g

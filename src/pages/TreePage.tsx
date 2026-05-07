@@ -105,6 +105,8 @@ export function TreePage() {
   const [newTagType, setNewTagType] = useState('special')
   const [newTagColor, setNewTagColor] = useState(DEFAULT_TAG_COLORS[0])
   const [activeTab, setActiveTab] = useState('list')
+  // 祖谱树文字模式
+  const [treeTextMode, setTreeTextMode] = useState(false)
   // 祖谱树起始成员选择
   const [treeRootMemberId, setTreeRootMemberId] = useState<number | null>(null)
   const treeRef = useRef<{ container: HTMLDivElement | null; exportSvgAsDataUrl: () => string }>(null)
@@ -1440,26 +1442,39 @@ export function TreePage() {
               <div className="flex items-center justify-between">
                 <CardTitle className="text-lg font-semibold flex items-center gap-2">
                   <TreeDeciduous className="w-5 h-5" />
-                  祖谱树可视化
+                  {treeTextMode ? '祖谱树文字模式' : '祖谱树可视化'}
                 </CardTitle>
                 <div className="flex items-center gap-2">
-                  {!canScreenshot && (
+                  {/* 文字模式切换按钮 */}
+                  <Button
+                    variant={treeTextMode ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setTreeTextMode(!treeTextMode)}
+                    className="gap-2"
+                  >
+                    {treeTextMode ? '切换图形模式' : '切换文字模式'}
+                  </Button>
+                  {!treeTextMode && (
                     <>
-                      <span className="px-2 py-1 text-xs font-bold text-white bg-red-500 rounded">
-                        未授权
-                      </span>
-                      <span className="text-sm text-red-600">如有需要请联系客服获取授权</span>
+                      {!canScreenshot && (
+                        <>
+                          <span className="px-2 py-1 text-xs font-bold text-white bg-red-500 rounded">
+                            未授权
+                          </span>
+                          <span className="text-sm text-red-600">如有需要请联系客服获取授权</span>
+                        </>
+                      )}
+                      <Button
+                        onClick={handleScreenshot}
+                        className="gap-2"
+                        disabled={!canScreenshot}
+                        title={!canScreenshot ? '需要授权才能使用截图下载功能，如有需要请联系客服获取授权' : ''}
+                      >
+                        <Download className="w-4 h-4" />
+                        截图下载
+                      </Button>
                     </>
                   )}
-                  <Button
-                    onClick={handleScreenshot}
-                    className="gap-2"
-                    disabled={!canScreenshot}
-                    title={!canScreenshot ? '需要授权才能使用截图下载功能，如有需要请联系客服获取授权' : ''}
-                  >
-                    <Download className="w-4 h-4" />
-                    截图下载
-                  </Button>
                 </div>
               </div>
             </CardHeader>
@@ -1528,6 +1543,7 @@ export function TreePage() {
                     familyName={familyName}
                     familySurname={familySurname}
                     rootMemberId={treeRootMemberId}
+                    textMode={treeTextMode}
                     onNodeClick={(member) => {
                       setSelectedMember(member)
                       setActiveTab('list')
