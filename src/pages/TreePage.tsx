@@ -107,6 +107,10 @@ export function TreePage() {
   const [activeTab, setActiveTab] = useState('list')
   // 祖谱树文字模式
   const [treeTextMode, setTreeTextMode] = useState(false)
+  // 祖谱树过滤选项
+  const [filterNoChildrenFemale, setFilterNoChildrenFemale] = useState(false)
+  const [hideLineName, setHideLineName] = useState(false)
+  const [hideSpouse, setHideSpouse] = useState(false)
   // 祖谱树起始成员选择
   const [treeRootMemberId, setTreeRootMemberId] = useState<number | null>(null)
   const treeRef = useRef<{ container: HTMLDivElement | null; exportSvgAsDataUrl: () => string }>(null)
@@ -1477,6 +1481,31 @@ export function TreePage() {
                   )}
                 </div>
               </div>
+              {/* 过滤选项 - 放在下方 */}
+              <div className="flex items-center gap-4 pt-2 border-t mt-2">
+                <span className="text-sm text-gray-500">过滤：</span>
+                <label className="flex items-center gap-1.5 text-sm cursor-pointer">
+                  <Switch
+                    checked={filterNoChildrenFemale}
+                    onCheckedChange={setFilterNoChildrenFemale}
+                  />
+                  <span>隐藏无子女女性</span>
+                </label>
+                <label className="flex items-center gap-1.5 text-sm cursor-pointer">
+                  <Switch
+                    checked={hideLineName}
+                    onCheckedChange={setHideLineName}
+                  />
+                  <span>隐藏连线名字</span>
+                </label>
+                <label className="flex items-center gap-1.5 text-sm cursor-pointer">
+                  <Switch
+                    checked={hideSpouse}
+                    onCheckedChange={setHideSpouse}
+                  />
+                  <span>隐藏配偶</span>
+                </label>
+              </div>
             </CardHeader>
             <CardContent className="flex-1 min-h-0 p-0">
               {members.length === 0 ? (
@@ -1544,6 +1573,9 @@ export function TreePage() {
                     familySurname={familySurname}
                     rootMemberId={treeRootMemberId}
                     textMode={treeTextMode}
+                    filterNoChildrenFemale={filterNoChildrenFemale}
+                    hideLineName={hideLineName}
+                    hideSpouse={hideSpouse}
                     onNodeClick={(member) => {
                       setSelectedMember(member)
                       setActiveTab('list')

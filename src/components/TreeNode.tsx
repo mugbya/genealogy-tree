@@ -30,6 +30,10 @@ interface GenealogyTreeProps {
   familySurname?: string
   rootMemberId?: number | null  // 指定从哪个成员开始展示
   textMode?: boolean  // 文字模式，不显示图形背景
+  // 过滤选项
+  filterNoChildrenFemale?: boolean  // 过滤没有子女的女性节点
+  hideLineName?: boolean  // 隐藏连线上的名字
+  hideSpouse?: boolean  // 隐藏配偶
   onNodeClick?: (member: Member) => void
 }
 
@@ -43,7 +47,7 @@ const NODE_HEIGHT = 100
 const H_GAP = 60
 const V_GAP = 140
 
-export const GenealogyTree = forwardRef<GenealogyTreeRef, GenealogyTreeProps>(function GenealogyTree({ members, relations, familyName, familySurname, rootMemberId, textMode = false, onNodeClick }, ref) {
+export const GenealogyTree = forwardRef<GenealogyTreeRef, GenealogyTreeProps>(function GenealogyTree({ members, relations, familyName, familySurname, rootMemberId, textMode = false, filterNoChildrenFemale = false, hideLineName = false, hideSpouse = false, onNodeClick }, ref) {
   const containerRef = useRef<HTMLDivElement>(null)
 
   // Expose container ref and methods to parent
@@ -466,6 +470,13 @@ export const GenealogyTree = forwardRef<GenealogyTreeRef, GenealogyTreeProps>(fu
       childIds.forEach(childId => {
         const child = memberMap.get(childId)
         if (child && !visited.has(childId)) {
+          // Skip female members with no children if filter is enabled
+          if (filterNoChildrenFemale && child.gender === 'female') {
+            const grandchildIds = parentToChildrenMap.get(childId) || []
+            if (grandchildIds.length === 0) {
+              return // Skip this child - female with no children
+            }
+          }
           // For children, the label parent is the secondary parent of their parent
           children.push(buildTree(child, visited, nodeLabelParent))
         }
@@ -526,7 +537,7 @@ export const GenealogyTree = forwardRef<GenealogyTreeRef, GenealogyTreeProps>(fu
       children: effectiveRoots.map(m => buildTree(m)),
       isVirtualRoot: true,
     }
-  }, [members, relations, familyName, familySurname, rootMemberId])
+  }, [members, relations, familyName, familySurname, rootMemberId, filterNoChildrenFemale])
 
   // Calculate positions using a bottom-up layout
   const positionedTree = useMemo(() => {
@@ -742,7 +753,7 @@ export const GenealogyTree = forwardRef<GenealogyTreeRef, GenealogyTreeProps>(fu
   }
 
   // Render connections with parent labels (for non-main family parents)
-  const renderConnections = (node: TreeNode): React.ReactElement[] => {
+  const renderConnections = (node: TreeNode, hideLineName: boolean): React.ReactElement[] => {
     const elements: React.ReactElement[] = []
 
     if (!node.children) return elements
@@ -796,12 +807,8 @@ export const GenealogyTree = forwardRef<GenealogyTreeRef, GenealogyTreeProps>(fu
         />
       )
 
-      // Draw label parent on the connection line
-      // labelParent.relation tells us what labelParent IS (father or mother)
-      // We display the OPPOSITE because the current node (parent in tree) is already that person
-      // Example: if labelParent.relation === 'mother', it means labelParent is mother,
-      // and current node (parent in tree) is father, so we show "母:" on the line
-      if (child.labelParent) {
+      // Draw label parent on the connection line (only if not hidden)
+      if (child.labelParent && !hideLineName) {
         const isLabelParentMother = child.labelParent.relation === 'mother'
         const labelText = isLabelParentMother
           ? `母: ${child.labelParent.name}`   // labelParent is mother
@@ -841,7 +848,7 @@ export const GenealogyTree = forwardRef<GenealogyTreeRef, GenealogyTreeProps>(fu
       }
 
       // Recursively render child connections
-      elements.push(...renderConnections(child))
+      elements.push(...renderConnections(child, hideLineName))
     })
 
     return elements
@@ -963,8 +970,8 @@ export const GenealogyTree = forwardRef<GenealogyTreeRef, GenealogyTreeProps>(fu
             </text>
           ))}
 
-          {/* 配偶 - 横排 */}
-          {node.spouses && node.spouses.length > 0 && (
+          {/* 配偶 - 横排（如果未隐藏） */}
+          {node.spouses && node.spouses.length > 0 && !hideSpouse && (
             <text
               x={NODE_WIDTH / 2}
               y={NODE_HEIGHT - 8}
@@ -1063,8 +1070,8 @@ export const GenealogyTree = forwardRef<GenealogyTreeRef, GenealogyTreeProps>(fu
           {isMale ? '♂' : '♀'}
         </text>
 
-        {/* Spouses - displayed to the right of the node */}
-        {node.spouses && node.spouses.length > 0 && node.spouses.map((spouse, idx) => {
+        {/* Spouses - displayed to the right of the node (if not hidden) */}
+        {node.spouses && node.spouses.length > 0 && !hideSpouse && node.spouses.map((spouse, idx) => {
           const spouseBgColor = spouse.isDeceased ? '#d1d5db' : (spouse.gender === 'male' ? '#93c5fd' : '#f9a8d4')
           const spouseBorderColor = spouse.isDeceased ? '#9ca3af' : (spouse.gender === 'male' ? '#3b82f6' : '#ec4899')
           const spouseTextColor = spouse.isDeceased ? '#9ca3af' : '#1f2937'
@@ -1324,7 +1331,7 @@ export const GenealogyTree = forwardRef<GenealogyTreeRef, GenealogyTreeProps>(fu
           </defs>
           <rect x={viewBox.x - 1000} y={viewBox.y - 1000} width={viewBox.width + 2000} height={viewBox.height + 2000} fill="url(#grid)" />
 
-          <g>{renderConnections(positionedTree)}</g>
+          <g>{renderConnections(positionedTree, hideLineName)}</g>
           <g>{renderAllNodes(positionedTree)}</g>
         </svg>
       </div>
