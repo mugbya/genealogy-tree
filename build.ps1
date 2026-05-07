@@ -4,7 +4,10 @@ $ErrorActionPreference = "Stop"
 Write-Host "=== 祖谱软件编译脚本 ===" -ForegroundColor Cyan
 
 # 进入项目根目录
-$ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+$ScriptDir = $PSScriptRoot
+if (-not $ScriptDir) {
+    $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+}
 Set-Location $ScriptDir
 
 # 1. 清理 dist 目录（确保前端资源是最新的）
