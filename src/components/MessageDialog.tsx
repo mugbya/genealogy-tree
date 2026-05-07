@@ -59,7 +59,7 @@ export function useMessageDialog() {
   })
 
   const showMessage = (options: Omit<MessageDialogProps, 'open' | 'onOpenChange'>) => {
-    setDialogState({ ...options, open: true, type: options.type || 'info' })
+    setDialogState({ ...options, open: true, type: options.type || 'info', description: options.description || '' })
   }
 
   const MessageDialogComponent = (
