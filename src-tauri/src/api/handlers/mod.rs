@@ -14,7 +14,7 @@ pub mod wechat;
 // Explicitly re-export instead of glob to avoid shadowing warnings
 pub use export::export_html;
 pub use health::health_check;
-pub use license::{get_license_info, activate_license, verify_license, check_feature};
+pub use license::{get_license_info, activate_license, verify_license, check_feature, get_features};
 pub use members::{
     get_members, create_member, get_member, update_member, delete_member,
     import_members, recalculate_all_generations, get_editable_member_ids,

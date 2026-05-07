@@ -92,6 +92,7 @@ pub fn create_router(
         .route("/api/system/version", get(handlers::system::get_version))
         // License (public - no auth required)
         .route("/api/license/info", get(handlers::get_license_info))
+        .route("/api/license/features", get(handlers::get_features))
         .route("/api/license/activate", post(handlers::activate_license))
         .route("/api/license/verify", post(handlers::verify_license))
         .route("/api/license/check-feature", post(handlers::check_feature))

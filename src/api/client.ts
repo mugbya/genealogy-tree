@@ -161,10 +161,22 @@ export const memberRelationsApi = {
 }
 
 // License API
+export interface FeatureInfo {
+  name: string
+  display_name: string
+  description: string
+}
+
+export interface LicenseFeaturesResponse {
+  features: FeatureInfo[]
+}
+
 export const licenseApi = {
   getInfo: () => api.get<LicenseInfo>('/api/license/info'),
   activate: (licenseKey: string) => api.post<LicenseStatus>('/api/license/activate', { license_key: licenseKey }),
   verify: () => api.post<LicenseStatus>('/api/license/verify'),
+  // 获取所有需要授权的功能列表
+  getFeatures: () => api.get<LicenseFeaturesResponse>('/api/license/features'),
   // 检查功能授权 - 支持单个 feature 或多个 features 数组
   checkFeature: (feature: string | string[]) => {
     const data = Array.isArray(feature)

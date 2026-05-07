@@ -12,7 +12,7 @@ import { GenealogyTree } from '@/components/TreeNode'
 import { TraditionalGenealogy } from '@/components/TraditionalGenealogy'
 import { TraditionalGenealogyBook } from '@/components/TraditionalGenealogyBook'
 import { ModernGenealogyBook } from '@/components/ModernGenealogyBook'
-import { membersApi, relationTagsApi, configApi, systemApi, type Member, type RelationTag, type CreateMemberInput } from '@/api/client'
+import { membersApi, relationTagsApi, configApi, systemApi, licenseApi, type Member, type RelationTag, type CreateMemberInput } from '@/api/client'
 import {
   Dialog,
   DialogContent,
@@ -118,6 +118,27 @@ export function TreePage() {
   // 配偶状态 - 支持多配偶，每个配偶有各自的标签
   const [selectedSpouseIds, setSelectedSpouseIds] = useState<number[]>([])
   const [spouseTagsBySpouseId, setSpouseTagsBySpouseId] = useState<Record<number, number[]>>({})
+
+  // 截图授权状态
+  const [canScreenshot, setCanScreenshot] = useState(true)
+
+  // 检查截图授权
+  useEffect(() => {
+    const checkScreenshotAuth = async () => {
+      try {
+        const result = await licenseApi.checkFeature('export_screenshot')
+        // API 返回格式：{ data: { results: [{ feature, allowed, ... }] } }
+        const results = result.data?.results || []
+        const screenshotResult = results.find((r: any) => r.feature === 'export_screenshot')
+        const allowed = screenshotResult?.allowed ?? false
+        setCanScreenshot(allowed)
+      } catch (err) {
+        console.error('检查截图授权失败:', err)
+        setCanScreenshot(false)
+      }
+    }
+    checkScreenshotAuth()
+  }, [])
 
   // 编辑时记录原有的配偶IDs，用于比较变更
   const [originalSpouseIds, setOriginalSpouseIds] = useState<number[]>([])
@@ -1422,9 +1443,19 @@ export function TreePage() {
                   祖谱树可视化
                 </CardTitle>
                 <div className="flex items-center gap-2">
+                  {!canScreenshot && (
+                    <>
+                      <span className="px-2 py-1 text-xs font-bold text-white bg-red-500 rounded">
+                        未授权
+                      </span>
+                      <span className="text-sm text-red-600">如有需要请联系客服获取授权</span>
+                    </>
+                  )}
                   <Button
                     onClick={handleScreenshot}
                     className="gap-2"
+                    disabled={!canScreenshot}
+                    title={!canScreenshot ? '需要授权才能使用截图下载功能，如有需要请联系客服获取授权' : ''}
                   >
                     <Download className="w-4 h-4" />
                     截图下载

@@ -167,6 +167,7 @@ pub async fn check_feature(
             "export_html" => LicenseFeature::ExportHtml,
             "export_word" => LicenseFeature::ExportWord,
             "export_volume" => LicenseFeature::ExportVolume,
+            "export_screenshot" => LicenseFeature::ExportScreenshot,
             _ => {
                 results.push(json!({
                     "feature": feature_str,
@@ -200,6 +201,17 @@ pub async fn check_feature(
     (StatusCode::OK, Json(json!({
         "data": {
             "results": results
+        }
+    })))
+}
+
+/// 获取所有需要授权的功能列表
+pub async fn get_features(
+) -> (StatusCode, Json<Value>) {
+    let features = LicenseFeature::all_features();
+    (StatusCode::OK, Json(json!({
+        "data": {
+            "features": features
         }
     })))
 }

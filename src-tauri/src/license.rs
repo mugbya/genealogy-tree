@@ -45,6 +45,14 @@ pub enum LicenseFeature {
     ExportHtml,
     ExportWord,
     ExportVolume,
+    ExportScreenshot,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct FeatureInfo {
+    pub name: String,
+    pub display_name: String,
+    pub description: String,
 }
 
 impl LicenseFeature {
@@ -53,6 +61,44 @@ impl LicenseFeature {
             LicenseFeature::ExportHtml => true,
             LicenseFeature::ExportWord => true,
             LicenseFeature::ExportVolume => true,
+            LicenseFeature::ExportScreenshot => true,
+        }
+    }
+
+    /// Get all features that require license
+    pub fn all_features() -> Vec<FeatureInfo> {
+        vec![
+            FeatureInfo {
+                name: "export_html".to_string(),
+                display_name: "HTML导出".to_string(),
+                description: "导出族谱为HTML格式".to_string(),
+            },
+            FeatureInfo {
+                name: "export_word".to_string(),
+                display_name: "Word导出".to_string(),
+                description: "导出族谱为Word格式".to_string(),
+            },
+            FeatureInfo {
+                name: "export_volume".to_string(),
+                display_name: "分册导出".to_string(),
+                description: "分册导出族谱".to_string(),
+            },
+            FeatureInfo {
+                name: "export_screenshot".to_string(),
+                display_name: "截图下载".to_string(),
+                description: "族谱树截图下载".to_string(),
+            },
+        ]
+    }
+
+    /// Get feature by name
+    pub fn from_name(name: &str) -> Option<LicenseFeature> {
+        match name {
+            "export_html" => Some(LicenseFeature::ExportHtml),
+            "export_word" => Some(LicenseFeature::ExportWord),
+            "export_volume" => Some(LicenseFeature::ExportVolume),
+            "export_screenshot" => Some(LicenseFeature::ExportScreenshot),
+            _ => None,
         }
     }
 }

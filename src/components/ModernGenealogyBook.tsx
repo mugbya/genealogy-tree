@@ -43,12 +43,8 @@ export function ModernGenealogyBook({
   // 分册配置状态
   const [volumeRanges, setVolumeRanges] = useState<VolumeRange[]>([])
 
-  // 授权功能状态
-  const [licenseFeatures, setLicenseFeatures] = useState({
-    exportHtml: false,
-    exportWord: false,
-    exportVolume: false,
-  })
+  // 授权功能状态 - 动态从后端获取
+  const [licenseFeatures, setLicenseFeatures] = useState<Record<string, boolean>>({})
   const [licenseValid, setLicenseValid] = useState(false)
   const [isTrial, setIsTrial] = useState(false)
   const [remainingDays, setRemainingDays] = useState<number | null>(null)
@@ -57,35 +53,51 @@ export function ModernGenealogyBook({
   useEffect(() => {
     const checkLicenseFeatures = async () => {
       try {
-        // 一次调用检查所有 feature
-        const result = await licenseApi.checkFeature(['export_html', 'export_volume'])
+        // 1. 先获取所有需要授权的功能列表
+        const featuresResult = await licenseApi.getFeatures()
+        const features = featuresResult.data?.features || []
+
+        if (features.length === 0) {
+          setLicenseFeatures({})
+          setLicenseValid(false)
+          return
+        }
+
+        // 2. 获取每个功能的授权状态
+        const featureNames = features.map((f: any) => f.name)
+        const result = await licenseApi.checkFeature(featureNames)
         const results = result.data?.results || []
 
-        // 解析结果
-        const htmlResult = results.find((r: any) => r.feature === 'export_html')
-        const volumeResult = results.find((r: any) => r.feature === 'export_volume')
-
-        setLicenseFeatures({
-          exportHtml: htmlResult?.allowed ?? false,
-          exportWord: false, // Word export not yet implemented
-          exportVolume: volumeResult?.allowed ?? false,
+        // 3. 构建授权状态映射
+        const featuresMap: Record<string, boolean> = {}
+        let anyAllowed = false
+        results.forEach((r: any) => {
+          featuresMap[r.feature] = r.allowed ?? false
+          if (r.allowed) anyAllowed = true
         })
-        setLicenseValid(htmlResult?.is_valid ?? false)
 
-        // trial 相关状态暂时设为默认值
-        setIsTrial(false)
-        setRemainingDays(null)
+        setLicenseFeatures(featuresMap)
+        setLicenseValid(anyAllowed) // 任何一个功能允许就说明授权有效
+
+        // 4. 获取 license info 用于判断试用期
+        try {
+          const infoResult = await licenseApi.getInfo()
+          const info = infoResult.data
+          if (info) {
+            setLicenseValid(info.is_valid ?? false)
+            setIsTrial(info.is_trial ?? false)
+            setRemainingDays(info.remaining_days ?? null)
+          }
+        } catch (e) {
+          console.error('获取授权信息失败:', e)
+          // 如果获取失败，尝试根据 results 判断
+          const anyAllowed = results.some((r: any) => r.allowed)
+          setLicenseValid(anyAllowed)
+        }
       } catch (err) {
         console.error('检查授权失败:', err)
-        // On error, assume not licensed
-        setLicenseFeatures({
-          exportHtml: false,
-          exportWord: false,
-          exportVolume: false,
-        })
+        setLicenseFeatures({})
         setLicenseValid(false)
-        setIsTrial(false)
-        setRemainingDays(null)
       }
     }
 
@@ -715,7 +727,7 @@ ${membersHtml}
           </div>
         )}
         {/* 试用期已过期提示 */}
-        {!licenseValid && isTrial && remainingDays === 0 && (
+        {!licenseValid && isTrial && (remainingDays === 0 || remainingDays === null) && (
           <div className="flex-1 flex items-center gap-2 px-3 py-1 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700 animate-fade-in">
             <AlertTriangle className="w-4 h-4 shrink-0" />
             <span className="font-medium">试用期已结束</span>
@@ -736,8 +748,8 @@ ${membersHtml}
           size="sm"
           onClick={handleExportFullHtml}
           className="gap-2"
-          disabled={!licenseFeatures.exportHtml}
-          title={!licenseFeatures.exportHtml ? '需要授权才能使用HTML导出功能' : ''}
+          disabled={!licenseFeatures.export_html}
+          title={!licenseFeatures.export_html ? '需要授权才能使用HTML导出功能，如有需要请联系客服获取授权' : ''}
         >
           <FileText className="w-4 h-4" />
           导出HTML
@@ -1187,18 +1199,21 @@ ${membersHtml}
                         </Badge>
                       </div>
                       <div className="flex items-center gap-2">
-                        {!licenseFeatures.exportVolume && (
-                          <span className="px-2 py-1 text-xs font-bold text-white bg-red-500 rounded">
-                            未授权
-                          </span>
+                        {!licenseFeatures.export_volume && (
+                          <>
+                            <span className="px-2 py-1 text-xs font-bold text-white bg-red-500 rounded">
+                              未授权
+                            </span>
+                            <span className="text-sm text-red-600">如有需要请联系客服获取授权</span>
+                          </>
                         )}
                         <Button
                           variant="outline"
                           size="sm"
                           onClick={() => handleExportVolumeHtml(volume)}
-                          disabled={!licenseFeatures.exportVolume || volumeMembers.length === 0}
+                          disabled={!licenseFeatures.export_volume || volumeMembers.length === 0}
                           className="gap-1 text-blue-600 border-blue-300 hover:bg-blue-50"
-                          title={!licenseFeatures.exportVolume ? '需要获取许可证后即可导出' : ''}
+                          title={!licenseFeatures.export_volume ? '需要授权才能使用分册导出功能，如有需要请联系客服获取授权' : ''}
                         >
                           <FileText className="w-4 h-4" />
                           HTML
