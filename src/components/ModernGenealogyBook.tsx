@@ -727,8 +727,6 @@ ${membersHtml}
           size="sm"
           onClick={() => setView('volume')}
           className="gap-2"
-          disabled={!licenseFeatures.exportVolume}
-          title={!licenseFeatures.exportVolume ? '需要授权才能使用分册导出功能' : ''}
         >
           <FileText className="w-4 h-4" />
           分册导出
@@ -1189,13 +1187,18 @@ ${membersHtml}
                         </Badge>
                       </div>
                       <div className="flex items-center gap-2">
+                        {!licenseFeatures.exportVolume && (
+                          <span className="px-2 py-1 text-xs font-bold text-white bg-red-500 rounded">
+                            未授权
+                          </span>
+                        )}
                         <Button
                           variant="outline"
                           size="sm"
                           onClick={() => handleExportVolumeHtml(volume)}
                           disabled={!licenseFeatures.exportVolume || volumeMembers.length === 0}
                           className="gap-1 text-blue-600 border-blue-300 hover:bg-blue-50"
-                          title={!licenseFeatures.exportVolume ? '需要授权才能使用分册导出功能' : ''}
+                          title={!licenseFeatures.exportVolume ? '需要获取许可证后即可导出' : ''}
                         >
                           <FileText className="w-4 h-4" />
                           HTML

@@ -14,7 +14,7 @@ use crate::license::{is_feature_allowed, LicenseFeature, get_license_info};
 /// 导出 HTML 的请求参数
 #[derive(Debug, Deserialize)]
 pub struct ExportHtmlRequest {
-    pub volume: Option<ExportVolume>,  // 可选，如果不传则导出全部
+    pub volume: Option<ExportVolume>,  // 可选，如果不传则导出全部，分册导出不需要授权
 }
 
 #[derive(Debug, Deserialize)]
@@ -272,12 +272,12 @@ struct ExportRelations {
     children: Vec<i64>,
 }
 
-/// 导出全部 HTML
+/// 导出 HTML
 pub async fn export_html(
     State(state): State<AppState>,
     Json(req): Json<ExportHtmlRequest>,
 ) -> Result<Response, StatusCode> {
-    // 1. 检查授权
+    // 1. 检查授权（始终检查授权，无论是导出全部还是分册导出）
     let license_info = get_license_info(&state.db)
         .map_err(|e| {
             tracing::warn!("Failed to get license info: {}", e);
