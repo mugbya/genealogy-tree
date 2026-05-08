@@ -225,7 +225,6 @@ export function TreePage() {
   const [isImportResultOpen, setIsImportResultOpen] = useState(false)
   const [downloadSuccess, setDownloadSuccess] = useState(false)
   const [downloadPath, setDownloadPath] = useState<string>('')
-  const [templateType, setTemplateType] = useState<'honglou' | 'kongzi'>('honglou')
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
   // 切换标签选择
@@ -761,13 +760,8 @@ export function TreePage() {
   const handleDownloadTemplate = async () => {
     setDownloadSuccess(false);
 
-    const templateFileName = templateType === 'kongzi'
-      ? 'kongzishi_template.csv'
-      : 'hongloujia_template.csv';
-
-    const filename = templateType === 'kongzi'
-      ? '孔子世家导入模板.csv'
-      : '红楼梦贾家导入模板.csv';
+    const templateFileName = 'hongloujia_template.csv';
+    const filename = '红楼梦贾家导入模板.csv';
 
     try {
       let blob: Blob;
@@ -1117,37 +1111,22 @@ export function TreePage() {
                           <Trash2 className="w-3 h-3" />
                           清空导入
                         </Button>
-                        <div className="flex items-center gap-1">
-                          <select
-                            value={templateType}
-                            onChange={(e) => setTemplateType(e.target.value as 'honglou' | 'kongzi')}
-                            className="h-8 px-2 pr-6 rounded border border-zinc-200 bg-white text-sm text-zinc-700 appearance-none cursor-pointer focus:outline-none focus:border-indigo-500"
-                            style={{
-                              backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2371717a' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`,
-                              backgroundRepeat: 'no-repeat',
-                              backgroundPosition: 'right 0.5rem center',
-                            }}
-                          >
-                            <option value="honglou">红楼梦贾家</option>
-                            <option value="kongzi">孔子世家</option>
-                          </select>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={handleDownloadTemplate}
-                            className="gap-1"
-                          >
-                            <Download className="w-3 h-3" />
-                            {downloadSuccess ? (
-                              <span className="flex flex-col items-start">
-                                <span>已下载</span>
-                                {downloadPath && isDesktop && (
-                                  <span className="text-[10px] text-muted-foreground font-normal">{downloadPath}</span>
-                                )}
-                              </span>
-                            ) : '模板'}
-                          </Button>
-                        </div>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={handleDownloadTemplate}
+                          className="gap-1"
+                        >
+                          <Download className="w-3 h-3" />
+                          {downloadSuccess ? (
+                            <span className="flex flex-col items-start">
+                              <span>已下载</span>
+                              {downloadPath && isDesktop && (
+                                <span className="text-[10px] text-muted-foreground font-normal">{downloadPath}</span>
+                              )}
+                            </span>
+                          ) : '模板'}
+                        </Button>
                       </>
                     )}
                     
