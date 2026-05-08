@@ -13,7 +13,7 @@ use std::collections::HashMap;
 use crate::api::router::AppState;
 use crate::auth::verify_token;
 use crate::models::{CreateMemberRequest, Member, UpdateMemberRequest, ROLE_ADMIN};
-use tracing::{warn, debug};
+use tracing::{warn, debug, error};
 
 /// 从请求头中提取用户认证信息，返回 (user_id, role, member_id)
 fn extract_user_info(headers: &HeaderMap) -> Result<(i64, String, Option<i64>), StatusCode> {
@@ -689,6 +689,217 @@ pub async fn import_members(
             tracing::error!("[import] Error in recalculate_generations: {}", e);
         }
     }
+
+    let result = ImportResult {
+        imported,
+        updated,
+        errors,
+    };
+
+    (StatusCode::OK, Json(json!({ "data": result })))
+}
+
+// 清空所有家族成员数据并重新导入
+pub async fn clear_and_import_members(
+    State(state): State<AppState>,
+    Json(data): Json<ImportData>,
+) -> (StatusCode, Json<Value>) {
+    let mut conn = match state.db.lock() {
+        Ok(conn) => conn,
+        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))),
+    };
+
+    tracing::error!(module="members", "[clear_and_import] Starting clear and import...");
+
+    // 开始事务
+    let tx = match conn.unchecked_transaction() {
+        Ok(tx) => tx,
+        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": format!("事务开启失败: {}", e) }))),
+    };
+
+    // 1. 删除所有现有成员关系
+    if let Err(e) = tx.execute("DELETE FROM member_relations", []) {
+        tracing::error!(module="members", "[clear_and_import] Failed to clear member_relations: {}", e);
+        return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": format!("清空关系失败: {}", e) })));
+    }
+    tracing::error!(module="members", "[clear_and_import] Cleared all member_relations");
+
+    // 2. 删除所有现有成员 (表名是 family_members)
+    if let Err(e) = tx.execute("DELETE FROM family_members", []) {
+        tracing::error!(module="members", "[clear_and_import] Failed to clear family_members: {}", e);
+        return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": format!("清空成员失败: {}", e) })));
+    }
+    tracing::error!(module="members", "[clear_and_import] Cleared all family_members");
+
+    // 3. 重新生成自增ID起始值（从1开始）
+    if let Err(e) = tx.execute("DELETE FROM sqlite_sequence WHERE name='family_members' OR name='member_relations'", []) {
+        tracing::error!(module="members", "[clear_and_import] Failed to reset sequence: {}", e);
+        // 不影响流程，继续
+    }
+
+    if let Err(e) = tx.commit() {
+        tracing::error!(module="members", "[clear_and_import] Failed to commit clear transaction: {}", e);
+        return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": format!("提交失败: {}", e) })));
+    }
+
+    tracing::error!(module="members", "[clear_and_import] Clear completed, now importing...");
+
+    // 复用 import_members 的逻辑，但使用新的 data
+    // 由于 import_members 已经处理了文件解析，我们直接调用其内部逻辑
+    // 但因为我们需要释放锁并重新获取，这里手动实现导入逻辑
+
+    let bytes = match STANDARD.decode(&data.file_content) {
+        Ok(b) => b,
+        Err(e) => return (StatusCode::BAD_REQUEST, Json(json!({ "error": format!("Failed to decode file: {}", e) }))),
+    };
+
+    let rows = if is_csv_content(&bytes) {
+        let content = match String::from_utf8(bytes.clone()) {
+            Ok(c) => c,
+            Err(e) => return (StatusCode::BAD_REQUEST, Json(json!({ "error": format!("Failed to read file as text: {}", e) }))),
+        };
+        match parse_csv(&content) {
+            Ok(r) => r,
+            Err(e) => return (StatusCode::BAD_REQUEST, Json(json!({ "error": format!("Failed to parse CSV: {}", e) }))),
+        }
+    } else {
+        match parse_excel(&bytes) {
+            Ok(r) => r,
+            Err(e) => return (StatusCode::BAD_REQUEST, Json(json!({ "error": format!("Failed to parse Excel: {}", e) }))),
+        }
+    };
+
+    if rows.is_empty() {
+        return (StatusCode::BAD_REQUEST, Json(json!({ "error": "No data found in file" })));
+    }
+
+    let mut imported = 0;
+    let mut updated = 0;
+    let mut errors: Vec<String> = Vec::new();
+    let mut name_to_id: HashMap<String, i64> = HashMap::new();
+
+    // Stage 1: Insert all members (all are new after clear)
+    for row in &rows {
+        let name = row.姓名.trim();
+        if name.is_empty() {
+            continue;
+        }
+
+        let gender = match row.性别.as_str() {
+            "男" => "male",
+            "女" => "female",
+            _ => "male",
+        };
+
+        let is_deceased = match row.是否离世.as_deref() {
+            Some("是") => true,
+            Some("否") => false,
+            _ => false,
+        };
+
+        let is_matrilocal = match row.是否入赘.as_deref() {
+            Some("是") => true,
+            Some("否") => false,
+            _ => false,
+        };
+
+        let is_adopted_son = match row.是否招夫养子.as_deref() {
+            Some("是") => true,
+            Some("否") => false,
+            _ => false,
+        };
+
+        let weight_val = row.排序.unwrap_or(0);
+        let result = conn.execute(
+            "INSERT INTO family_members (name, surname, gender, generation, generation_word, weight, birth_date, death_date, is_deceased,
+             birth_place, occupation, biography, remarkable_deeds, is_matrilocal, is_adopted_son) VALUES (?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            params![name, row.姓氏, gender, row.字辈, weight_val, row.出生日期, row.逝世日期, is_deceased, row.籍贯, row.职业, row.生平简介, row.突出事迹, is_matrilocal, is_adopted_son],
+        );
+
+        match result {
+            Ok(_) => {
+                imported += 1;
+                let new_id = conn.last_insert_rowid();
+                name_to_id.insert(name.to_string(), new_id);
+            }
+            Err(e) => errors.push(format!("Failed to insert {}: {}", name, e)),
+        }
+    }
+
+    // Get all member IDs
+    let mut stmt = match conn.prepare("SELECT id, name FROM family_members") {
+        Ok(s) => s,
+        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))),
+    };
+    let all_members: Vec<(i64, String)> = stmt
+        .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
+        .unwrap()
+        .filter_map(|r| r.ok())
+        .collect();
+    for (id, name) in all_members {
+        name_to_id.insert(name, id);
+    }
+
+    // Stage 2: Create relations
+    for row in &rows {
+        let name = row.姓名.trim();
+        if name.is_empty() {
+            continue;
+        }
+
+        let Some(&member_id) = name_to_id.get(name) else {
+            continue;
+        };
+
+        // Father relation
+        if let Some(ref father_name) = row.父亲 {
+            let father_name = father_name.trim();
+            if !father_name.is_empty() {
+                if let Some(&father_id) = name_to_id.get(father_name) {
+                    let _ = conn.execute(
+                        "INSERT OR IGNORE INTO member_relations (from_member_id, to_member_id, relation_type) VALUES (?, ?, ?)",
+                        params![member_id, father_id, "father"],
+                    );
+                }
+            }
+        }
+
+        // Mother relation
+        if let Some(ref mother_name) = row.母亲 {
+            let mother_name = mother_name.trim();
+            if !mother_name.is_empty() {
+                if let Some(&mother_id) = name_to_id.get(mother_name) {
+                    let _ = conn.execute(
+                        "INSERT OR IGNORE INTO member_relations (from_member_id, to_member_id, relation_type) VALUES (?, ?, ?)",
+                        params![member_id, mother_id, "mother"],
+                    );
+                }
+            }
+        }
+
+        // Spouse relation
+        if let Some(ref spouse_str) = row.配偶 {
+            let spouses: Vec<&str> = spouse_str.split(|c| c == ',' || c == '，' || c == '、')
+                .map(|s| s.trim())
+                .filter(|s| !s.is_empty())
+                .collect();
+            for spouse_name in spouses {
+                if let Some(&spouse_id) = name_to_id.get(spouse_name) {
+                    let _ = conn.execute(
+                        "INSERT OR IGNORE INTO member_relations (from_member_id, to_member_id, relation_type) VALUES (?, ?, ?)",
+                        params![member_id, spouse_id, "spouse"],
+                    );
+                }
+            }
+        }
+    }
+
+    // 重新计算所有成员的代数
+    if let Err(e) = recalculate_generations(&conn) {
+        tracing::error!(module="members", "[clear_and_import] recalculate_generations error: {}", e);
+    }
+
+    tracing::error!(module="members", "[clear_and_import] Completed: imported={}, updated={}", imported, updated);
 
     let result = ImportResult {
         imported,

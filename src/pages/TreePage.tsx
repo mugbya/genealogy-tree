@@ -220,6 +220,7 @@ export function TreePage() {
 
   // 导入状态
   const [isImporting, setIsImporting] = useState(false)
+  const [isClearAndImport, setIsClearAndImport] = useState(false)
   const [importResult, setImportResult] = useState<{ imported: number; updated: number; errors: string[] } | null>(null)
   const [isImportResultOpen, setIsImportResultOpen] = useState(false)
   const [downloadSuccess, setDownloadSuccess] = useState(false)
@@ -737,7 +738,10 @@ export function TreePage() {
         base64 = base64.slice(0, -padding) + '=='.slice(0, padding)
       }
 
-      const result = await membersApi.import(base64)
+      const result = isClearAndImport
+        ? await membersApi.clearAndImport(base64)
+        : await membersApi.import(base64)
+      setIsClearAndImport(false) // 重置状态
       if (result.error) {
         alert('导入失败: ' + result.error)
       } else if (result.data) {
@@ -747,6 +751,7 @@ export function TreePage() {
       }
     } catch (error) {
       alert('导入失败: ' + error)
+      setIsClearAndImport(false) // 确保出错时也重置状态
     } finally {
       setIsImporting(false)
     }
@@ -1095,6 +1100,22 @@ export function TreePage() {
                         >
                           <Upload className="w-3 h-3" />
                           {isImporting ? '导入中...' : '导入'}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => {
+                            if (confirm('确定要清空所有家族成员数据并重新导入吗？此操作不可撤销！')) {
+                              setIsClearAndImport(true)
+                              fileInputRef.current?.click()
+                            }
+                          }}
+                          disabled={isImporting}
+                          className="gap-1"
+                          title="清空现有数据后重新导入"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                          清空导入
                         </Button>
                         <div className="flex items-center gap-1">
                           <select

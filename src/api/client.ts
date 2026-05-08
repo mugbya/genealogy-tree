@@ -137,6 +137,7 @@ export const membersApi = {
   update: (id: number, data: UpdateMemberInput) => api.put(`/api/members/${id}`, data),
   delete: (id: number) => api.delete(`/api/members/${id}`),
   import: (fileContent: string) => api.post<ImportResult>('/api/members/import', { file_content: fileContent }),
+  clearAndImport: (fileContent: string) => api.post<ImportResult>('/api/members/clear-and-import', { file_content: fileContent }),
   getEditableIds: () => api.get<number[]>('/api/members/editable-ids'),
 }
 
