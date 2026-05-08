@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use std::sync::{Arc, Mutex};
 use rusqlite::Connection;
 use sysinfo::System;
-use tracing::{info, warn, debug};
+use tracing::{info, warn, debug, trace};
 
 /// RSA Public Key for license verification (2048-bit)
 /// This is the public key corresponding to the server's private key
@@ -107,7 +107,7 @@ impl LicenseFeature {
 /// Returns None if NTP fails - caller should treat None as authorization invalid
 pub fn get_ntp_time() -> Option<i64> {
     for server in NTP_SERVERS {
-        debug!("Trying NTP server: {}", server);
+        trace!("Trying NTP server: {}", server);
         match ntp::request(*server) {
             Ok(packet) => {
                 // Get transmit timestamp from packet and convert to Unix timestamp
@@ -151,7 +151,7 @@ pub fn is_expired_by_ntp(expires_at: &str) -> bool {
 
     // If NTP time is unavailable, treat as expired
     let Some(current_time) = get_ntp_time() else {
-        debug!("NTP time unavailable, treating as expired");
+        info!("NTP time unavailable, treating as expired");
         return true;
     };
 
@@ -178,7 +178,7 @@ pub fn get_remaining_days_by_ntp(expires_at: &str) -> i64 {
 
     // If NTP time is unavailable, return 0 (can't calculate remaining days)
     let Some(current_time) = get_ntp_time() else {
-        debug!("NTP time unavailable, returning 0 days");
+        info!("NTP time unavailable, returning 0 days");
         return 0;
     };
 
@@ -422,15 +422,15 @@ pub fn is_license_valid(auth_code: Option<&str>, stored_expires_at: Option<&str>
     if data.exp > 0 {
         // If NTP time is unavailable, license is invalid
         let Some(now) = get_ntp_time() else {
-            debug!(module="license", "is_license_valid: NTP time unavailable, returning false");
+            info!(module="license", "is_license_valid: NTP time unavailable, returning false");
             return false;
         };
 
         if data.exp < now {
-            debug!(module="license", "is_license_valid: license expired at {}, NTP now: {}, returning false", data.exp, now);
+            info!(module="license", "is_license_valid: license expired at {}, NTP now: {}, returning false", data.exp, now);
             return false;
         }
-        debug!(module="license", "is_license_valid: license valid (exp={}, now={})", data.exp, now);
+        info!(module="license", "is_license_valid: license valid (exp={}, now={})", data.exp, now);
         return true;
     }
 
