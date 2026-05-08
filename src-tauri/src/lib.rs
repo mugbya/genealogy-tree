@@ -148,6 +148,25 @@ fn get_http_port(app: tauri::AppHandle) -> String {
     }
 }
 
+// 打开下载文件夹
+#[tauri::command]
+async fn open_downloads_folder() -> Result<(), String> {
+    let downloads_dir = dirs_next::download_dir()
+        .ok_or_else(|| "无法获取下载文件夹路径".to_string())?;
+
+    // 使用 opener 打开文件夹
+    opener::open(&downloads_dir).map_err(|e| format!("打开文件夹失败: {}", e))?;
+
+    Ok(())
+}
+
+// 保存截图到指定路径
+#[tauri::command]
+async fn save_screenshot(path: String, data: Vec<u8>) -> Result<(), String> {
+    std::fs::write(&path, &data).map_err(|e| format!("保存文件失败: {}", e))?;
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // Initialize tracing with file logging
@@ -176,8 +195,9 @@ pub fn run() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
-        .invoke_handler(tauri::generate_handler![get_network_interfaces, get_download_path, get_database_path, download_template, get_http_port])
+        .invoke_handler(tauri::generate_handler![get_network_interfaces, get_download_path, get_database_path, download_template, get_http_port, open_downloads_folder, save_screenshot])
         .setup(|app| {
             // 获取应用数据目录，使用绝对路径初始化数据库
             let app_data_dir = app.path().app_data_dir().expect("Failed to get app data dir");

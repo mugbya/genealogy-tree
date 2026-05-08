@@ -47,6 +47,7 @@ import {
   Download,
   Upload,
   Save,
+  FolderOpen,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -487,6 +488,19 @@ export function TreePage() {
           exportName = rootMember.name
         }
       }
+      const fileName = `${exportName}_${new Date().toISOString().slice(0, 10)}.png`
+
+      // 动态导入 Tauri API
+      const { invoke } = await import('@tauri-apps/api/core')
+      const { save } = await import('@tauri-apps/plugin-dialog')
+
+      // 打开保存对话框
+      const filePath = await save({
+        defaultPath: fileName,
+        filters: [{ name: 'PNG Image', extensions: ['png'] }]
+      })
+
+      if (!filePath) return // 用户取消
 
       // 使用 SVG 方式导出完整祖谱树
       const svgContent = treeRef.current.exportSvgAsDataUrl()
@@ -496,7 +510,7 @@ export function TreePage() {
       const url = URL.createObjectURL(svgBlob)
 
       const img = new Image()
-      img.onload = () => {
+      img.onload = async () => {
         const svgMatch = svgContent.match(/width="(\d+)" height="(\d+)"/)
         const width = svgMatch ? parseInt(svgMatch[1]) : 2000
         const height = svgMatch ? parseInt(svgMatch[2]) : 2000
@@ -511,10 +525,23 @@ export function TreePage() {
           ctx.fillRect(0, 0, width, height)
           ctx.drawImage(img, 0, 0)
 
-          const link = document.createElement('a')
-          link.download = `${exportName}_${new Date().toISOString().slice(0, 10)}.png`
-          link.href = canvas.toDataURL('image/png')
-          link.click()
+          // 获取图片数据
+          const dataUrl = canvas.toDataURL('image/png')
+          const base64Data = dataUrl.split(',')[1]
+          const binaryString = atob(base64Data)
+          const bytes = new Uint8Array(binaryString.length)
+          for (let i = 0; i < binaryString.length; i++) {
+            bytes[i] = binaryString.charCodeAt(i)
+          }
+
+          // 调用后端保存文件
+          await invoke('save_screenshot', { path: filePath, data: Array.from(bytes) })
+
+          // 保存路径用于显示和打开文件夹
+          setDownloadPath(filePath)
+          // 显示下载成功提示
+          setDownloadSuccess(true)
+          setTimeout(() => setDownloadSuccess(false), 5000)
         }
         URL.revokeObjectURL(url)
       }
@@ -1458,6 +1485,23 @@ export function TreePage() {
                       <span className="text-sm text-red-600">如有需要请联系客服获取授权</span>
                     </>
                   )}
+                  {downloadSuccess && downloadPath && (
+                    <Button
+                      onClick={async () => {
+                        try {
+                          const { invoke } = await import('@tauri-apps/api/core')
+                          await invoke('open_downloads_folder')
+                        } catch (err) {
+                          console.error('打开文件夹失败:', err)
+                        }
+                      }}
+                      className="gap-2"
+                      variant="outline"
+                    >
+                      <FolderOpen className="w-4 h-4" />
+                      打开文件夹
+                    </Button>
+                  )}
                   <Button
                       onClick={handleScreenshot}
                       className="gap-2"
@@ -1465,7 +1509,7 @@ export function TreePage() {
                       title={!canScreenshot ? '需要授权才能使用截图下载功能，如有需要请联系客服获取授权' : ''}
                     >
                       <Download className="w-4 h-4" />
-                      截图下载
+                      {downloadSuccess ? '已保存' : '截图下载'}
                     </Button>
                 </div>
               </div>
