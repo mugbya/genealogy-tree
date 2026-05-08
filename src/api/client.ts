@@ -30,6 +30,8 @@ async function getApiBase(): Promise<string> {
   return cachedApiBase
 }
 
+export { getApiBase }
+
 interface ApiResponse<T> {
   data?: T
   error?: string

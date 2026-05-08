@@ -13,7 +13,7 @@ import { GenealogyTree } from '@/components/TreeNode'
 import { TraditionalGenealogy } from '@/components/TraditionalGenealogy'
 import { TraditionalGenealogyBook } from '@/components/TraditionalGenealogyBook'
 import { ModernGenealogyBook } from '@/components/ModernGenealogyBook'
-import { membersApi, relationTagsApi, configApi, systemApi, licenseApi, type Member, type RelationTag, type CreateMemberInput } from '@/api/client'
+import { membersApi, relationTagsApi, configApi, systemApi, licenseApi, getApiBase, type Member, type RelationTag, type CreateMemberInput } from '@/api/client'
 import {
   Dialog,
   DialogContent,
@@ -785,7 +785,8 @@ export function TreePage() {
       let blob: Blob;
 
       // 下载模板
-      const response = await fetch(`/api/templates/${templateFileName}`);
+      const base = await getApiBase();
+      const response = await fetch(`${base}/api/templates/${templateFileName}`);
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
