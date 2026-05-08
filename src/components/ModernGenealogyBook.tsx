@@ -44,6 +44,7 @@ export function ModernGenealogyBook({
   const [volumeRanges, setVolumeRanges] = useState<VolumeRange[]>([])
 
   // 授权功能状态 - 动态从后端获取
+  const [licenseLoading, setLicenseLoading] = useState(true)
   const [licenseFeatures, setLicenseFeatures] = useState<Record<string, boolean>>({})
   const [licenseValid, setLicenseValid] = useState(false)
   const [isTrial, setIsTrial] = useState(false)
@@ -60,6 +61,7 @@ export function ModernGenealogyBook({
         if (features.length === 0) {
           setLicenseFeatures({})
           setLicenseValid(false)
+          setLicenseLoading(false)
           return
         }
 
@@ -94,10 +96,12 @@ export function ModernGenealogyBook({
           const anyAllowed = results.some((r: any) => r.allowed)
           setLicenseValid(anyAllowed)
         }
+        setLicenseLoading(false)
       } catch (err) {
         console.error('检查授权失败:', err)
         setLicenseFeatures({})
         setLicenseValid(false)
+        setLicenseLoading(false)
       }
     }
 
@@ -712,14 +716,14 @@ ${membersHtml}
           </div>
         )}
         {/* 试用期提示 */}
-        {isTrial && remainingDays !== null && remainingDays > 0 && (
+        {!licenseLoading && isTrial && remainingDays !== null && remainingDays > 0 && (
           <div className="flex-1 flex items-center gap-2 px-3 py-1 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-700 animate-fade-in">
             <span className="font-medium">试用期剩余 {remainingDays} 天</span>
             <span className="text-blue-600">，到期后导出功能将不可用</span>
           </div>
         )}
         {/* 试用期已过期或未授权提示 */}
-        {!licenseValid && !isTrial && (
+        {!licenseLoading && !licenseValid && !isTrial && (
           <div className="flex-1 flex items-center gap-2 px-3 py-1 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-700 animate-fade-in">
             <AlertTriangle className="w-4 h-4 shrink-0" />
             <span className="font-medium">导出功能需要授权才能使用</span>
@@ -727,7 +731,7 @@ ${membersHtml}
           </div>
         )}
         {/* 试用期已过期提示 */}
-        {!licenseValid && isTrial && (remainingDays === 0 || remainingDays === null) && (
+        {!licenseLoading && !licenseValid && isTrial && (remainingDays === 0 || remainingDays === null) && (
           <div className="flex-1 flex items-center gap-2 px-3 py-1 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700 animate-fade-in">
             <AlertTriangle className="w-4 h-4 shrink-0" />
             <span className="font-medium">试用期已结束</span>
