@@ -15,6 +15,17 @@ use serde::Serialize;
 use tracing::{info, warn};
 use tracing_subscriber::{fmt, prelude::*, registry};
 use tracing_appender::rolling::{RollingFileAppender, Rotation};
+use chrono::Local;
+
+// Custom timer that uses local time (UTC+8 for China)
+struct LocalTimer;
+
+impl tracing_subscriber::fmt::time::FormatTime for LocalTimer {
+    fn format_time(&self, w: &mut fmt::format::Writer<'_>) -> std::fmt::Result {
+        let local = Local::now();
+        write!(w, "{}", local.format("%Y-%m-%d %H:%M:%S%.3f"))
+    }
+}
 
 pub use models::*;
 pub use api::*;
@@ -185,10 +196,11 @@ pub fn run() {
 
     let file_layer = fmt::layer()
         .with_writer(non_blocking)
-        .with_ansi(false);
+        .with_ansi(false)
+        .with_timer(LocalTimer);
 
     registry()
-        .with(fmt::layer().with_writer(std::io::stderr))
+        .with(fmt::layer().with_writer(std::io::stderr).with_timer(LocalTimer))
         .with(file_layer)
         .with(tracing_subscriber::EnvFilter::from_default_env().add_directive(tracing::Level::INFO.into()))
         .init();

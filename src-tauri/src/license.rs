@@ -106,6 +106,17 @@ impl LicenseFeature {
 /// Get current time from NTP server (returns Unix timestamp)
 /// Returns None if NTP fails - caller should treat None as authorization invalid
 pub fn get_ntp_time() -> Option<i64> {
+    // Simple cache: store result for 30 seconds to avoid duplicate NTP calls
+    use std::sync::OnceLock;
+    static CACHE: OnceLock<(i64, std::time::Instant)> = OnceLock::new();
+
+    // Check if cached result is still valid (within 30 seconds)
+    if let Some((cached_time, cached_at)) = CACHE.get() {
+        if cached_at.elapsed().as_secs() < 30 {
+            return Some(*cached_time);
+        }
+    }
+
     for server in NTP_SERVERS {
         trace!("Trying NTP server: {}", server);
         match ntp::request(*server) {
@@ -122,6 +133,8 @@ pub fn get_ntp_time() -> Option<i64> {
                 if unix_time > 1000000000 && unix_time < 10000000000 {
                     // Sanity check: Unix timestamp should be between 2001 and 2286
                     info!("NTP time synced: {} (server: {})", unix_time, server);
+                    // Store in cache (ignore result - if already set by another call, that's fine)
+                    let _ = CACHE.set((unix_time, std::time::Instant::now()));
                     return Some(unix_time);
                 } else {
                     warn!("NTP timestamp out of range: {}", unix_time);
