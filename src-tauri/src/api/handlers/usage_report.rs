@@ -79,13 +79,13 @@ fn get_public_ip_with_geo() -> IpGeoResult {
     {
         Ok(c) => c,
         Err(e) => {
-            debug!(module="usage_report", "Failed to create HTTP client: {}", e);
+            warn!(module="usage_report", "Failed to create HTTP client: {}", e);
             return IpGeoResult { ip: "unknown".to_string(), country: "unknown".to_string(), region: "unknown".to_string(), city: "unknown".to_string() };
         }
     };
 
     for (service, has_geo) in &services {
-        debug!(module="usage_report", "Trying to get IP from: {}", service);
+        info!(module="usage_report", "Trying to get IP from: {}", service);
 
         let response = client
             .get(*service)
@@ -95,11 +95,12 @@ fn get_public_ip_with_geo() -> IpGeoResult {
         match response {
             Ok(resp) => {
                 let status = resp.status();
-                debug!(module="usage_report", "Service {} returned status: {}", service, status);
+                info!(module="usage_report", "Service {} returned status: {}", service, status);
 
                 match resp.text() {
                     Ok(text) => {
                         let text = text.trim().to_string();
+                        info!(module="usage_report", "Service {} response text: {}", service, text);
 
                         // 遍历所有单词，找到第一个有效的 IP 地址
                         for word in text.split_whitespace() {
@@ -111,7 +112,7 @@ fn get_public_ip_with_geo() -> IpGeoResult {
                                 .trim_start_matches("IP:");
 
                             if clean_word.parse::<std::net::IpAddr>().is_ok() {
-                                debug!(module="usage_report", "Service {} returned valid IP: {}", service, clean_word);
+                                info!(module="usage_report", "Service {} returned valid IP: {}", service, clean_word);
 
                                 // 如果服务提供地理位置信息，解析它
                                 if *has_geo {
@@ -126,7 +127,7 @@ fn get_public_ip_with_geo() -> IpGeoResult {
                                                 let country = parts[0].to_string();
                                                 let region = parts[1].to_string();
                                                 let city = parts[2].to_string();
-                                                debug!(module="usage_report", "Parsed geo from {}: country={}, region={}, city={}", service, country, region, city);
+                                                info!(module="usage_report", "Parsed geo from {}: country={}, region={}, city={}", service, country, region, city);
                                                 return IpGeoResult {
                                                     ip: clean_word.to_string(),
                                                     country,
@@ -147,32 +148,32 @@ fn get_public_ip_with_geo() -> IpGeoResult {
                                 };
                             }
                         }
-                        debug!(module="usage_report", "Service {} returned no valid IP", service);
+                        info!(module="usage_report", "Service {} returned no valid IP", service);
                     }
                     Err(e) => {
-                        debug!(module="usage_report", "Service {} failed to read response: {}", service, e);
+                        info!(module="usage_report", "Service {} failed to read response: {}", service, e);
                     }
                 }
             }
             Err(e) => {
-                debug!(module="usage_report", "Service {} request failed: {}", service, e);
+                info!(module="usage_report", "Service {} request failed: {}", service, e);
             }
         }
     }
 
-    debug!(module="usage_report", "All IP services failed, returning 'unknown'");
+    info!(module="usage_report", "All IP services failed, returning 'unknown'");
     IpGeoResult { ip: "unknown".to_string(), country: "unknown".to_string(), region: "unknown".to_string(), city: "unknown".to_string() }
 }
 
 /// Get IP location/geo info, returns (country, region, city)
 fn get_ip_geo_info(ip: &str) -> (String, String, String) {
     if ip == "unknown" {
-        debug!(module="usage_report", "IP is 'unknown', skipping geo lookup");
+        info!(module="usage_report", "IP is 'unknown', skipping geo lookup");
         return ("unknown".to_string(), "unknown".to_string(), "unknown".to_string());
     }
 
     let url = format!("http://ip-api.com/json/{}?fields=status,country,regionName,city", ip);
-    debug!(module="usage_report", "Getting geo info for IP: {} from {}", ip, url);
+    info!(module="usage_report", "Getting geo info for IP: {} from {}", ip, url);
 
     match reqwest::blocking::Client::builder()
         .timeout(Duration::from_secs(5))
@@ -182,35 +183,35 @@ fn get_ip_geo_info(ip: &str) -> (String, String, String) {
             match client.get(&url).header("Accept", "application/json").send() {
                 Ok(response) => {
                     let status = response.status();
-                    debug!(module="usage_report", "Geo API returned status: {}", status);
+                    info!(module="usage_report", "Geo API returned status: {}", status);
 
                     match response.json::<serde_json::Value>() {
                         Ok(json_response) => {
-                            debug!(module="usage_report", "Geo API response: {:?}", json_response);
+                            info!(module="usage_report", "Geo API response: {:?}", json_response);
 
                             if json_response.get("status").and_then(|s| s.as_str()) == Some("success") {
                                 let country = json_response.get("country").and_then(|c| c.as_str()).unwrap_or("").to_string();
                                 let region = json_response.get("regionName").and_then(|r| r.as_str()).unwrap_or("").to_string();
                                 let city = json_response.get("city").and_then(|c| c.as_str()).unwrap_or("").to_string();
 
-                                debug!(module="usage_report", "Geo info: country={}, region={}, city={}", country, region, city);
+                                info!(module="usage_report", "Geo info: country={}, region={}, city={}", country, region, city);
                                 return (country, region, city);
                             } else {
-                                debug!(module="usage_report", "Geo API returned failure status");
+                                info!(module="usage_report", "Geo API returned failure status");
                             }
                         }
                         Err(e) => {
-                            debug!(module="usage_report", "Failed to parse geo API response: {}", e);
+                            info!(module="usage_report", "Failed to parse geo API response: {}", e);
                         }
                     }
                 }
                 Err(e) => {
-                    debug!(module="usage_report", "Geo API request failed: {}", e);
+                    info!(module="usage_report", "Geo API request failed: {}", e);
                 }
             }
         }
         Err(e) => {
-            debug!(module="usage_report", "Failed to create geo API client: {}", e);
+            info!(module="usage_report", "Failed to create geo API client: {}", e);
         }
     }
 
