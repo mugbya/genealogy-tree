@@ -76,6 +76,9 @@ export function HomePage() {
   // 公网域名 (从配置读取 - TODO: 后续从配置中心读取)
   const [publicDomain] = useState<string>("");
 
+  // HTTP 端口
+  const [httpPort, setHttpPort] = useState<string>("8080");
+
   // 服务状态
   const [serviceStatus] = useState<ServiceStatus>({
     type: "free",
@@ -123,6 +126,18 @@ export function HomePage() {
       }
     } catch (err) {
       console.error("Failed to get license info:", err);
+    }
+  }, []);
+
+  // 获取 HTTP 端口
+  const fetchHttpPort = useCallback(async () => {
+    try {
+      const result = await systemApi.getHttpPort();
+      if (result.data) {
+        setHttpPort(result.data);
+      }
+    } catch (err) {
+      console.error("Failed to get HTTP port:", err);
     }
   }, []);
 
@@ -179,7 +194,8 @@ export function HomePage() {
     fetchNetworkInterfaces();
     fetchFamilyStats();
     fetchLicenseInfo();
-  }, [fetchNetworkInterfaces, fetchFamilyStats, fetchLicenseInfo]);
+    fetchHttpPort();
+  }, [fetchNetworkInterfaces, fetchFamilyStats, fetchLicenseInfo, fetchHttpPort]);
 
   const copyToClipboard = async (text: string) => {
     await navigator.clipboard.writeText(text);
@@ -193,7 +209,7 @@ export function HomePage() {
     .map((iface) => ({
       name: iface.name,
       url: iface.ip,
-      port: 8080,
+      port: httpPort,
     }));
 
   return (
@@ -527,7 +543,7 @@ export function HomePage() {
                         <div className="flex items-center gap-2">
                           <Wifi className="w-4 h-4 text-blue-600" />
                           <span className="font-medium text-gray-900 text-sm">
-                            {item.url}
+                            http://{item.url}:{item.port}
                           </span>
                         </div>
                         <div className="flex items-center gap-1">
