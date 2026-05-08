@@ -1450,10 +1450,19 @@ export function TreePage() {
                 </CardTitle>
                 <div className="flex items-center gap-2">
                   {/* 截图下载按钮 */}
+                  {!canScreenshot && (
+                    <>
+                      <span className="px-2 py-1 text-xs font-bold text-white bg-red-500 rounded">
+                        未授权
+                      </span>
+                      <span className="text-sm text-red-600">如有需要请联系客服获取授权</span>
+                    </>
+                  )}
                   <Button
                       onClick={handleScreenshot}
                       className="gap-2"
-                      title="导出祖谱树为图片"
+                      disabled={!canScreenshot}
+                      title={!canScreenshot ? '需要授权才能使用截图下载功能，如有需要请联系客服获取授权' : ''}
                     >
                       <Download className="w-4 h-4" />
                       截图下载
