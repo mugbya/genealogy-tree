@@ -48,6 +48,7 @@ import {
   Upload,
   Save,
   FolderOpen,
+  AlertTriangle,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -226,6 +227,13 @@ export function TreePage() {
   const [downloadSuccess, setDownloadSuccess] = useState(false)
   const [downloadPath, setDownloadPath] = useState<string>('')
   const fileInputRef = useRef<HTMLInputElement | null>(null)
+
+  // 家族姓氏校验状态
+  const [surnameCheckOpen, setSurnameCheckOpen] = useState(false)
+  const [surnameCheckAction, setSurnameCheckAction] = useState<'create' | 'import' | 'clearImport' | null>(null)
+
+  // 清空导入确认弹窗状态
+  const [clearImportConfirmOpen, setClearImportConfirmOpen] = useState(false)
 
   // 切换标签选择
   const toggleTag = (tagId: number) => {
@@ -470,8 +478,13 @@ export function TreePage() {
     }
   }
 
-  // 打开创建对话框
+  // 打开创建对话框（先校验姓氏）
   const handleOpenCreate = async () => {
+    if (!familySurname) {
+      setSurnameCheckAction('create')
+      setSurnameCheckOpen(true)
+      return
+    }
     await loadTags()
     setIsCreateOpen(true)
   }
@@ -1088,7 +1101,14 @@ export function TreePage() {
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => fileInputRef.current?.click()}
+                          onClick={() => {
+                            if (!familySurname) {
+                              setSurnameCheckAction('import')
+                              setSurnameCheckOpen(true)
+                              return
+                            }
+                            fileInputRef.current?.click()
+                          }}
                           disabled={isImporting}
                           className="gap-1"
                         >
@@ -1099,10 +1119,12 @@ export function TreePage() {
                           size="sm"
                           variant="destructive"
                           onClick={() => {
-                            if (confirm('确定要清空所有家族成员数据并重新导入吗？此操作不可撤销！')) {
-                              setIsClearAndImport(true)
-                              fileInputRef.current?.click()
+                            if (!familySurname) {
+                              setSurnameCheckAction('clearImport')
+                              setSurnameCheckOpen(true)
+                              return
                             }
+                            setClearImportConfirmOpen(true)
                           }}
                           disabled={isImporting}
                           className="gap-1"
@@ -2148,6 +2170,74 @@ export function TreePage() {
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* 家族姓氏未配置提示对话框 */}
+      <Dialog open={surnameCheckOpen} onOpenChange={setSurnameCheckOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-semibold flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center">
+                <AlertTriangle className="w-4 h-4 text-amber-600" />
+              </div>
+              请先配置家族姓氏
+            </DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <p className="text-sm text-zinc-600">
+              家族姓氏是祖谱树正确展示的关键。在进行成员操作前，请先配置家族姓氏。
+            </p>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setSurnameCheckOpen(false)}>
+              取消
+            </Button>
+            <Button
+              onClick={() => {
+                setSurnameCheckOpen(false)
+                setActiveTab('info')
+              }}
+              className="gap-2 bg-amber-600 hover:bg-amber-700"
+            >
+              去配置
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 清空导入确认对话框 */}
+      <Dialog open={clearImportConfirmOpen} onOpenChange={setClearImportConfirmOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-semibold flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-red-50 flex items-center justify-center">
+                <Trash2 className="w-4 h-4 text-red-600" />
+              </div>
+              清空并重新导入
+            </DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <p className="text-sm text-zinc-600">
+              确定要清空所有家族成员数据并重新导入吗？
+            </p>
+            <p className="text-sm text-zinc-500 mt-2">此操作不可撤销，所有现有数据将被删除！</p>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setClearImportConfirmOpen(false)}>
+              取消
+            </Button>
+            <Button
+              onClick={() => {
+                setClearImportConfirmOpen(false)
+                setIsClearAndImport(true)
+                fileInputRef.current?.click()
+              }}
+              className="gap-2 bg-red-600 hover:bg-red-700"
+            >
+              确认清空并导入
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
