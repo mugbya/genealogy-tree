@@ -1449,28 +1449,15 @@ export function TreePage() {
                   {treeTextMode ? '祖谱树文字模式' : '祖谱树可视化'}
                 </CardTitle>
                 <div className="flex items-center gap-2">
-                  {/* 文字模式切换按钮 - 已隐藏，默认只显示文字模式 */}
-                  {!treeTextMode && (
-                    <>
-                      {!canScreenshot && (
-                        <>
-                          <span className="px-2 py-1 text-xs font-bold text-white bg-red-500 rounded">
-                            未授权
-                          </span>
-                          <span className="text-sm text-red-600">如有需要请联系客服获取授权</span>
-                        </>
-                      )}
-                      <Button
-                        onClick={handleScreenshot}
-                        className="gap-2"
-                        disabled={!canScreenshot}
-                        title={!canScreenshot ? '需要授权才能使用截图下载功能，如有需要请联系客服获取授权' : ''}
-                      >
-                        <Download className="w-4 h-4" />
-                        截图下载
-                      </Button>
-                    </>
-                  )}
+                  {/* 截图下载按钮 */}
+                  <Button
+                      onClick={handleScreenshot}
+                      className="gap-2"
+                      title="导出祖谱树为图片"
+                    >
+                      <Download className="w-4 h-4" />
+                      截图下载
+                    </Button>
                 </div>
               </div>
               {/* 过滤选项 - 放在下方 */}

@@ -706,6 +706,12 @@ export const GenealogyTree = forwardRef<GenealogyTreeRef, GenealogyTreeProps>(fu
 
       // Virtual root node
       if (node.isVirtualRoot) {
+        if (textMode) {
+          return `<g>
+            <text x="${x + (NODE_WIDTH + 40) / 2}" y="${y + (NODE_HEIGHT + 20) / 2}" text-anchor="middle" font-size="18" font-weight="bold" fill="#92400e">${node.name}</text>
+            ${node.surname ? `<text x="${x + (NODE_WIDTH + 40) / 2}" y="${y + (NODE_HEIGHT + 20) / 2 + 20}" text-anchor="middle" font-size="12" fill="#b45309">${node.surname}氏宗谱</text>` : ''}
+          </g>`
+        }
         const rootWidth = NODE_WIDTH + 40
         const rootHeight = NODE_HEIGHT + 20
         return `<g>
@@ -718,14 +724,46 @@ export const GenealogyTree = forwardRef<GenealogyTreeRef, GenealogyTreeProps>(fu
       const isMale = node.gender === 'male'
       const member = node.memberId ? members.find(m => m.id === node.memberId) : null
       const isDeceased = member?.is_deceased || false
+      const textColor = isDeceased ? '#9ca3af' : '#4b5563'
+
+      if (textMode) {
+        // 文字模式 SVG 渲染
+        const nameChars = node.name.split('')
+        const charSpacing = 32
+        const nameStartY = 30
+        const nameEndY = nameStartY + (nameChars.length - 1) * charSpacing
+        const nameX = x + NODE_WIDTH / 2
+
+        let svg = '<g>'
+
+        // 代数 - 显示在节点名字的左边
+        if (node.generation > 0) {
+          svg += `<text x="${x + 5}" y="${y + 15}" text-anchor="start" font-size="12" font-weight="bold" fill="#d97706">${node.generation}代</text>`
+        }
+
+        // 名字竖排
+        nameChars.forEach((char, idx) => {
+          svg += `<text x="${nameX}" y="${y + nameStartY + idx * charSpacing}" text-anchor="middle" font-size="28" font-weight="bold" fill="${textColor}">${char}</text>`
+        })
+
+        // 配偶 - 显示在节点名字的右边
+        if (node.spouses && node.spouses.length > 0 && !hideSpouse) {
+          svg += `<text x="${nameX + 22}" y="${y + (nameStartY + nameEndY) / 2 + 6}" text-anchor="start" font-size="13" fill="#9ca3af">${node.spouses.map(s => s.name).join('、')}</text>`
+        }
+
+        svg += '</g>'
+        return svg
+      }
+
+      // 图形模式
       const bgColor = isDeceased ? '#d1d5db' : (isMale ? '#93c5fd' : '#f9a8d4')
       const borderColor = isDeceased ? '#9ca3af' : (isMale ? '#3b82f6' : '#ec4899')
-      const textColor = isDeceased ? '#6b7280' : '#1f2937'
+      const normalTextColor = isDeceased ? '#6b7280' : '#1f2937'
 
       let svg = `<g>
         <rect x="${x}" y="${y}" width="${NODE_WIDTH}" height="${NODE_HEIGHT}" fill="${bgColor}" stroke="${borderColor}" stroke-width="2" rx="8"/>
         ${node.generation > 0 ? `<circle cx="${x + NODE_WIDTH - 10}" cy="${y + 10}" r="14" fill="${borderColor}"/><text x="${x + NODE_WIDTH - 10}" y="${y + 15}" text-anchor="middle" font-size="14" fill="white" font-weight="bold">${node.generation}代</text>` : ''}
-        <text x="${x + NODE_WIDTH / 2}" y="${y + NODE_HEIGHT / 2 - 6}" text-anchor="middle" font-size="18" font-weight="bold" fill="${textColor}">${node.name}</text>
+        <text x="${x + NODE_WIDTH / 2}" y="${y + NODE_HEIGHT / 2 - 6}" text-anchor="middle" font-size="18" font-weight="bold" fill="${normalTextColor}">${node.name}</text>
         <text x="${x + NODE_WIDTH / 2}" y="${y + NODE_HEIGHT - 10}" text-anchor="middle" font-size="14" fill="${isDeceased ? '#9ca3af' : '#6b7280'}">${isMale ? '♂' : '♀'}</text>
       `
 
