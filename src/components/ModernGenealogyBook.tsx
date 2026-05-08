@@ -3,8 +3,12 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import type { Member, MemberRelation } from '@/api/client'
-import { licenseApi, exportApi } from '@/api/client'
+import { licenseApi, exportApi, exportHtmlBlob, exportHtmlVolumeBlob, type ExportVolumeRequest } from '@/api/client'
 import { ArrowLeft, BookOpen, Plus, Trash2, FileText, AlertTriangle } from 'lucide-react'
+
+// 通过自定义 User-Agent 检测是否为桌面端（WebView）
+const isDesktop = typeof window !== 'undefined' &&
+  navigator.userAgent.includes('GenealogyDesktop')
 
 interface ModernGenealogyBookProps {
   familyName: string
@@ -538,26 +542,104 @@ ${membersHtml}
 
   // 导出全部HTML（调用后端API，后端进行授权校验）
   const handleExportFullHtml = async () => {
-    const result = await exportApi.exportHtml()
-    if (result.success) {
-      setExportSuccess('导出成功！已保存为 HTML 文件')
+    if (isDesktop) {
+      // 桌面端：使用保存对话框让用户选择位置并重命名
+      try {
+        const { invoke } = await import('@tauri-apps/api/core')
+        const { save } = await import('@tauri-apps/plugin-dialog')
+
+        const result = await exportHtmlBlob()
+        if ('error' in result) {
+          setExportSuccess(null)
+          window.alert(result.error)
+          return
+        }
+
+        const { blob, filename } = result
+
+        // 打开保存对话框，让用户选择位置并重命名
+        const filePath = await save({
+          defaultPath: filename,
+          filters: [{ name: 'HTML Files', extensions: ['html'] }]
+        })
+
+        if (!filePath) return // 用户取消
+
+        // 读取 blob 数据并保存
+        const arrayBuffer = await blob.arrayBuffer()
+        const bytes = Array.from(new Uint8Array(arrayBuffer))
+        await invoke('save_file', { path: filePath, data: bytes })
+
+        setExportSuccess('导出成功！已保存为 HTML 文件')
+      } catch (err) {
+        console.error('导出失败:', err)
+        setExportSuccess(null)
+        window.alert('导出失败: ' + err)
+      }
     } else {
-      setExportSuccess(null)
-      window.alert(result.error || '导出失败')
+      // 浏览器端：使用默认下载
+      const result = await exportApi.exportHtml()
+      if (result.success) {
+        setExportSuccess('导出成功！已保存为 HTML 文件')
+      } else {
+        setExportSuccess(null)
+        window.alert(result.error || '导出失败')
+      }
     }
   }
 
   // 导出单册HTML
   const handleExportVolumeHtml = async (volume: VolumeRange) => {
-    const result = await exportApi.exportHtmlVolume({
-      start_generation: volume.startGen,
-      end_generation: volume.endGen,
-    })
-    if (result.success) {
-      setExportSuccess(`导出成功！已保存为 HTML 文件`)
+    if (isDesktop) {
+      // 桌面端：使用保存对话框让用户选择位置并重命名
+      try {
+        const { invoke } = await import('@tauri-apps/api/core')
+        const { save } = await import('@tauri-apps/plugin-dialog')
+
+        const volumeRequest: ExportVolumeRequest = {
+          start_generation: volume.startGen,
+          end_generation: volume.endGen,
+        }
+        const result = await exportHtmlVolumeBlob(volumeRequest)
+        if ('error' in result) {
+          setExportSuccess(null)
+          window.alert(result.error)
+          return
+        }
+
+        const { blob, filename } = result
+
+        // 打开保存对话框，让用户选择位置并重命名
+        const filePath = await save({
+          defaultPath: filename,
+          filters: [{ name: 'HTML Files', extensions: ['html'] }]
+        })
+
+        if (!filePath) return // 用户取消
+
+        // 读取 blob 数据并保存
+        const arrayBuffer = await blob.arrayBuffer()
+        const bytes = Array.from(new Uint8Array(arrayBuffer))
+        await invoke('save_file', { path: filePath, data: bytes })
+
+        setExportSuccess('导出成功！已保存为 HTML 文件')
+      } catch (err) {
+        console.error('导出失败:', err)
+        setExportSuccess(null)
+        window.alert('导出失败: ' + err)
+      }
     } else {
-      setExportSuccess(null)
-      window.alert(result.error || '导出失败')
+      // 浏览器端：使用默认下载
+      const result = await exportApi.exportHtmlVolume({
+        start_generation: volume.startGen,
+        end_generation: volume.endGen,
+      })
+      if (result.success) {
+        setExportSuccess(`导出成功！已保存为 HTML 文件`)
+      } else {
+        setExportSuccess(null)
+        window.alert(result.error || '导出失败')
+      }
     }
   }
 

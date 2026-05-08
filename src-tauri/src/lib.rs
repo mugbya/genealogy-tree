@@ -178,6 +178,13 @@ async fn save_screenshot(path: String, data: Vec<u8>) -> Result<(), String> {
     Ok(())
 }
 
+// 保存文件到指定路径（通用）
+#[tauri::command]
+async fn save_file(path: String, data: Vec<u8>) -> Result<(), String> {
+    std::fs::write(&path, &data).map_err(|e| format!("保存文件失败: {}", e))?;
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // Initialize tracing with file logging
@@ -209,7 +216,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
-        .invoke_handler(tauri::generate_handler![get_network_interfaces, get_download_path, get_database_path, download_template, get_http_port, open_downloads_folder, save_screenshot])
+        .invoke_handler(tauri::generate_handler![get_network_interfaces, get_download_path, get_database_path, download_template, get_http_port, open_downloads_folder, save_screenshot, save_file])
         .setup(|app| {
             // 获取应用数据目录，使用绝对路径初始化数据库
             let app_data_dir = app.path().app_data_dir().expect("Failed to get app data dir");

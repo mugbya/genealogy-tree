@@ -193,6 +193,76 @@ export interface ExportVolumeRequest {
   end_generation?: number
 }
 
+// 获取导出文件名（从 Content-Disposition header 解析）
+function getFilenameFromHeaders(headers: Headers, defaultName: string): string {
+  const contentDisposition = headers.get('Content-Disposition')
+  if (contentDisposition) {
+    // 先尝试匹配 filename*=UTF-8''xxx 格式（RFC 5987）
+    const filenameStarMatch = contentDisposition.match(/filename\*=UTF-8''([^;\n]+)/i)
+    if (filenameStarMatch) {
+      return decodeURIComponent(filenameStarMatch[1])
+    }
+    // 回退到普通 filename="xxx" 格式
+    const match = contentDisposition.match(/filename="?([^";\n]+)"?/i)
+    if (match) return match[1]
+  }
+  return defaultName
+}
+
+// 导出HTML（获取 blob 数据，用于桌面端自定义保存）
+export async function exportHtmlBlob(): Promise<{ blob: Blob; filename: string } | { error: string }> {
+  const base = await getApiBase()
+  const token = localStorage.getItem('token')
+
+  try {
+    const response = await fetch(`${base}/api/export/html`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({}),
+    })
+
+    if (!response.ok) {
+      return { error: `导出失败: ${response.status}` }
+    }
+
+    const blob = await response.blob()
+    const filename = getFilenameFromHeaders(response.headers, '族谱.html')
+    return { blob, filename }
+  } catch (error) {
+    return { error: `导出失败: ${error}` }
+  }
+}
+
+// 导出HTML分册（获取 blob 数据，用于桌面端自定义保存）
+export async function exportHtmlVolumeBlob(volume: ExportVolumeRequest): Promise<{ blob: Blob; filename: string } | { error: string }> {
+  const base = await getApiBase()
+  const token = localStorage.getItem('token')
+
+  try {
+    const response = await fetch(`${base}/api/export/html`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({ volume }),
+    })
+
+    if (!response.ok) {
+      return { error: `导出失败: ${response.status}` }
+    }
+
+    const blob = await response.blob()
+    const filename = getFilenameFromHeaders(response.headers, '族谱.html')
+    return { blob, filename }
+  } catch (error) {
+    return { error: `导出失败: ${error}` }
+  }
+}
+
 export const exportApi = {
   // 导出HTML（全部成员）
   exportHtml: async (): Promise<{ success: boolean; error?: string }> => {
