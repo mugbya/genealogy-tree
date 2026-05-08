@@ -183,7 +183,7 @@ function GeneralSettings() {
       </CardHeader>
       <CardContent className="space-y-8 max-w-4xl">
         {/* 开机启动 */}
-        <div className="space-y-4">
+        {/* <div className="space-y-4">
           <h3 className="text-sm font-medium text-zinc-700">系统设置</h3>
           <div className="flex items-center justify-between p-4 border rounded-lg">
             <div className="flex items-center gap-3">
@@ -208,7 +208,7 @@ function GeneralSettings() {
               />
             </button>
           </div>
-        </div>
+        </div> */}
 
         {/* 数据库存储路径 */}
         <div className="space-y-4">
@@ -265,7 +265,7 @@ function GeneralSettings() {
               />
               <p className="text-xs text-zinc-400">用于局域网访问祖谱服务</p>
             </div>
-            <div className="grid gap-2">
+            {/* <div className="grid gap-2">
               <label className="text-sm text-zinc-600">HTTPS 端口</label>
               <Input
                 type="number"
@@ -275,7 +275,7 @@ function GeneralSettings() {
                 className="max-w-xs"
               />
               <p className="text-xs text-zinc-400">用于安全连接（需配置证书）</p>
-            </div>
+            </div> */}
           </div>
         </div>
 

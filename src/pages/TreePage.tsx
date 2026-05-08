@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { useMembers, useCreateMember, useUpdateMember, useDeleteMember, useMemberRelations, useCreateMemberRelation, useDeleteMemberRelation, useEditableMemberIds } from '@/hooks/useMembers'
 import { useAuthStore } from '@/stores'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -72,6 +73,8 @@ const isDesktop = typeof window !== 'undefined' &&
   navigator.userAgent.includes('GenealogyDesktop')
 
 export function TreePage() {
+  const queryClient = useQueryClient()
+
   // 成员相关
   const { data: membersData, isLoading, refetch } = useMembers()
   const { data: relationsData } = useMemberRelations()
@@ -760,6 +763,8 @@ export function TreePage() {
         setImportResult(result.data)
         setIsImportResultOpen(true)
         refetch()
+        // 同时刷新关系数据
+        queryClient.invalidateQueries({ queryKey: ['member-relations'] })
       }
     } catch (error) {
       alert('导入失败: ' + error)

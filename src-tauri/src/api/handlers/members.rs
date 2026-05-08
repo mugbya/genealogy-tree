@@ -213,7 +213,7 @@ pub fn recalculate_generations(conn: &rusqlite::Connection) -> Result<(), String
     // 找出第1代成员：没有父母关系的成员（即不知道父母的成员）
     // 对于导入的数据，很多成员的父辈信息是未知的，应该把他们当作根节点（第一代）
     // 但入赘成员和招夫养子的代数由配偶决定，不在这里标记
-    tracing::info!("[generation] Step 1: Marking generation 1 members (excluding matrilocal/adopted sons):");
+    // tracing::info!("[generation] Step 1: Marking generation 1 members (excluding matrilocal/adopted sons):");
     for &member_id in &all_member_ids {
         // 检查是否是入赘成员或招夫养子
         let (member_name, is_matrilocal, is_adopted_son) = conn
@@ -230,8 +230,8 @@ pub fn recalculate_generations(conn: &rusqlite::Connection) -> Result<(), String
 
         // 入赘成员或招夫养子的代数由配偶决定，不在这里标记为根节点
         if is_matrilocal || is_adopted_son {
-            tracing::info!("[generation]   {} (matrilocal={}, adopted={}) - skipped (handled by spouse)",
-                member_name, is_matrilocal, is_adopted_son);
+            // tracing::info!("[generation]   {} (matrilocal={}, adopted={}) - skipped (handled by spouse)",
+                // member_name, is_matrilocal, is_adopted_son);
             continue;
         }
 
@@ -255,19 +255,19 @@ pub fn recalculate_generations(conn: &rusqlite::Connection) -> Result<(), String
         // 这样可以正确处理导入数据中两兄弟都是第1代的情况
         if !has_father && !has_mother {
             member_generation.insert(member_id, 1);
-            tracing::info!("[generation]   {} - marked as generation 1", member_name);
+            // tracing::info!("[generation]   {} - marked as generation 1", member_name);
         } else {
-            tracing::info!("[generation]   {} - skipped (has parent: father={}, mother={})",
-                member_name, has_father, has_mother);
+            // tracing::info!("[generation]   {} - skipped (has parent: father={}, mother={})",
+                // member_name, has_father, has_mother);
         }
     }
 
     // 合并 Step 2 和 Step 3，交替迭代直到没有进展
     // 每次迭代都重新计算所有成员的代数（取父母+1和配偶代数的最大值）
     // 这样当父亲的代数增加时，子女的代数也会自动增加
-    tracing::info!("[generation] Step 2+3: Combined parent/spouse inheritance");
+    // tracing::info!("[generation] Step 2+3: Combined parent/spouse inheritance");
     for iteration in 0..all_member_ids.len() {
-        tracing::info!("[generation] === Iteration {} ===", iteration);
+        // tracing::info!("[generation] === Iteration {} ===", iteration);
         let mut made_progress = false;
 
         for &member_id in &all_member_ids {
@@ -378,13 +378,13 @@ pub fn recalculate_generations(conn: &rusqlite::Connection) -> Result<(), String
                 let should_update = match old_gen {
                     Some(old) if calc_gen > old => {
                         member_generation.insert(member_id, calc_gen);
-                        tracing::info!("[generation] {} updated gen from {:?} to {}",
-                            member_name, old_gen, calc_gen);
+                        // tracing::info!("[generation] {} updated gen from {:?} to {}",
+                            // member_name, old_gen, calc_gen);
                         true
                     }
                     None => {
                         member_generation.insert(member_id, calc_gen);
-                        tracing::info!("[generation] {} gen set to {}", member_name, calc_gen);
+                        // tracing::info!("[generation] {} gen set to {}", member_name, calc_gen);
                         true
                     }
                     _ => false,
@@ -401,14 +401,14 @@ pub fn recalculate_generations(conn: &rusqlite::Connection) -> Result<(), String
     }
 
     // 打印最终结果
-    tracing::info!("[generation] Final generation assignment:");
+    // tracing::info!("[generation] Final generation assignment:");
     for (member_id, gen) in &member_generation {
         let name = conn.query_row(
             "SELECT name FROM family_members WHERE id = ?",
             params![member_id],
             |row| row.get::<_, String>(0),
         ).unwrap_or_else(|_| "unknown".to_string());
-        tracing::info!("  {} -> {}", name, gen);
+        // tracing::info!("  {} -> {}", name, gen);
     }
 
     // 更新数据库
@@ -661,7 +661,7 @@ pub async fn import_members(
                 .map(|s| s.trim())
                 .filter(|s| !s.is_empty())
                 .collect();
-            tracing::info!("[import] Processing {} spouses for {}: {:?}", spouses.len(), name, spouses);
+            // tracing::info!("[import] Processing {} spouses for {}: {:?}", spouses.len(), name, spouses);
             for spouse_name in spouses {
                 if let Some(&spouse_id) = name_to_id.get(spouse_name) {
                     let result = conn.execute(
@@ -680,10 +680,10 @@ pub async fn import_members(
     }
 
     // 重新计算所有成员的代数
-    tracing::info!("[import] Starting recalculate_generations...");
+    // tracing::info!("[import] Starting recalculate_generations...");
     match recalculate_generations(&conn) {
         Ok(_) => {
-            tracing::info!("[import] recalculate_generations completed successfully");
+            // tracing::info!("[import] recalculate_generations completed successfully");
         },
         Err(e) => {
             tracing::error!("[import] Error in recalculate_generations: {}", e);
@@ -899,7 +899,7 @@ pub async fn clear_and_import_members(
         tracing::error!(module="members", "[clear_and_import] recalculate_generations error: {}", e);
     }
 
-    tracing::error!(module="members", "[clear_and_import] Completed: imported={}, updated={}", imported, updated);
+    // tracing::info!(module="members", "[clear_and_import] Completed: imported={}, updated={}", imported, updated);
 
     let result = ImportResult {
         imported,
