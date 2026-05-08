@@ -106,11 +106,11 @@ export function TreePage() {
   const [newTagColor, setNewTagColor] = useState(DEFAULT_TAG_COLORS[0])
   const [activeTab, setActiveTab] = useState('list')
   // 祖谱树文字模式
-  const [treeTextMode, setTreeTextMode] = useState(false)
+  const [treeTextMode, setTreeTextMode] = useState(true)
   // 祖谱树过滤选项
-  const [filterNoChildrenFemale, setFilterNoChildrenFemale] = useState(false)
-  const [hideLineName, setHideLineName] = useState(false)
-  const [hideSpouse, setHideSpouse] = useState(false)
+  const [filterNoChildrenFemale, setFilterNoChildrenFemale] = useState(true)
+  const [hideLineName, setHideLineName] = useState(true)
+  const [hideSpouse, setHideSpouse] = useState(true)
   // 祖谱树起始成员选择
   const [treeRootMemberId, setTreeRootMemberId] = useState<number | null>(null)
   const treeRef = useRef<{ container: HTMLDivElement | null; exportSvgAsDataUrl: () => string }>(null)
@@ -1449,15 +1449,7 @@ export function TreePage() {
                   {treeTextMode ? '祖谱树文字模式' : '祖谱树可视化'}
                 </CardTitle>
                 <div className="flex items-center gap-2">
-                  {/* 文字模式切换按钮 */}
-                  <Button
-                    variant={treeTextMode ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => setTreeTextMode(!treeTextMode)}
-                    className="gap-2"
-                  >
-                    {treeTextMode ? '切换图形模式' : '切换文字模式'}
-                  </Button>
+                  {/* 文字模式切换按钮 - 已隐藏，默认只显示文字模式 */}
                   {!treeTextMode && (
                     <>
                       {!canScreenshot && (
