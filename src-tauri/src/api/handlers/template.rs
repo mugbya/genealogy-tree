@@ -4,32 +4,48 @@ use axum::{
     response::Response,
 };
 use tauri::Manager;
-use tracing::{info, warn};
+use tracing::error;
 
 /// 下载模板文件
 pub async fn download_template(
     Path(template_name): Path<String>,
     Extension(app): Extension<tauri::AppHandle>,
 ) -> Result<Response, StatusCode> {
+
     // 安全检查：只允许特定的模板文件名
     let allowed_templates = ["hongloujia_template.csv", "kongzishi_template.csv"];
     if !allowed_templates.contains(&template_name.as_str()) {
+        error!(module="template", "Template not allowed: {}", template_name);
         return Err(StatusCode::NOT_FOUND);
     }
 
-    // 获取资源目录路径（Tauri 打包后的资源位置）
-    let resource_dir = app.path().resource_dir().map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    let template_path = resource_dir.join("templates").join(&template_name);
+    // 获取资源目录路径
+    let resource_dir = app.path().resource_dir();
 
-    info!(module="template", "Looking for template at: {:?}", template_path);
+    let template_path = match resource_dir {
+        Ok(dir) => {
+            let path = dir.join("templates").join(&template_name);
+            if !path.exists() {
+                error!(module="template", "Template file does not exist!");
+                return Err(StatusCode::INTERNAL_SERVER_ERROR);
+            }
+            path
+        }
+        Err(e) => {
+            error!(module="template", "Failed to get resource_dir: {}", e);
+            return Err(StatusCode::INTERNAL_SERVER_ERROR);
+        }
+    };
+
 
     // 读取文件
     let content = tokio::fs::read(&template_path)
         .await
         .map_err(|e| {
-            warn!(module="template", "Failed to read template: {}", e);
+            error!(module="template", "Failed to read template: {}", e);
             StatusCode::INTERNAL_SERVER_ERROR
         })?;
+
 
     // 确定文件名
     let download_filename = match template_name.as_str() {
