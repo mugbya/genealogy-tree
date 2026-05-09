@@ -158,7 +158,7 @@ pub async fn login(
                         "INSERT INTO login_history (user_id, ip_address, user_agent, login_status, fail_reason) VALUES (?, ?, ?, ?, ?)",
                         params![user.id, ip_address, user_agent, "failed", "invalid_password"],
                     );
-                    (StatusCode::UNAUTHORIZED, Json(json!({ "error": "Invalid credentials" })))
+                    (StatusCode::UNAUTHORIZED, Json(json!({ "error": "用户名或密码错误" })))
                 }
                 Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e }))),
             }
@@ -174,7 +174,7 @@ pub async fn login(
                 "INSERT INTO login_history (user_id, ip_address, user_agent, login_status, fail_reason) VALUES (?, ?, ?, ?, ?)",
                 params![user_id.unwrap_or(0), ip_address, user_agent, "failed", "user_not_found"],
             );
-            (StatusCode::UNAUTHORIZED, Json(json!({ "error": "Invalid credentials" })))
+            (StatusCode::UNAUTHORIZED, Json(json!({ "error": "用户名或密码错误" })))
         }
     }
 }
