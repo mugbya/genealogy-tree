@@ -4,11 +4,15 @@ use axum::{
     Router,
 };
 use std::{path::PathBuf, sync::{Arc, Mutex}};
+use std::time::Duration;
 use tower_http::cors::{Any, CorsLayer};
 use tower_http::services::fs::ServeDir;
+use tower_http::timeout::TimeoutLayer;
 use axum::routing::get_service;
 use rusqlite::Connection;
 use tauri::AppHandle;
+
+use crate::constants::HTTP_SERVER_TIMEOUT_SECS;
 
 use crate::api::handlers;
 use crate::api::handlers::wechat::SharedWechatStore;
@@ -96,9 +100,9 @@ pub fn create_router(
 
     let api_router = if let Some(dist_path) = dist_path {
         let static_service = get_service(ServeDir::new(dist_path));
-        api_router.layer(cors).fallback(static_service)
+        api_router.layer(cors).layer(TimeoutLayer::new(Duration::from_secs(HTTP_SERVER_TIMEOUT_SECS))).fallback(static_service)
     } else {
-        api_router.layer(cors)
+        api_router.layer(cors).layer(TimeoutLayer::new(Duration::from_secs(HTTP_SERVER_TIMEOUT_SECS)))
     };
 
     api_router.with_state(state)
