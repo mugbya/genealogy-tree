@@ -119,6 +119,8 @@ export function TreePage() {
   // 祖谱树起始成员选择
   const [treeRootMemberId, setTreeRootMemberId] = useState<number | null>(null)
   const treeRef = useRef<{ container: HTMLDivElement | null; exportSvgAsDataUrl: () => string }>(null)
+  // 祖谱树代数限制状态
+  const [treeIsTruncated, setTreeIsTruncated] = useState(false)
 
   // 标签状态
   const [tags, setTags] = useState<RelationTag[]>([])
@@ -1562,6 +1564,12 @@ export function TreePage() {
                   {treeTextMode ? '祖谱树文字模式' : '祖谱树可视化'}
                 </CardTitle>
                 <div className="flex items-center gap-2">
+                  {/* 代数超限警告 */}
+                  {treeIsTruncated && (
+                    <span className="text-sm text-amber-600 whitespace-nowrap">
+                      ⚠️ 超过10代，仅显示前10代
+                    </span>
+                  )}
                   {/* 截图下载按钮 */}
                   {!canScreenshot && (
                     <>
@@ -1692,6 +1700,7 @@ export function TreePage() {
                       setSelectedMember(member)
                       setActiveTab('list')
                     }}
+                    onTruncationChange={setTreeIsTruncated}
                   />
                 </div>
               )}

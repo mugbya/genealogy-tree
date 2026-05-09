@@ -7,6 +7,8 @@ interface TreeNode {
   memberId?: number
   gender?: string
   generation: number
+  // 树的深度（从根节点开始计算，虚拟根的子节点为第1代）
+  depth?: number
   // 标签显示的父母（显示在连接线上）
   labelParent?: { name: string; surname?: string; gender: string; relation: string; memberId?: number; isDeceased?: boolean }
   // 本家父母信息（用于连接线标签显示）
@@ -35,6 +37,8 @@ interface GenealogyTreeProps {
   hideLineName?: boolean  // 隐藏连线上的名字
   hideSpouse?: boolean  // 隐藏配偶
   onNodeClick?: (member: Member) => void
+  onTruncationChange?: (isTruncated: boolean) => void  // 代数超限回调
+  maxGenerations?: number  // 最大代数限制，默认10
 }
 
 export interface GenealogyTreeRef {
@@ -47,8 +51,10 @@ const NODE_HEIGHT = 100
 const H_GAP = 60
 const V_GAP = 140
 
-export const GenealogyTree = forwardRef<GenealogyTreeRef, GenealogyTreeProps>(function GenealogyTree({ members, relations, familyName, familySurname, rootMemberId, textMode = false, filterNoChildrenFemale = false, hideLineName = false, hideSpouse = false, onNodeClick }, ref) {
+export const GenealogyTree = forwardRef<GenealogyTreeRef, GenealogyTreeProps>(function GenealogyTree({ members, relations, familyName, familySurname, rootMemberId, textMode = false, filterNoChildrenFemale = false, hideLineName = false, hideSpouse = false, onNodeClick, onTruncationChange, maxGenerations = 10 }, ref) {
   const containerRef = useRef<HTMLDivElement>(null)
+  const [truncationState, setTruncationState] = useState({ isTruncated: false, truncatedAt: 0 })
+  const truncationDetectedRef = useRef(false)
 
   // Expose container ref and methods to parent
   useImperativeHandle(ref, () => ({
@@ -62,9 +68,19 @@ export const GenealogyTree = forwardRef<GenealogyTreeRef, GenealogyTreeProps>(fu
   const [scale, setScale] = useState(1)
   const isInitialLoad = useRef(true)
 
+  // Notify parent of truncation changes
+  useEffect(() => {
+    if (onTruncationChange) {
+      onTruncationChange(truncationState.isTruncated)
+    }
+  }, [truncationState.isTruncated, onTruncationChange])
+
   // Build tree structure with 本家/非本家 logic
   const treeData = useMemo(() => {
     if (members.length === 0) return null
+
+    // Reset truncation detector
+    truncationDetectedRef.current = false
 
     const memberMap = new Map<number, Member>()
     members.forEach(m => memberMap.set(m.id, m))
@@ -370,7 +386,9 @@ export const GenealogyTree = forwardRef<GenealogyTreeRef, GenealogyTreeProps>(fu
 
     // Build tree recursively
     // Only follows the main family branch (same surname as family surname)
-    const buildTree = (member: Member, visited = new Set<number>(), labelParent?: { name: string; surname?: string; gender: string; relation: string }): TreeNode => {
+    // depth: starts from 1 for direct children of virtual root, represents tree depth
+    // maxGenerations: max allowed depth (10 means show generations 1-10, not including virtual root)
+    const buildTree = (member: Member, visited = new Set<number>(), labelParent?: { name: string; surname?: string; gender: string; relation: string }, depth: number = 1): TreeNode => {
       if (visited.has(member.id)) {
         return {
           name: member.name,
@@ -378,6 +396,7 @@ export const GenealogyTree = forwardRef<GenealogyTreeRef, GenealogyTreeProps>(fu
           memberId: member.id,
           gender: member.gender,
           generation: generations.get(member.id) || 1,
+          depth,
           spouses: [],
           children: [],
           labelParent,
@@ -464,23 +483,33 @@ export const GenealogyTree = forwardRef<GenealogyTreeRef, GenealogyTreeProps>(fu
       const spouses = findSpouses(member.id)
 
       // Find children - current member is the parent, find their children
+      // If depth >= maxGenerations, don't add children (truncation)
       const childIds = parentToChildrenMap.get(member.id) || []
       const children: TreeNode[] = []
 
-      childIds.forEach(childId => {
-        const child = memberMap.get(childId)
-        if (child && !visited.has(childId)) {
-          // Skip female members with no children if filter is enabled
-          if (filterNoChildrenFemale && child.gender === 'female') {
-            const grandchildIds = parentToChildrenMap.get(childId) || []
-            if (grandchildIds.length === 0) {
-              return // Skip this child - female with no children
-            }
-          }
-          // For children, the label parent is the secondary parent of their parent
-          children.push(buildTree(child, visited, nodeLabelParent))
+      if (depth === maxGenerations) {
+        // At the max depth - check if there are more children to indicate truncation
+        if (childIds.length > 0) {
+          truncationDetectedRef.current = true
         }
-      })
+      }
+
+      if (depth < maxGenerations) {
+        childIds.forEach(childId => {
+          const child = memberMap.get(childId)
+          if (child && !visited.has(childId)) {
+            // Skip female members with no children if filter is enabled
+            if (filterNoChildrenFemale && child.gender === 'female') {
+              const grandchildIds = parentToChildrenMap.get(childId) || []
+              if (grandchildIds.length === 0) {
+                return // Skip this child - female with no children
+              }
+            }
+            // For children, the label parent is the secondary parent of their parent
+            children.push(buildTree(child, visited, nodeLabelParent, depth + 1))
+          }
+        })
+      }
 
       return {
         name: member.name,
@@ -488,6 +517,7 @@ export const GenealogyTree = forwardRef<GenealogyTreeRef, GenealogyTreeProps>(fu
         memberId: member.id,
         gender: member.gender,
         generation: generations.get(member.id) || 1,
+        depth,
         labelParent: nodeLabelParent,
         spouses,
         children: children.length > 0 ? children : undefined,
@@ -511,6 +541,7 @@ export const GenealogyTree = forwardRef<GenealogyTreeRef, GenealogyTreeProps>(fu
           name: rootName,
           surname: familySurname,
           generation: 0,
+          depth: 0,
           children: [buildTree(rootMember)],
           isVirtualRoot: true,
         }
@@ -530,14 +561,27 @@ export const GenealogyTree = forwardRef<GenealogyTreeRef, GenealogyTreeProps>(fu
     }
 
     // Multiple roots: directly use them as children of virtual root
-    return {
+    const tree = {
       name: rootName,
       surname: familySurname,
       generation: 0,
       children: effectiveRoots.map(m => buildTree(m)),
       isVirtualRoot: true,
     }
-  }, [members, relations, familyName, familySurname, rootMemberId, filterNoChildrenFemale])
+
+    return tree
+  }, [members, relations, familyName, familySurname, rootMemberId, filterNoChildrenFemale, maxGenerations])
+
+  // Check for truncation after treeData is built
+  useEffect(() => {
+    if (!treeData) return
+
+    // Use the ref that was set during tree building to detect truncation
+    const isTruncated = truncationDetectedRef.current
+    if (isTruncated !== truncationState.isTruncated) {
+      setTruncationState({ isTruncated, truncatedAt: maxGenerations })
+    }
+  }, [treeData, maxGenerations])
 
   // Calculate positions using a bottom-up layout
   const positionedTree = useMemo(() => {
