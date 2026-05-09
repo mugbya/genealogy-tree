@@ -172,7 +172,7 @@ fn generate_html(
     }).collect();
 
     let toc_html = format!(r#"
-<div style="width: 210mm; min-height: 297mm; margin: 0 auto; background: white; padding: 15mm 20mm; font-family: 'Noto Sans SC', 'SimSun', sans-serif; box-sizing: border-box; page-break-after: always;">
+<div style="width: 210mm; min-height: 297mm; margin: 0 auto; background: white; padding: 15mm 20mm; font-family: 'Noto Sans SC', 'SimSun', sans-serif; box-sizing: border-box; page-break-before: always; page-break-after: always;">
   <div style="text-align: center; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 2px solid #f59e0b;">
     <h1 style="font-size: 24px; font-weight: bold; color: #78350f; letter-spacing: 4px; margin: 0;">{}</h1>
     <p style="color: #b45309; font-size: 18px; margin: 4px 0 0 0;">成员索引</p>
@@ -287,7 +287,7 @@ fn generate_html(
         };
 
         format!(r#"
-        <div style="width: 210mm; min-height: 285mm; margin: 0 auto; background: white; padding: 20mm; font-family: 'Noto Sans SC', 'SimSun', sans-serif; box-sizing: border-box; page-break-after: always; position: relative;">
+        <div style="width: 210mm; min-height: 285mm; margin: 0 auto; background: white; padding: 20mm; font-family: 'Noto Sans SC', 'SimSun', sans-serif; box-sizing: border-box; page-break-before: always; page-break-after: always; position: relative;">
           <h1 style="font-size: 36px; text-align: center; color: #333; margin: 0 0 10px 0;">{}{}</h1>
           <p style="font-size: 14px; color: #666; text-align: center; margin: 0 0 30px 0;">
             {}
