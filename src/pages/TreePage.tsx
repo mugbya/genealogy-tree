@@ -231,6 +231,12 @@ export function TreePage() {
   const [downloadPath, setDownloadPath] = useState<string>('')
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
+  // 监听 activeTab 变化，清理下载状态
+  useEffect(() => {
+    setDownloadSuccess(false)
+    setDownloadPath('')
+  }, [activeTab])
+
   // 家族姓氏校验状态
   const [surnameCheckOpen, setSurnameCheckOpen] = useState(false)
   const [surnameCheckAction, setSurnameCheckAction] = useState<'create' | 'import' | 'clearImport' | null>(null)
@@ -1565,21 +1571,15 @@ export function TreePage() {
                       <span className="text-sm text-red-600">如有需要请联系客服获取授权</span>
                     </>
                   )}
-                  {downloadSuccess && downloadPath && (
+                  {downloadSuccess && isDesktop && downloadPath && (
                     <Button
-                      onClick={async () => {
-                        try {
-                          const { invoke } = await import('@tauri-apps/api/core')
-                          await invoke('open_downloads_folder')
-                        } catch (err) {
-                          console.error('打开文件夹失败:', err)
-                        }
-                      }}
-                      className="gap-2"
-                      variant="outline"
+                      size="sm"
+                      variant="ghost"
+                      onClick={handleOpenDownloadFolder}
+                      className="gap-1 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                      title="定位到文件"
                     >
                       <FolderOpen className="w-4 h-4" />
-                      打开文件夹
                     </Button>
                   )}
                   <Button

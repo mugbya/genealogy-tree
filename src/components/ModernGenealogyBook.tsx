@@ -4,7 +4,7 @@ import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import type { Member, MemberRelation } from '@/api/client'
 import { licenseApi, exportApi, exportHtmlBlob, exportHtmlVolumeBlob, type ExportVolumeRequest } from '@/api/client'
-import { ArrowLeft, BookOpen, Plus, Trash2, FileText, AlertTriangle } from 'lucide-react'
+import { ArrowLeft, BookOpen, Plus, Trash2, FileText, AlertTriangle, FolderOpen } from 'lucide-react'
 
 // 通过自定义 User-Agent 检测是否为桌面端（WebView）
 const isDesktop = typeof window !== 'undefined' &&
@@ -43,6 +43,8 @@ export function ModernGenealogyBook({
 
   // 导出成功提示
   const [exportSuccess, setExportSuccess] = useState<string | null>(null)
+  // 导出文件路径（用于打开文件夹定位）
+  const [exportPath, setExportPath] = useState<string>('')
 
   // 分册配置状态
   const [volumeRanges, setVolumeRanges] = useState<VolumeRange[]>([])
@@ -111,6 +113,12 @@ export function ModernGenealogyBook({
 
     checkLicenseFeatures()
   }, [])
+
+  // 监听 view 变化，清理导出状态
+  useEffect(() => {
+    setExportSuccess(null)
+    setExportPath('')
+  }, [view])
 
   // 提前计算 ownFamilyMembers 避免重复 filter
   const ownFamilyMembers = useMemo(() => {
@@ -239,7 +247,14 @@ export function ModernGenealogyBook({
   }
 
   const handleEnterToc = () => {
-    setView('toc')
+    switchView('toc')
+  }
+
+  // 切换视图时清理导出状态
+  const switchView = (newView: ViewState) => {
+    setExportSuccess(null)
+    setExportPath('')
+    setView(newView)
   }
 
   // ========== 分册相关 ==========
@@ -440,6 +455,7 @@ export function ModernGenealogyBook({
         // 从路径中提取文件名
         const savedFileName = filePath.split(/[/\\]/).pop() || filePath
         setExportSuccess(`导出成功！已保存为 "${savedFileName}"`)
+        setExportPath(filePath)
       } catch (err) {
         console.error('导出失败:', err)
         setExportSuccess(null)
@@ -494,6 +510,7 @@ export function ModernGenealogyBook({
         // 从路径中提取文件名
         const savedFileName = filePath.split(/[/\\]/).pop() || filePath
         setExportSuccess(`导出成功！已保存为 "${savedFileName}"`)
+        setExportPath(filePath)
       } catch (err) {
         console.error('导出失败:', err)
         setExportSuccess(null)
@@ -511,6 +528,17 @@ export function ModernGenealogyBook({
         setExportSuccess(null)
         window.alert(result.error || '导出失败')
       }
+    }
+  }
+
+  // 打开导出文件夹（定位到文件）
+  const handleOpenExportFolder = async () => {
+    if (!exportPath) return
+    try {
+      const { invoke } = await import('@tauri-apps/api/core')
+      await invoke('open_folder', { path: exportPath })
+    } catch (err) {
+      console.error('打开文件夹失败:', err)
     }
   }
 
@@ -551,7 +579,7 @@ export function ModernGenealogyBook({
         <Button
           variant="outline"
           size="sm"
-          onClick={() => setView('volume')}
+          onClick={() => switchView('volume')}
           className="gap-2"
         >
           <FileText className="w-4 h-4" />
@@ -568,6 +596,17 @@ export function ModernGenealogyBook({
           <FileText className="w-4 h-4" />
           导出HTML
         </Button>
+        {exportSuccess && isDesktop && exportPath && (
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={handleOpenExportFolder}
+            className="gap-1 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+            title="打开文件夹"
+          >
+            <FolderOpen className="w-4 h-4" />
+          </Button>
+        )}
         {/* <Button
           variant="default"
           size="sm"
@@ -711,7 +750,7 @@ export function ModernGenealogyBook({
     return (
       <div className="h-full flex flex-col bg-white">
         <div className="shrink-0 flex items-center justify-between gap-4 p-4 bg-white border-b">
-          <Button variant="ghost" onClick={() => setView('cover')} className="gap-1">
+          <Button variant="ghost" onClick={() => switchView('cover')} className="gap-1">
             <ArrowLeft className="w-4 h-4" />
             返回封面
           </Button>
@@ -798,7 +837,7 @@ export function ModernGenealogyBook({
     return (
       <div className="h-full flex flex-col bg-white">
         <div className="shrink-0 flex items-center gap-4 p-4 bg-white border-b">
-          <Button variant="ghost" onClick={() => setView('toc')} className="gap-1">
+          <Button variant="ghost" onClick={() => switchView('toc')} className="gap-1">
             <ArrowLeft className="w-4 h-4" />
             返回目录
           </Button>
@@ -956,7 +995,7 @@ export function ModernGenealogyBook({
     return (
       <div className="h-full flex flex-col bg-white">
         <div className="shrink-0 flex items-center justify-between gap-4 p-4 bg-white border-b">
-          <Button variant="ghost" onClick={() => setView('cover')} className="gap-1">
+          <Button variant="ghost" onClick={() => switchView('cover')} className="gap-1">
             <ArrowLeft className="w-4 h-4" />
             返回封面
           </Button>
@@ -1032,6 +1071,17 @@ export function ModernGenealogyBook({
                           <FileText className="w-4 h-4" />
                           HTML
                         </Button>
+                        {exportSuccess && isDesktop && exportPath && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={handleOpenExportFolder}
+                            className="gap-1 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                            title="打开文件夹"
+                          >
+                            <FolderOpen className="w-4 h-4" />
+                          </Button>
+                        )}
                         {/* <Button
                           variant="outline"
                           size="sm"
