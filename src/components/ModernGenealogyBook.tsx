@@ -437,11 +437,14 @@ export function ModernGenealogyBook({
           return
         }
 
-        const { blob, filename } = result
+        const { blob } = result
+
+        // 构建全量导出文件名：家族名称-族谱.html，没有家族名称则只显示"族谱.html"
+        const fullFileName = familyName ? `${familyName}-族谱.html` : '族谱.html'
 
         // 打开保存对话框，让用户选择位置并重命名
         const filePath = await save({
-          defaultPath: filename,
+          defaultPath: fullFileName,
           filters: [{ name: 'HTML Files', extensions: ['html'] }]
         })
 
@@ -481,8 +484,8 @@ export function ModernGenealogyBook({
         const { invoke } = await import('@tauri-apps/api/core')
         const { save } = await import('@tauri-apps/plugin-dialog')
 
-        // 构建分册文件名：家族名称-第X册.html
-        const volumeFileName = `${familyName || '族谱'}-第${volumeIndex + 1}册.html`
+        // 构建分册文件名：家族名称-第X册.html，没有家族名称则显示"族谱-第X册.html"
+        const volumeFileName = familyName ? `${familyName}-第${volumeIndex + 1}册.html` : `族谱-第${volumeIndex + 1}册.html`
 
         const volumeRequest: ExportVolumeRequest = {
           start_generation: volume.startGen,
