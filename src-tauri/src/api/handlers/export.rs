@@ -306,37 +306,71 @@ pub async fn export_html(
         ).unwrap_or_else(|_| "某某家族".to_string())
     };
 
-    // 3. 获取成员数据
+    // 3. 获取成员数据（根据 volume 参数过滤）
     let members: Vec<ExportMember> = {
         let conn = state.db.lock().map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-        let query = "SELECT id, name, surname, gender, generation, generation_word, weight,
-                    birth_date, death_date, is_deceased, birth_place, occupation,
-                    biography, remarkable_deeds
-             FROM family_members ORDER BY CAST(generation AS INTEGER), weight";
+        // 根据是否分册导出构建不同的查询
+        let query = if req.volume.is_some() {
+            "SELECT id, name, surname, gender, generation, generation_word, weight,
+             birth_date, death_date, is_deceased, birth_place, occupation,
+             biography, remarkable_deeds
+             FROM family_members
+             WHERE CAST(generation AS INTEGER) >= ? AND CAST(generation AS INTEGER) <= ?
+             ORDER BY CAST(generation AS INTEGER), weight"
+        } else {
+            "SELECT id, name, surname, gender, generation, generation_word, weight,
+             birth_date, death_date, is_deceased, birth_place, occupation,
+             biography, remarkable_deeds
+             FROM family_members ORDER BY CAST(generation AS INTEGER), weight"
+        };
 
         let mut stmt = conn.prepare(query).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-        let rows = stmt.query_map([], |row| {
-            Ok(ExportMember {
-                id: row.get(0)?,
-                name: row.get(1)?,
-                surname: row.get(2)?,
-                gender: row.get(3)?,
-                generation: row.get(4)?,
-                generation_word: row.get(5)?,
-                weight: row.get(6)?,
-                birth_date: row.get(7)?,
-                death_date: row.get(8)?,
-                is_deceased: row.get(9)?,
-                birth_place: row.get(10)?,
-                occupation: row.get(11)?,
-                biography: row.get(12)?,
-                remarkable_deeds: row.get(13)?,
-            })
-        }).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-
-        rows.filter_map(|r| r.ok()).collect()
+        // 根据是否分册导出获取不同范围的成员
+        if let Some(ref volume) = req.volume {
+            let start = volume.start_generation.unwrap_or(1);
+            let end = volume.end_generation.unwrap_or(i32::MAX);
+            let rows = stmt.query_map(params![start, end], |row| {
+                Ok(ExportMember {
+                    id: row.get(0)?,
+                    name: row.get(1)?,
+                    surname: row.get(2)?,
+                    gender: row.get(3)?,
+                    generation: row.get(4)?,
+                    generation_word: row.get(5)?,
+                    weight: row.get(6)?,
+                    birth_date: row.get(7)?,
+                    death_date: row.get(8)?,
+                    is_deceased: row.get(9)?,
+                    birth_place: row.get(10)?,
+                    occupation: row.get(11)?,
+                    biography: row.get(12)?,
+                    remarkable_deeds: row.get(13)?,
+                })
+            }).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+            rows.filter_map(|r| r.ok()).collect()
+        } else {
+            let rows = stmt.query_map([], |row| {
+                Ok(ExportMember {
+                    id: row.get(0)?,
+                    name: row.get(1)?,
+                    surname: row.get(2)?,
+                    gender: row.get(3)?,
+                    generation: row.get(4)?,
+                    generation_word: row.get(5)?,
+                    weight: row.get(6)?,
+                    birth_date: row.get(7)?,
+                    death_date: row.get(8)?,
+                    is_deceased: row.get(9)?,
+                    birth_place: row.get(10)?,
+                    occupation: row.get(11)?,
+                    biography: row.get(12)?,
+                    remarkable_deeds: row.get(13)?,
+                })
+            }).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+            rows.filter_map(|r| r.ok()).collect()
+        }
     };
 
     if members.is_empty() {
