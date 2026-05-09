@@ -437,7 +437,9 @@ export function ModernGenealogyBook({
         const bytes = Array.from(new Uint8Array(arrayBuffer))
         await invoke('save_file', { path: filePath, data: bytes })
 
-        setExportSuccess('导出成功！已保存为 HTML 文件')
+        // 从路径中提取文件名
+        const savedFileName = filePath.split(/[/\\]/).pop() || filePath
+        setExportSuccess(`导出成功！已保存为 "${savedFileName}"`)
       } catch (err) {
         console.error('导出失败:', err)
         setExportSuccess(null)
@@ -489,7 +491,9 @@ export function ModernGenealogyBook({
         const bytes = Array.from(new Uint8Array(arrayBuffer))
         await invoke('save_file', { path: filePath, data: bytes })
 
-        setExportSuccess('导出成功！已保存为 HTML 文件')
+        // 从路径中提取文件名
+        const savedFileName = filePath.split(/[/\\]/).pop() || filePath
+        setExportSuccess(`导出成功！已保存为 "${savedFileName}"`)
       } catch (err) {
         console.error('导出失败:', err)
         setExportSuccess(null)
