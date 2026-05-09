@@ -1,4 +1,4 @@
-#!/usr/bin/env pwsh
+﻿#!/usr/bin/env pwsh
 $ErrorActionPreference = "Stop"
 
 Write-Host "=== 祖谱软件编译脚本 ===" -ForegroundColor Cyan
