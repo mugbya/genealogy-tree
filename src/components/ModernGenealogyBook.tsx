@@ -474,12 +474,15 @@ export function ModernGenealogyBook({
   }
 
   // 导出单册HTML
-  const handleExportVolumeHtml = async (volume: VolumeRange) => {
+  const handleExportVolumeHtml = async (volume: VolumeRange, volumeIndex: number) => {
     if (isDesktop) {
       // 桌面端：使用保存对话框让用户选择位置并重命名
       try {
         const { invoke } = await import('@tauri-apps/api/core')
         const { save } = await import('@tauri-apps/plugin-dialog')
+
+        // 构建分册文件名：家族名称-第X册.html
+        const volumeFileName = `${familyName || '族谱'}-第${volumeIndex + 1}册.html`
 
         const volumeRequest: ExportVolumeRequest = {
           start_generation: volume.startGen,
@@ -492,11 +495,11 @@ export function ModernGenealogyBook({
           return
         }
 
-        const { blob, filename } = result
+        const { blob } = result
 
         // 打开保存对话框，让用户选择位置并重命名
         const filePath = await save({
-          defaultPath: filename,
+          defaultPath: volumeFileName,
           filters: [{ name: 'HTML Files', extensions: ['html'] }]
         })
 
@@ -1063,7 +1066,7 @@ export function ModernGenealogyBook({
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => handleExportVolumeHtml(volume)}
+                          onClick={() => handleExportVolumeHtml(volume, index)}
                           disabled={!licenseFeatures.export_volume || volumeMembers.length === 0}
                           className="gap-1 text-blue-600 border-blue-300 hover:bg-blue-50"
                           title={!licenseFeatures.export_volume ? '需要授权才能使用分册导出功能，如有需要请联系客服获取授权' : ''}
