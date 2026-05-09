@@ -28,6 +28,11 @@ fn generate_html(
     members: Vec<ExportMember>,
     relations: HashMap<i64, ExportRelations>,
     family_name: &str,
+    family_maxim: &str,
+    family_origin: &str,
+    generation_count: usize,
+    volume_start: Option<i32>,
+    volume_end: Option<i32>,
 ) -> String {
     // 按 generation 和 weight 排序
     let mut sorted_members = members.clone();
@@ -42,15 +47,110 @@ fn generate_html(
         .map(|m| (m.id, m))
         .collect();
 
-    // 生成封面HTML
+    // 判断是否为分册导出
+    let is_volume = volume_start.is_some() || volume_end.is_some();
+    let volume_info = if is_volume {
+        format!(r#"<p style="font-size: 16px; color: #92400e; margin: 0 0 2mm 0;">（第 {} 代 ~ 第 {} 代）</p>"#,
+            volume_start.unwrap_or(1), volume_end.unwrap_or(1))
+    } else {
+        String::new()
+    };
+
+    // 生成分册或总数信息
+    let volume_or_generation_text = if is_volume {
+        format!("本册记载 第{}至{}代", volume_start.unwrap_or(1), volume_end.unwrap_or(1))
+    } else {
+        format!("传承 {} 代", generation_count)
+    };
+
+    // 生成封面HTML - 与前端 generateCoverHtml 保持一致
     let cover_html = format!(r#"
-<div style="width: 210mm; min-height: 297mm; margin: 0 auto; background: white; padding: 20mm; font-family: 'Noto Sans SC', 'SimSun', sans-serif; box-sizing: border-box; display: flex; flex-direction: column; justify-content: center; align-items: center;">
-  <div style="text-align: center;">
-    <h1 style="font-size: 48px; font-weight: bold; color: #78350f; letter-spacing: 8px; margin: 0 0 20px 0;">{}</h1>
-    <p style="color: #b45309; font-size: 24px; margin: 0;">家族族谱</p>
-    <p style="color: #92400e; font-size: 16px; margin-top: 40px;">共 {} 位成员</p>
+<div style="width: 210mm; min-height: 285mm; margin: 0 auto; background: linear-gradient(to bottom, #fffbeb, #fff7ed); border: 4px solid #92400e; position: relative; font-family: 'Noto Sans SC', 'SimSun', sans-serif; box-sizing: border-box;">
+  <!-- 装饰边框 -->
+  <div style="position: absolute; inset: 2mm; border: 2px solid #92400e; pointer-events: none;"></div>
+  <div style="position: absolute; inset: 8mm; border: 1px solid #d97706; pointer-events: none;"></div>
+
+  <!-- 四角装饰 -->
+  <div style="position: absolute; top: 4mm; left: 4mm; width: 8mm; height: 8mm;">
+    <svg viewBox="0 0 40 40" style="width: 100%; height: 100%; color: #92400e;">
+      <path d="M2 38 Q2 2 38 2" fill="none" stroke="currentColor" stroke-width="2"/>
+      <circle cx="8" cy="8" r="3" fill="currentColor"/>
+    </svg>
   </div>
-</div>"#, family_name, member_count);
+  <div style="position: absolute; top: 4mm; right: 4mm; width: 8mm; height: 8mm; transform: rotate(90deg);">
+    <svg viewBox="0 0 40 40" style="width: 100%; height: 100%; color: #92400e;">
+      <path d="M2 38 Q2 2 38 2" fill="none" stroke="currentColor" stroke-width="2"/>
+      <circle cx="8" cy="8" r="3" fill="currentColor"/>
+    </svg>
+  </div>
+  <div style="position: absolute; bottom: 4mm; left: 4mm; width: 8mm; height: 8mm; transform: rotate(-90deg);">
+    <svg viewBox="0 0 40 40" style="width: 100%; height: 100%; color: #92400e;">
+      <path d="M2 38 Q2 2 38 2" fill="none" stroke="currentColor" stroke-width="2"/>
+      <circle cx="8" cy="8" r="3" fill="currentColor"/>
+    </svg>
+  </div>
+  <div style="position: absolute; bottom: 4mm; right: 4mm; width: 8mm; height: 8mm; transform: rotate(180deg);">
+    <svg viewBox="0 0 40 40" style="width: 100%; height: 100%; color: #92400e;">
+      <path d="M2 38 Q2 2 38 2" fill="none" stroke="currentColor" stroke-width="2"/>
+      <circle cx="8" cy="8" r="3" fill="currentColor"/>
+    </svg>
+  </div>
+
+  <!-- 徽章 -->
+  <div style="display: flex; justify-content: center; padding-top: 30mm;">
+    <div style="width: 50mm; height: 50mm; position: relative;">
+      <div style="position: absolute; inset: 0; border-radius: 50%; border: 4px solid #92400e; background: linear-gradient(135deg, #fef3c7, #fde68a); box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+        <div style="position: absolute; inset: 4mm; border-radius: 50%; border: 2px solid #b45309; display: flex; align-items: center; justify-content: center;">
+          <div style="font-size: 48px; color: #78350f; font-family: serif;">谱</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 家族名称 -->
+  <div style="text-align: center; padding: 0 15mm; margin-top: 10mm;">
+    <h1 style="font-size: 36px; font-weight: bold; color: #78350f; letter-spacing: 4px; margin: 0 0 4px 0;">
+      {family_name}
+    </h1>
+    <p style="font-size: 18px; color: #b45309; letter-spacing: 4px;">祖谱</p>
+
+    <div style="display: flex; align-items: center; justify-content: center; gap: 5mm; margin: 8mm 0;">
+      <div style="height: 1px; width: 25mm; background: linear-gradient(to right, transparent, #d97706);"></div>
+      <div style="display: flex; gap: 2mm;">
+        <span style="color: #d97706; font-size: 10px;">◆</span>
+        <span style="color: #d97706;">◆</span>
+        <span style="color: #d97706; font-size: 10px;">◆</span>
+      </div>
+      <div style="height: 1px; width: 25mm; background: linear-gradient(to left, transparent, #d97706);"></div>
+    </div>
+
+    <div style="display: inline-block; padding: 2mm 6mm; border: 1px solid #b45309; border-radius: 4px; background: #fffbeb;">
+      <span style="font-size: 14px; color: #78350f;">现代版</span>
+    </div>
+  </div>
+
+  <div style="margin: 8mm 15mm; padding: 4mm; background: rgba(254, 243, 199, 0.5); border: 1px solid #fcd34d; border-radius: 4px; text-align: center;">
+    <p style="font-size: 14px; color: #78350f; font-style: italic; margin: 0;">
+      {family_maxim}
+    </p>
+  </div>
+
+  <div style="text-align: center; margin-top: 4mm; padding: 0 15mm;">
+    <p style="font-size: 12px; color: #b45309;">
+      始祖源地：{family_origin}
+    </p>
+  </div>
+
+  <div style="position: absolute; bottom: 25mm; left: 0; right: 0; text-align: center;">
+    {volume_info}
+    <p style="font-size: 14px; color: #b45309; margin: 0;">
+      共录 <span style="font-weight: bold; color: #78350f;">{member_count}</span> 名族人
+    </p>
+    <p style="font-size: 12px; color: #d97706; margin: 2mm 0 0 0;">
+      {volume_or_generation_text}
+    </p>
+  </div>
+</div>"#);
 
     // 生成目录HTML
     let toc_rows: String = sorted_members.iter().enumerate().map(|(i, m)| {
@@ -296,14 +396,28 @@ pub async fn export_html(
         return Err(StatusCode::FORBIDDEN);
     }
 
-    // 2. 获取家族名称
-    let family_name = {
+    // 2. 获取家族配置信息
+    let (family_name, family_maxim, family_origin) = {
         let conn = state.db.lock().map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-        conn.query_row(
+        let family_name = conn.query_row(
             "SELECT value FROM family_config WHERE key = 'family_name'",
             [],
             |row| row.get::<_, String>(0)
-        ).unwrap_or_else(|_| "某某家族".to_string())
+        ).unwrap_or_else(|_| "某某家族".to_string());
+
+        let family_maxim = conn.query_row(
+            "SELECT value FROM family_config WHERE key = 'family_maxim'",
+            [],
+            |row| row.get::<_, String>(0)
+        ).unwrap_or_else(|_| "传承家族文化  弘扬优良家风".to_string());
+
+        let family_origin = conn.query_row(
+            "SELECT value FROM family_config WHERE key = 'family_origin'",
+            [],
+            |row| row.get::<_, String>(0)
+        ).unwrap_or_else(|_| "源远流长".to_string());
+
+        (family_name, family_maxim, family_origin)
     };
 
     // 3. 获取成员数据（根据 volume 参数过滤）
@@ -405,11 +519,42 @@ pub async fn export_html(
         relations_map
     };
 
-    // 5. 生成 HTML
-    let html_content = generate_html(members, relations, &family_name);
+    // 5. 计算代数（generation）数量
+    let generation_count = {
+        let mut generations: std::collections::HashSet<i32> = std::collections::HashSet::new();
+        for m in &members {
+            if let Some(gen) = m.generation.as_ref().and_then(|s| s.parse::<i32>().ok()) {
+                generations.insert(gen);
+            }
+        }
+        generations.len()
+    };
 
-    // 6. 构建响应 - 使用 RFC 5987 编码的文件名
-    let filename = format!("{}-族谱.html", family_name);
+    // 获取分册参数
+    let (volume_start, volume_end) = if let Some(ref volume) = req.volume {
+        (Some(volume.start_generation.unwrap_or(1)), Some(volume.end_generation.unwrap_or(i32::MAX)))
+    } else {
+        (None, None)
+    };
+
+    // 6. 生成 HTML
+    let html_content = generate_html(
+        members,
+        relations,
+        &family_name,
+        &family_maxim,
+        &family_origin,
+        generation_count,
+        volume_start,
+        volume_end,
+    );
+
+    // 7. 构建响应 - 使用 RFC 5987 编码的文件名
+    let filename = if let Some(ref volume) = req.volume {
+        format!("{}-族谱（第{}至{}代）.html", family_name, volume.start_generation.unwrap_or(1), volume.end_generation.unwrap_or(0))
+    } else {
+        format!("{}-族谱.html", family_name)
+    };
 
     let mut response = Response::new(html_content.into());
     response.headers_mut().insert(
