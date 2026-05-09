@@ -792,7 +792,36 @@ export function TreePage() {
       }
       blob = await response.blob();
 
-      // 创建下载链接
+      // 桌面端：使用保存对话框让用户选择位置
+      if (isDesktop) {
+        try {
+          const { invoke } = await import('@tauri-apps/api/core')
+          const { save } = await import('@tauri-apps/plugin-dialog')
+
+          // 打开保存对话框
+          const filePath = await save({
+            defaultPath: filename,
+            filters: [{ name: 'CSV Files', extensions: ['csv'] }]
+          })
+
+          if (!filePath) return // 用户取消
+
+          // 读取 blob 数据并保存
+          const arrayBuffer = await blob.arrayBuffer()
+          const bytes = Array.from(new Uint8Array(arrayBuffer))
+          await invoke('save_file', { path: filePath, data: bytes })
+
+          setDownloadSuccess(true)
+          setDownloadPath(filePath)
+          return
+        } catch (err) {
+          console.error('保存文件失败:', err)
+          alert('保存文件失败: ' + err)
+          return
+        }
+      }
+
+      // 浏览器端：使用默认下载
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
@@ -813,6 +842,21 @@ export function TreePage() {
     }
 
     setTimeout(() => setDownloadSuccess(false), 5000);
+  };
+
+  // 打开下载文件夹
+  const handleOpenDownloadFolder = async () => {
+    try {
+      const { invoke } = await import('@tauri-apps/api/core')
+      if (downloadPath) {
+        await invoke('open_folder', { path: downloadPath })
+      } else {
+        await invoke('open_downloads_folder')
+      }
+    } catch (err) {
+      console.error('打开文件夹失败:', err)
+      alert('打开文件夹失败: ' + err)
+    }
   };
 
   return (
@@ -1149,12 +1193,20 @@ export function TreePage() {
                           {downloadSuccess ? (
                             <span className="flex flex-col items-start">
                               <span>已下载</span>
-                              {downloadPath && isDesktop && (
-                                <span className="text-[10px] text-muted-foreground font-normal">{downloadPath}</span>
-                              )}
                             </span>
                           ) : '模板'}
                         </Button>
+                        {downloadSuccess && isDesktop && downloadPath && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={handleOpenDownloadFolder}
+                            className="gap-1 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                            title="打开文件夹"
+                          >
+                            <FolderOpen className="w-3 h-3" />
+                          </Button>
+                        )}
                       </>
                     )}
                     

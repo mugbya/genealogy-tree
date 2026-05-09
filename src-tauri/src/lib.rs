@@ -171,6 +171,50 @@ async fn open_downloads_folder() -> Result<(), String> {
     Ok(())
 }
 
+// 打开指定文件夹，并定位到文件（在 Finder/Explorer 中选中文件）
+#[tauri::command]
+async fn open_folder(path: String) -> Result<(), String> {
+    let file_path = std::path::PathBuf::from(&path);
+
+    if !file_path.exists() {
+        return Err(format!("文件不存在: {}", path));
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        use std::process::Command;
+        // macOS: 使用 open -R 在 Finder 中定位文件
+        Command::new("open")
+            .args(["-R", &path])
+            .output()
+            .map_err(|e| format!("打开文件夹失败: {}", e))?;
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        use std::process::Command;
+        // Windows: 使用 explorer /select, 在 Explorer 中选中文件
+        Command::new("explorer")
+            .args(["/select,", &path])
+            .output()
+            .map_err(|e| format!("打开文件夹失败: {}", e))?;
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        use std::process::Command;
+        // Linux: 尝试使用 xdg-open 打开父目录
+        if let Some(parent) = file_path.parent() {
+            Command::new("xdg-open")
+                .arg(parent)
+                .output()
+                .map_err(|e| format!("打开文件夹失败: {}", e))?;
+        }
+    }
+
+    Ok(())
+}
+
 // 保存截图到指定路径
 #[tauri::command]
 async fn save_screenshot(path: String, data: Vec<u8>) -> Result<(), String> {
@@ -216,7 +260,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
-        .invoke_handler(tauri::generate_handler![get_network_interfaces, get_download_path, get_database_path, download_template, get_http_port, open_downloads_folder, save_screenshot, save_file])
+        .invoke_handler(tauri::generate_handler![get_network_interfaces, get_download_path, get_database_path, download_template, get_http_port, open_downloads_folder, open_folder, save_screenshot, save_file])
         .setup(|app| {
             // 获取应用数据目录，使用绝对路径初始化数据库
             let app_data_dir = app.path().app_data_dir().expect("Failed to get app data dir");
