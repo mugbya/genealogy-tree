@@ -62,11 +62,13 @@ export const GenealogyTree = forwardRef<GenealogyTreeRef, GenealogyTreeProps>(fu
     exportSvgAsDataUrl,
   }))
   const [viewBox, setViewBox] = useState({ x: 0, y: 0, width: 1200, height: 800 })
-  const [isDragging, setIsDragging] = useState(false)
-  const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
-  const [viewStart, setViewStart] = useState({ x: 0, y: 0 })
-  const [scale, setScale] = useState(1)
+  const scaleRef = useRef(1)
+  const viewBoxRef = useRef({ x: 0, y: 0, width: 1200, height: 800 })
   const isInitialLoad = useRef(true)
+  // Drag state using refs to avoid closure issues
+  const isDraggingRef = useRef(false)
+  const dragStartRef = useRef({ x: 0, y: 0 })
+  const viewStartRef = useRef({ x: 0, y: 0 })
 
   // Notify parent of truncation changes
   useEffect(() => {
@@ -1254,32 +1256,40 @@ export const GenealogyTree = forwardRef<GenealogyTreeRef, GenealogyTreeProps>(fu
   // Mouse event handlers for pan
   const handleMouseDown = (e: React.MouseEvent) => {
     if (e.button !== 0) return
-    setIsDragging(true)
-    setDragStart({ x: e.clientX, y: e.clientY })
-    setViewStart({ x: viewBox.x, y: viewBox.y })
+    e.preventDefault()
+    isDraggingRef.current = true
+    dragStartRef.current = { x: e.clientX, y: e.clientY }
+    viewStartRef.current = { x: viewBoxRef.current.x, y: viewBoxRef.current.y }
   }
 
   const handleMouseMove = (e: React.MouseEvent) => {
-    if (!isDragging) return
-    const dx = (e.clientX - dragStart.x) / scale
-    const dy = (e.clientY - dragStart.y) / scale
-    setViewBox(prev => ({
-      ...prev,
-      x: viewStart.x - dx,
-      y: viewStart.y - dy,
-    }))
+    if (!isDraggingRef.current) return
+    e.preventDefault()
+    const currentScale = scaleRef.current
+    const currentViewBox = viewBoxRef.current
+    const dx = (e.clientX - dragStartRef.current.x) / currentScale
+    const dy = (e.clientY - dragStartRef.current.y) / currentScale
+    const newViewBox = {
+      x: viewStartRef.current.x - dx,
+      y: viewStartRef.current.y - dy,
+      width: currentViewBox.width,
+      height: currentViewBox.height,
+    }
+    viewBoxRef.current = newViewBox
+    setViewBox(newViewBox)
   }
 
   const handleMouseUp = () => {
-    setIsDragging(false)
+    isDraggingRef.current = false
   }
 
   // Handle wheel zoom
   const handleWheel = (e: React.WheelEvent) => {
     e.preventDefault()
+    const currentScale = scaleRef.current
     // 缩小是 deltaY > 0，放大是 deltaY < 0
     const delta = e.deltaY > 0 ? 0.9 : 1.1
-    const newScale = Math.min(Math.max(scale * delta, 0.2), 3)
+    const newScale = Math.min(Math.max(currentScale * delta, 0.2), 3)
 
     const rect = containerRef.current?.getBoundingClientRect()
     if (!rect) return
@@ -1287,20 +1297,23 @@ export const GenealogyTree = forwardRef<GenealogyTreeRef, GenealogyTreeProps>(fu
     // 计算鼠标位置在世界坐标中的位置
     const mouseX = e.clientX - rect.left
     const mouseY = e.clientY - rect.top
-    const worldX = viewBox.x + (mouseX / viewBox.width) * viewBox.width
-    const worldY = viewBox.y + (mouseY / viewBox.height) * viewBox.height
+    const currentViewBox = viewBoxRef.current
+    const worldX = currentViewBox.x + (mouseX / currentViewBox.width) * currentViewBox.width
+    const worldY = currentViewBox.y + (mouseY / currentViewBox.height) * currentViewBox.height
 
     // 计算新的 viewBox，保持鼠标指向的世界坐标点不变
-    const newWidth = viewBox.width * (scale / newScale)
-    const newHeight = viewBox.height * (scale / newScale)
+    const newWidth = currentViewBox.width * (currentScale / newScale)
+    const newHeight = currentViewBox.height * (currentScale / newScale)
 
-    setScale(newScale)
-    setViewBox(prev => ({
-      x: worldX - (mouseX / prev.width) * newWidth,
-      y: worldY - (mouseY / prev.height) * newHeight,
+    scaleRef.current = newScale
+    const newViewBox = {
+      x: worldX - (mouseX / newWidth) * newWidth,
+      y: worldY - (mouseY / newHeight) * newHeight,
       width: newWidth,
       height: newHeight,
-    }))
+    }
+    viewBoxRef.current = newViewBox
+    setViewBox(newViewBox)
   }
 
   // Update viewBox when tree changes (only on initial load)
@@ -1343,45 +1356,51 @@ export const GenealogyTree = forwardRef<GenealogyTreeRef, GenealogyTreeProps>(fu
   // Handle zoom with buttons - SVG viewBox缩放通过改变width/height实现
   const handleZoomIn = () => {
     // 计算当前视图中心在世界坐标中的位置
-    const centerWorldX = viewBox.x + viewBox.width / 2
-    const centerWorldY = viewBox.y + viewBox.height / 2
+    const currentViewBox = viewBoxRef.current
+    const currentScale = scaleRef.current
+    const centerWorldX = currentViewBox.x + currentViewBox.width / 2
+    const centerWorldY = currentViewBox.y + currentViewBox.height / 2
     // 放大：减小 viewBox 的宽高
-    const newScale = Math.min(scale * 1.2, 3)
-    const newWidth = viewBox.width / newScale * scale
-    const newHeight = viewBox.height / newScale * scale
+    const newScale = Math.min(currentScale * 1.2, 3)
+    const newWidth = currentViewBox.width / newScale * currentScale
+    const newHeight = currentViewBox.height / newScale * currentScale
     // 保持中心点不变
-    setScale(newScale)
-    setViewBox(prev => ({
-      ...prev,
+    scaleRef.current = newScale
+    const newViewBox = {
       x: centerWorldX - newWidth / 2,
       y: centerWorldY - newHeight / 2,
       width: newWidth,
       height: newHeight,
-    }))
+    }
+    viewBoxRef.current = newViewBox
+    setViewBox(newViewBox)
   }
 
   const handleZoomOut = () => {
     // 计算当前视图中心在世界坐标中的位置
-    const centerWorldX = viewBox.x + viewBox.width / 2
-    const centerWorldY = viewBox.y + viewBox.height / 2
+    const currentViewBox = viewBoxRef.current
+    const currentScale = scaleRef.current
+    const centerWorldX = currentViewBox.x + currentViewBox.width / 2
+    const centerWorldY = currentViewBox.y + currentViewBox.height / 2
     // 缩小：增大 viewBox 的宽高
-    const newScale = Math.max(scale * 0.8, 0.2)
-    const newWidth = viewBox.width / newScale * scale
-    const newHeight = viewBox.height / newScale * scale
+    const newScale = Math.max(currentScale * 0.8, 0.2)
+    const newWidth = currentViewBox.width / newScale * currentScale
+    const newHeight = currentViewBox.height / newScale * currentScale
     // 保持中心点不变
-    setScale(newScale)
-    setViewBox(prev => ({
-      ...prev,
+    scaleRef.current = newScale
+    const newViewBox = {
       x: centerWorldX - newWidth / 2,
       y: centerWorldY - newHeight / 2,
       width: newWidth,
       height: newHeight,
-    }))
+    }
+    viewBoxRef.current = newViewBox
+    setViewBox(newViewBox)
   }
 
   const handleResetView = () => {
     isInitialLoad.current = true
-    setScale(1)
+    scaleRef.current = 1
     if (positionedTree) {
       const calcBounds = (node: TreeNode, bounds = { minX: Infinity, maxX: -Infinity, minY: Infinity, maxY: -Infinity }): typeof bounds => {
         if (node.x !== undefined && node.y !== undefined) {
@@ -1395,12 +1414,14 @@ export const GenealogyTree = forwardRef<GenealogyTreeRef, GenealogyTreeProps>(fu
       }
       const bounds = calcBounds(positionedTree)
       const padding = 100
-      setViewBox({
+      const newViewBox = {
         x: bounds.minX - padding,
         y: bounds.minY - padding,
         width: Math.max(bounds.maxX - bounds.minX + padding * 2, 800),
         height: Math.max(bounds.maxY - bounds.minY + padding * 2, 600),
-      })
+      }
+      viewBoxRef.current = newViewBox
+      setViewBox(newViewBox)
     }
   }
 
@@ -1441,7 +1462,7 @@ export const GenealogyTree = forwardRef<GenealogyTreeRef, GenealogyTreeProps>(fu
       </div>
       {/* Scale indicator */}
       <div className="absolute bottom-4 right-4 z-10 bg-white/90 backdrop-blur-sm rounded-lg shadow-md px-2 py-1 text-xs text-gray-600">
-        {Math.round(scale * 100)}%
+        {Math.round(scaleRef.current * 100)}%
       </div>
       <div
         ref={containerRef}
