@@ -1,5 +1,6 @@
 use sha2::{Sha256, Digest};
 use sysinfo::System;
+use tracing::info;
 
 /// Generate machine code from hardware info
 /// Uses platform-specific unique hardware identifiers (UUID, serial numbers, etc.)
@@ -86,60 +87,82 @@ pub fn generate_machine_code() -> String {
 
         // Try multiple methods to get hardware identifier
 
-        // Method 1: BIOS UUID (most reliable for Windows)
-        if let Ok(output) = Command::new("wmic").args(["csproduct", "get", "UUID"]).output() {
-            let uuid = String::from_utf8_lossy(&output.stdout);
-            if let Some(last_line) = uuid.lines().last() {
-                let uuid = last_line.trim();
-                // Check for valid UUID (not empty, not placeholder)
-                if !uuid.is_empty() && uuid != "UUID"
-                   && !uuid.contains("00000000-0000-0000-0000-000000000000")
-                   && !uuid.contains("AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA") {
-                    hasher.update(uuid.as_bytes());
-                    has_valid_hardware_id = true;
-                }
-            }
-        }
-
-        // Method 2: Base board serial (if UUID is placeholder)
-        if !has_valid_hardware_id {
-            if let Ok(output) = Command::new("wmic").args(["baseboard", "get", "SerialNumber"]).output() {
-                let serial = String::from_utf8_lossy(&output.stdout);
-                if let Some(last_line) = serial.lines().last() {
-                    let serial = last_line.trim();
-                    if !serial.is_empty() && serial != "SerialNumber"
-                       && !serial.contains("To be filled") && !serial.contains("None") {
-                        hasher.update(serial.as_bytes());
-                        has_valid_hardware_id = true;
-                    }
-                }
-            }
-        }
-
-        // Method 3: BIOS serial number
-        if !has_valid_hardware_id {
-            if let Ok(output) = Command::new("wmic").args(["bios", "get", "SerialNumber"]).output() {
-                let serial = String::from_utf8_lossy(&output.stdout);
-                if let Some(last_line) = serial.lines().last() {
-                    let serial = last_line.trim();
-                    if !serial.is_empty() && serial != "SerialNumber"
-                       && !serial.contains("To be filled") && !serial.contains("None") {
-                        hasher.update(serial.as_bytes());
-                        has_valid_hardware_id = true;
-                    }
-                }
-            }
-        }
-
-        // Method 4: Try PowerShell as alternative (more reliable on some systems)
+        // Method 1: PowerShell Get-CimInstance (most reliable on modern Windows)
         if !has_valid_hardware_id {
             if let Ok(output) = Command::new("powershell").args([
                 "-Command",
                 "(Get-CimInstance Win32_ComputerSystemProduct).UUID"
             ]).output() {
                 let uuid = String::from_utf8_lossy(&output.stdout).trim().to_string();
-                if !uuid.is_empty() && !uuid.contains("00000000-0000-0000-0000-000000000000")
-                   && !uuid.contains("AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA") {
+                info!(module="machine_code", "PowerShell UUID output: '{}'", uuid);
+                if !uuid.is_empty() && !uuid.contains("00000000")
+                   && !uuid.contains("AAAAAAAA") && uuid.len() >= 32 {
+                    hasher.update(uuid.as_bytes());
+                    has_valid_hardware_id = true;
+                    info!(module="machine_code", "Using PowerShell UUID: {}", uuid);
+                }
+            }
+        }
+
+        // Method 2: wmic csproduct (fallback)
+        if !has_valid_hardware_id {
+            if let Ok(output) = Command::new("wmic").args(["csproduct", "get", "UUID"]).output() {
+                let uuid_str = String::from_utf8_lossy(&output.stdout);
+                info!(module="machine_code", "wmic csproduct output: '{}'", uuid_str);
+                if let Some(last_line) = uuid_str.lines().last() {
+                    let uuid = last_line.trim();
+                    info!(module="machine_code", "wmic last line: '{}'", uuid);
+                    if !uuid.is_empty() && uuid != "UUID"
+                       && !uuid.contains("00000000")
+                       && !uuid.contains("AAAAAAAA")
+                       && uuid.len() >= 32 {
+                        hasher.update(uuid.as_bytes());
+                        has_valid_hardware_id = true;
+                        info!(module="machine_code", "Using wmic UUID: {}", uuid);
+                    }
+                }
+            }
+        }
+
+        // Method 3: Base board serial
+        if !has_valid_hardware_id {
+            if let Ok(output) = Command::new("powershell").args([
+                "-Command",
+                "(Get-CimInstance Win32_BaseBoard).SerialNumber"
+            ]).output() {
+                let serial = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                info!(module="machine_code", "BaseBoard Serial: '{}'", serial);
+                if !serial.is_empty() && !serial.contains("To be filled") && !serial.contains("None") && serial.len() >= 8 {
+                    hasher.update(serial.as_bytes());
+                    has_valid_hardware_id = true;
+                }
+            }
+        }
+
+        // Method 4: BIOS serial
+        if !has_valid_hardware_id {
+            if let Ok(output) = Command::new("powershell").args([
+                "-Command",
+                "(Get-CimInstance Win32_BIOS).SerialNumber"
+            ]).output() {
+                let serial = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                info!(module="machine_code", "BIOS Serial: '{}'", serial);
+                if !serial.is_empty() && !serial.contains("To be filled") && !serial.contains("None") && serial.len() >= 8 {
+                    hasher.update(serial.as_bytes());
+                    has_valid_hardware_id = true;
+                }
+            }
+        }
+
+        // Method 5: Board product UUID from registry
+        if !has_valid_hardware_id {
+            if let Ok(output) = Command::new("powershell").args([
+                "-Command",
+                "(Get-ItemProperty 'HKLM:\\HARDWARE\\DESCRIPTION\\System\\BIOS').SystemProductUUID"
+            ]).output() {
+                let uuid = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                info!(module="machine_code", "Registry UUID: '{}'", uuid);
+                if !uuid.is_empty() && uuid != "00000000-0000-0000-0000-000000000000" && uuid.len() >= 36 {
                     hasher.update(uuid.as_bytes());
                     has_valid_hardware_id = true;
                 }
@@ -150,17 +173,23 @@ pub fn generate_machine_code() -> String {
     // Fallback: only use if no valid hardware ID was found
     // IMPORTANT: No random component - machine code must be deterministic!
     if !has_valid_hardware_id {
+        info!(module="machine_code", "No valid hardware ID found, using fallback");
         let mut sys = System::new();
         // Use multiple stable identifiers
         if let Some(name) = System::name() {
+            info!(module="machine_code", "Using system name: {}", name);
             hasher.update(name.as_bytes());
         }
         if let Some(host) = System::host_name() {
+            info!(module="machine_code", "Using host name: {}", host);
             hasher.update(host.as_bytes());
         }
         // Use kernel build string as additional identifier
+        info!(module="machine_code", "Using OS: {}, ARCH: {}", std::env::consts::OS, std::env::consts::ARCH);
         hasher.update(std::env::consts::OS.as_bytes());
         hasher.update(std::env::consts::ARCH.as_bytes());
+    } else {
+        info!(module="machine_code", "Using hardware ID for machine code");
     }
 
     let result = hasher.finalize();
