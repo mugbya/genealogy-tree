@@ -13,7 +13,7 @@ use std::collections::HashMap;
 use crate::api::router::AppState;
 use crate::auth::verify_token;
 use crate::models::{CreateMemberRequest, Member, UpdateMemberRequest, ROLE_ADMIN};
-use tracing::{warn, debug, error};
+use tracing::{warn, debug};
 
 /// 从请求头中提取用户认证信息，返回 (user_id, role, member_id)
 fn extract_user_info(headers: &HeaderMap) -> Result<(i64, String, Option<i64>), StatusCode> {

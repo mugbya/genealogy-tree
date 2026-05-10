@@ -2,7 +2,6 @@ use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::sync::{Arc, Mutex};
 use rusqlite::Connection;
-use sysinfo::System;
 use tracing::{info, warn, debug, trace};
 
 /// RSA Public Key for license verification (2048-bit)

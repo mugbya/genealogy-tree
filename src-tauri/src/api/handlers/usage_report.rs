@@ -4,7 +4,7 @@ use rusqlite::Connection;
 use serde_json::json;
 use chrono::{Local, Timelike};
 use sysinfo::System;
-use tracing::{info, warn, debug};
+use tracing::{info, warn};
 
 use crate::models::usage_report::{UsageReport, PendingReport};
 

@@ -1,5 +1,4 @@
 use axum::{extract::Extension, http::StatusCode, Json};
-use rusqlite::Connection;
 use serde_json::{json, Value};
 use sysinfo::{System, Disks};
 use tauri::{AppHandle, Manager};
