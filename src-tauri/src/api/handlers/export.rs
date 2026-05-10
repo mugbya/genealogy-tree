@@ -1,6 +1,6 @@
 use axum::{
     extract::State,
-    http::{header, StatusCode},
+    http::{header, HeaderMap, StatusCode},
     response::Response,
     Json,
 };
@@ -9,6 +9,7 @@ use serde::Deserialize;
 use std::collections::HashMap;
 
 use crate::api::router::AppState;
+use crate::api::handlers::auth::extract_auth;
 use crate::license::{is_feature_allowed, LicenseFeature, get_license_info};
 
 /// 导出 HTML 的请求参数
@@ -376,8 +377,12 @@ struct ExportRelations {
 /// 导出 HTML
 pub async fn export_html(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Json(req): Json<ExportHtmlRequest>,
 ) -> Result<Response, StatusCode> {
+    // 0. 检查用户登录状态
+    let _ = extract_auth(&headers).map_err(|_| StatusCode::UNAUTHORIZED)?;
+
     // 1. 检查授权（始终检查授权，无论是导出全部还是分册导出）
     let license_info = get_license_info(&state.db)
         .map_err(|e| {

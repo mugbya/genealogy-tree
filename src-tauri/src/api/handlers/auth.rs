@@ -13,7 +13,7 @@ use crate::models::{
     UserResponseWithMemberName, JwtClaims,
 };
 
-fn extract_auth(headers: &HeaderMap) -> Result<(i64, String, JwtClaims), (StatusCode, Json<Value>)> {
+pub fn extract_auth(headers: &HeaderMap) -> Result<(i64, String, JwtClaims), (StatusCode, Json<Value>)> {
     let token = headers
         .get("Authorization")
         .and_then(|v| v.to_str().ok())
