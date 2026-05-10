@@ -204,6 +204,10 @@ export function HomePage() {
       Promise.race([fetchHttpPort().then(() => { if (win.__updateLoadingText) win.__updateLoadingText('正在加载系统配置...'); }), timeoutPromise]),
     ]).then(() => {
       if (win.__updateLoadingText) win.__updateLoadingText('加载完成');
+      // 隐藏 loading
+      setTimeout(() => {
+        if (win.__hideLoading) win.__hideLoading();
+      }, 300);
     }).catch(err => {
       console.error('首页数据加载失败:', err);
       if (win.__updateLoadingText) win.__updateLoadingText('加载失败');

@@ -85,16 +85,30 @@ pub fn generate_machine_code() -> String {
     {
         use std::process::Command;
 
-        // Try multiple methods to get hardware identifier
+        // Helper to run command without showing window on Windows
+        let run_hidden = |program: &str, args: &[&str]| -> Option<String> {
+            #[cfg(target_os = "windows")]
+            {
+                use std::os::windows::process::CommandExt;
+                let mut cmd = Command::new(program);
+                cmd.args(args);
+                // CREATE_NO_WINDOW flag hides the console window
+                cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW = 0x08000000
+                cmd.output().ok().map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+            }
+            #[cfg(not(target_os = "windows"))]
+            {
+                let output = Command::new(program).args(args).output().ok()?;
+                Some(String::from_utf8_lossy(&output.stdout).trim().to_string())
+            }
+        };
 
         // Helper to run PowerShell without showing window
         let run_powershell = |cmd: &str| -> Option<String> {
-            Command::new("powershell")
-                .args(["-WindowStyle", "Hidden", "-NoProfile", "-Command", cmd])
-                .output()
-                .ok()
-                .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+            run_hidden("powershell", &["-WindowStyle", "Hidden", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", cmd])
         };
+
+        // Try multiple methods to get hardware identifier
 
         // Method 1: PowerShell Get-CimInstance (most reliable on modern Windows)
         if !has_valid_hardware_id {
@@ -109,14 +123,13 @@ pub fn generate_machine_code() -> String {
             }
         }
 
-        // Method 2: wmic csproduct (fallback)
+        // Method 2: wmic csproduct (fallback, already hidden via CREATE_NO_WINDOW)
         if !has_valid_hardware_id {
-            if let Ok(output) = Command::new("wmic").args(["csproduct", "get", "UUID"]).output() {
-                let uuid_str = String::from_utf8_lossy(&output.stdout);
+            if let Some(uuid) = run_hidden("wmic", &["csproduct", "get", "UUID"]) {
+                let uuid_str = uuid.clone();
                 info!(module="machine_code", "wmic csproduct output: '{}'", uuid_str);
                 if let Some(last_line) = uuid_str.lines().last() {
                     let uuid = last_line.trim();
-                    info!(module="machine_code", "wmic last line: '{}'", uuid);
                     if !uuid.is_empty() && uuid != "UUID"
                        && !uuid.contains("00000000")
                        && !uuid.contains("AAAAAAAA")
