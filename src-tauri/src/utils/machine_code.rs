@@ -3,6 +3,7 @@ use sysinfo::System;
 
 /// Generate machine code from hardware info
 /// Uses platform-specific unique hardware identifiers (UUID, serial numbers, etc.)
+/// IMPORTANT: Machine code must be deterministic - same hardware = same code
 pub fn generate_machine_code() -> String {
     let mut hasher = Sha256::new();
     let mut has_valid_hardware_id = false;
@@ -83,49 +84,83 @@ pub fn generate_machine_code() -> String {
     {
         use std::process::Command;
 
-        // Use wmic to get BIOS UUID (unique per machine)
+        // Try multiple methods to get hardware identifier
+
+        // Method 1: BIOS UUID (most reliable for Windows)
         if let Ok(output) = Command::new("wmic").args(["csproduct", "get", "UUID"]).output() {
             let uuid = String::from_utf8_lossy(&output.stdout);
             if let Some(last_line) = uuid.lines().last() {
                 let uuid = last_line.trim();
-                if !uuid.is_empty() && uuid != "UUID" && !uuid.contains("00000000-0000-0000-0000-000000000000") {
+                // Check for valid UUID (not empty, not placeholder)
+                if !uuid.is_empty() && uuid != "UUID"
+                   && !uuid.contains("00000000-0000-0000-0000-000000000000")
+                   && !uuid.contains("AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA") {
                     hasher.update(uuid.as_bytes());
                     has_valid_hardware_id = true;
                 }
             }
         }
 
-        // Get CPU ID as additional identifier
-        if let Ok(output) = std::process::Command::new("wmic").args(["cpu", "get", "ProcessorId"]).output() {
-            let cpu_id = String::from_utf8_lossy(&output.stdout);
-            if let Some(last_line) = cpu_id.lines().last() {
-                let cpu_id = last_line.trim();
-                if !cpu_id.is_empty() && cpu_id != "ProcessorId" {
-                    hasher.update(cpu_id.as_bytes());
+        // Method 2: Base board serial (if UUID is placeholder)
+        if !has_valid_hardware_id {
+            if let Ok(output) = Command::new("wmic").args(["baseboard", "get", "SerialNumber"]).output() {
+                let serial = String::from_utf8_lossy(&output.stdout);
+                if let Some(last_line) = serial.lines().last() {
+                    let serial = last_line.trim();
+                    if !serial.is_empty() && serial != "SerialNumber"
+                       && !serial.contains("To be filled") && !serial.contains("None") {
+                        hasher.update(serial.as_bytes());
+                        has_valid_hardware_id = true;
+                    }
                 }
             }
         }
 
-        // Get BIOS serial number
-        if let Ok(output) = std::process::Command::new("wmic").args(["bios", "get", "SerialNumber"]).output() {
-            let serial = String::from_utf8_lossy(&output.stdout);
-            if let Some(last_line) = serial.lines().last() {
-                let serial = last_line.trim();
-                if !serial.is_empty() && serial != "SerialNumber" && !serial.contains("To be filled") {
-                    hasher.update(serial.as_bytes());
+        // Method 3: BIOS serial number
+        if !has_valid_hardware_id {
+            if let Ok(output) = Command::new("wmic").args(["bios", "get", "SerialNumber"]).output() {
+                let serial = String::from_utf8_lossy(&output.stdout);
+                if let Some(last_line) = serial.lines().last() {
+                    let serial = last_line.trim();
+                    if !serial.is_empty() && serial != "SerialNumber"
+                       && !serial.contains("To be filled") && !serial.contains("None") {
+                        hasher.update(serial.as_bytes());
+                        has_valid_hardware_id = true;
+                    }
+                }
+            }
+        }
+
+        // Method 4: Try PowerShell as alternative (more reliable on some systems)
+        if !has_valid_hardware_id {
+            if let Ok(output) = Command::new("powershell").args([
+                "-Command",
+                "(Get-CimInstance Win32_ComputerSystemProduct).UUID"
+            ]).output() {
+                let uuid = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                if !uuid.is_empty() && !uuid.contains("00000000-0000-0000-0000-000000000000")
+                   && !uuid.contains("AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA") {
+                    hasher.update(uuid.as_bytes());
+                    has_valid_hardware_id = true;
                 }
             }
         }
     }
 
     // Fallback: only use if no valid hardware ID was found
-    // This ensures we don't generate duplicate machine codes for different machines
+    // IMPORTANT: No random component - machine code must be deterministic!
     if !has_valid_hardware_id {
-        let _sys = System::new();
-        hasher.update(System::name().unwrap_or_default().as_bytes());
-        hasher.update(System::host_name().unwrap_or_default().as_bytes());
-        // Add a random component to reduce collision probability
-        hasher.update(rand::random::<u64>().to_string().as_bytes());
+        let mut sys = System::new();
+        // Use multiple stable identifiers
+        if let Some(name) = System::name() {
+            hasher.update(name.as_bytes());
+        }
+        if let Some(host) = System::host_name() {
+            hasher.update(host.as_bytes());
+        }
+        // Use kernel build string as additional identifier
+        hasher.update(std::env::consts::OS.as_bytes());
+        hasher.update(std::env::consts::ARCH.as_bytes());
     }
 
     let result = hasher.finalize();
