@@ -103,32 +103,14 @@ pub fn generate_machine_code() -> String {
             }
         };
 
-        // Helper to run PowerShell without showing window
-        let run_powershell = |cmd: &str| -> Option<String> {
-            run_hidden("powershell", &["-WindowStyle", "Hidden", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", cmd])
-        };
-
         // Try multiple methods to get hardware identifier
+        // Priority: wmic (fast, no PowerShell overhead) > PowerShell
 
-        // Method 1: PowerShell Get-CimInstance (most reliable on modern Windows)
+        // Method 1: wmic csproduct (fastest - no PowerShell startup overhead)
         if !has_valid_hardware_id {
-            if let Some(uuid) = run_powershell("(Get-CimInstance Win32_ComputerSystemProduct).UUID") {
-                info!(module="machine_code", "PowerShell UUID output: '{}'", uuid);
-                if !uuid.is_empty() && !uuid.contains("00000000")
-                   && !uuid.contains("AAAAAAAA") && uuid.len() >= 32 {
-                    hasher.update(uuid.as_bytes());
-                    has_valid_hardware_id = true;
-                    info!(module="machine_code", "Using PowerShell UUID: {}", uuid);
-                }
-            }
-        }
-
-        // Method 2: wmic csproduct (fallback, already hidden via CREATE_NO_WINDOW)
-        if !has_valid_hardware_id {
-            if let Some(uuid) = run_hidden("wmic", &["csproduct", "get", "UUID"]) {
-                let uuid_str = uuid.clone();
-                info!(module="machine_code", "wmic csproduct output: '{}'", uuid_str);
-                if let Some(last_line) = uuid_str.lines().last() {
+            if let Some(output) = run_hidden("wmic", &["csproduct", "get", "UUID"]) {
+                info!(module="machine_code", "wmic output: '{}'", output);
+                if let Some(last_line) = output.lines().last() {
                     let uuid = last_line.trim();
                     if !uuid.is_empty() && uuid != "UUID"
                        && !uuid.contains("00000000")
@@ -142,35 +124,47 @@ pub fn generate_machine_code() -> String {
             }
         }
 
-        // Method 3: Base board serial
+        // Method 2: wmic baseboard serial
         if !has_valid_hardware_id {
-            if let Some(serial) = run_powershell("(Get-CimInstance Win32_BaseBoard).SerialNumber") {
-                info!(module="machine_code", "BaseBoard Serial: '{}'", serial);
-                if !serial.is_empty() && !serial.contains("To be filled") && !serial.contains("None") && serial.len() >= 8 {
-                    hasher.update(serial.as_bytes());
-                    has_valid_hardware_id = true;
+            if let Some(output) = run_hidden("wmic", &["baseboard", "get", "SerialNumber"]) {
+                info!(module="machine_code", "wmic baseboard: '{}'", output);
+                if let Some(last_line) = output.lines().last() {
+                    let serial = last_line.trim();
+                    if !serial.is_empty() && serial != "SerialNumber"
+                       && !serial.contains("To be filled") && !serial.contains("None") && serial.len() >= 8 {
+                        hasher.update(serial.as_bytes());
+                        has_valid_hardware_id = true;
+                        info!(module="machine_code", "Using wmic baseboard serial: {}", serial);
+                    }
                 }
             }
         }
 
-        // Method 4: BIOS serial
+        // Method 3: wmic bios serial
         if !has_valid_hardware_id {
-            if let Some(serial) = run_powershell("(Get-CimInstance Win32_BIOS).SerialNumber") {
-                info!(module="machine_code", "BIOS Serial: '{}'", serial);
-                if !serial.is_empty() && !serial.contains("To be filled") && !serial.contains("None") && serial.len() >= 8 {
-                    hasher.update(serial.as_bytes());
-                    has_valid_hardware_id = true;
+            if let Some(output) = run_hidden("wmic", &["bios", "get", "SerialNumber"]) {
+                info!(module="machine_code", "wmic bios: '{}'", output);
+                if let Some(last_line) = output.lines().last() {
+                    let serial = last_line.trim();
+                    if !serial.is_empty() && serial != "SerialNumber"
+                       && !serial.contains("To be filled") && !serial.contains("None") && serial.len() >= 8 {
+                        hasher.update(serial.as_bytes());
+                        has_valid_hardware_id = true;
+                        info!(module="machine_code", "Using wmic bios serial: {}", serial);
+                    }
                 }
             }
         }
 
-        // Method 5: Board product UUID from registry
+        // Method 4: PowerShell Get-CimInstance (fallback, slightly slower due to PowerShell startup)
         if !has_valid_hardware_id {
-            if let Some(uuid) = run_powershell("(Get-ItemProperty 'HKLM:\\HARDWARE\\DESCRIPTION\\System\\BIOS').SystemProductUUID") {
-                info!(module="machine_code", "Registry UUID: '{}'", uuid);
-                if !uuid.is_empty() && uuid != "00000000-0000-0000-0000-000000000000" && uuid.len() >= 36 {
-                    hasher.update(uuid.as_bytes());
+            let ps_cmd = "(Get-CimInstance Win32_ComputerSystemProduct).UUID";
+            if let Some(output) = run_hidden("powershell", &["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", ps_cmd]) {
+                info!(module="machine_code", "PowerShell UUID output: '{}'", output);
+                if !output.is_empty() && !output.contains("00000000") && !output.contains("AAAAAAAA") && output.len() >= 32 {
+                    hasher.update(output.as_bytes());
                     has_valid_hardware_id = true;
+                    info!(module="machine_code", "Using PowerShell UUID: {}", output);
                 }
             }
         }
