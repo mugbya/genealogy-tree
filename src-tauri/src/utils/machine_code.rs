@@ -80,7 +80,7 @@ pub fn generate_machine_code() -> String {
         }
     }
 
-    #[cfg(target_windows)]
+    #[cfg(target_os = "windows")]
     {
         use std::process::Command;
 
