@@ -661,7 +661,7 @@ pub async fn import_members(
                 .map(|s| s.trim())
                 .filter(|s| !s.is_empty())
                 .collect();
-            // tracing::info!("[import] Processing {} spouses for {}: {:?}", spouses.len(), name, spouses);
+            tracing::info!("[import] Processing {} spouses for member_id={} ({}): {:?}", spouses.len(), member_id, name, spouses);
             for spouse_name in spouses {
                 if let Some(&spouse_id) = name_to_id.get(spouse_name) {
                     let result = conn.execute(
@@ -709,7 +709,7 @@ pub async fn clear_and_import_members(
         Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))),
     };
 
-    tracing::error!(module="members", "[clear_and_import] Starting clear and import...");
+    tracing::info!(module="members", "[clear_and_import] Starting clear and import...");
 
     // 开始事务
     let tx = match conn.unchecked_transaction() {
@@ -722,14 +722,14 @@ pub async fn clear_and_import_members(
         tracing::error!(module="members", "[clear_and_import] Failed to clear member_relations: {}", e);
         return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": format!("清空关系失败: {}", e) })));
     }
-    tracing::error!(module="members", "[clear_and_import] Cleared all member_relations");
+    tracing::info!(module="members", "[clear_and_import] Cleared all member_relations");
 
     // 2. 删除所有现有成员 (表名是 family_members)
     if let Err(e) = tx.execute("DELETE FROM family_members", []) {
         tracing::error!(module="members", "[clear_and_import] Failed to clear family_members: {}", e);
         return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": format!("清空成员失败: {}", e) })));
     }
-    tracing::error!(module="members", "[clear_and_import] Cleared all family_members");
+    tracing::info!(module="members", "[clear_and_import] Cleared all family_members");
 
     // 3. 重新生成自增ID起始值（从1开始）
     if let Err(e) = tx.execute("DELETE FROM sqlite_sequence WHERE name='family_members' OR name='member_relations'", []) {
@@ -742,7 +742,7 @@ pub async fn clear_and_import_members(
         return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": format!("提交失败: {}", e) })));
     }
 
-    tracing::error!(module="members", "[clear_and_import] Clear completed, now importing...");
+    tracing::info!(module="members", "[clear_and_import] Clear completed, now importing...");
 
     // 复用 import_members 的逻辑，但使用新的 data
     // 由于 import_members 已经处理了文件解析，我们直接调用其内部逻辑
@@ -879,16 +879,21 @@ pub async fn clear_and_import_members(
 
         // Spouse relation
         if let Some(ref spouse_str) = row.配偶 {
+            tracing::info!("[clear_and_import] Processing spouse for member_id={}, spouse_str='{:?}'", member_id, spouse_str);
             let spouses: Vec<&str> = spouse_str.split(|c| c == ',' || c == '，' || c == '、')
                 .map(|s| s.trim())
                 .filter(|s| !s.is_empty())
                 .collect();
+            tracing::info!("[clear_and_import] Spouses list: {:?}", spouses);
             for spouse_name in spouses {
                 if let Some(&spouse_id) = name_to_id.get(spouse_name) {
-                    let _ = conn.execute(
+                    let result = conn.execute(
                         "INSERT OR IGNORE INTO member_relations (from_member_id, to_member_id, relation_type) VALUES (?, ?, ?)",
                         params![member_id, spouse_id, "spouse"],
                     );
+                    tracing::info!("[clear_and_import] Inserted spouse relation: {} -> {} (result: {:?})", member_id, spouse_id, result);
+                } else {
+                    tracing::warn!("[clear_and_import] Spouse not found in name_to_id: {}", spouse_name);
                 }
             }
         }
@@ -938,8 +943,9 @@ fn parse_excel(bytes: &[u8]) -> Result<Vec<ImportMemberRow>, String> {
     // Parse header row
     let headers: Vec<String> = range.rows()
         .next()
-        .map(|row| row.iter().map(|c| c.to_string()).collect())
+        .map(|row| row.iter().map(|c| trim_bom(&c.to_string()).to_string()).collect())
         .unwrap_or_default();
+    tracing::info!("[import] XLSX headers: {:?}", headers);
 
     // Parse data rows
     for row in range.rows().skip(1) {
@@ -950,11 +956,15 @@ fn parse_excel(bytes: &[u8]) -> Result<Vec<ImportMemberRow>, String> {
         let mut map: HashMap<String, String> = HashMap::new();
         for (i, cell) in row.iter().enumerate() {
             if let Some(header) = headers.get(i) {
-                map.insert(header.clone(), cell.to_string());
+                map.insert(header.clone(), trim_bom(&cell.to_string()).to_string());
             }
         }
 
         let member = parse_row_from_map(&map);
+        debug!(module="members", "[import] Row {}: name='{}', gender='{}', spouse='{:?}'", rows.len(), member.姓名, member.性别, member.配偶);
+        if member.配偶.is_some() {
+            tracing::info!("[import] XLSX row has spouse data: name='{}', spouse='{:?}'", member.姓名, member.配偶);
+        }
         rows.push(member);
     }
 
@@ -996,7 +1006,10 @@ fn parse_csv(content: &str) -> Result<Vec<ImportMemberRow>, String> {
         }
 
         let member = parse_row_from_map(&map);
-        debug!(module="members", "[import] Row {}: name='{}', gender='{}', surname='{:?}'", rows.len(), member.姓名, member.性别, member.姓氏);
+        debug!(module="members", "[import] Row {}: name='{}', gender='{}', spouse='{:?}'", rows.len(), member.姓名, member.性别, member.配偶);
+        if member.配偶.is_some() {
+            tracing::info!("[import] CSV row has spouse data: name='{}', spouse='{:?}'", member.姓名, member.配偶);
+        }
         // Debug: check if name is empty
         if member.姓名.trim().is_empty() {
             warn!(module="members", "[import] WARNING: name is empty! map keys: {:?}", map.keys().collect::<Vec<_>>());
@@ -1038,7 +1051,10 @@ fn parse_row_from_map(map: &HashMap<String, String>) -> ImportMemberRow {
         姓名: map.get("姓名").cloned().unwrap_or_default(),
         姓氏: map.get("姓氏").and_then(|s| if s.is_empty() { None } else { Some(s.clone()) }),
         性别: map.get("性别").cloned().unwrap_or_default(),
-        字辈: map.get("字辈").and_then(|s| if s.is_empty() { None } else { Some(s.clone()) }),
+        字辈: map.get("字辈").and_then(|s| {
+            let trimmed = trim_bom(s);
+            if trimmed.is_empty() { None } else { Some(trimmed.to_string()) }
+        }),
         排序: map.get("排序").and_then(|s| s.parse::<f64>().ok().map(|v| v as i32)),
         出生日期: map.get("出生日期").and_then(|s| if s.is_empty() { None } else { Some(s.clone()) }),
         逝世日期: map.get("逝世日期").and_then(|s| if s.is_empty() { None } else { Some(s.clone()) }),
