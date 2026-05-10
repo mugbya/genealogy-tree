@@ -550,7 +550,7 @@ export function ModernGenealogyBook({
 
   // 封面页
   const renderCover = () => (
-    <div className="h-full flex flex-col bg-white">
+    <div className="flex flex-col bg-white h-full overflow-hidden">
       {/* 顶部导出按钮 */}
       <div className="shrink-0 flex items-center justify-end gap-2 p-4 border-b">
         {exportSuccess && (
@@ -1162,11 +1162,12 @@ export function ModernGenealogyBook({
   }
 
   return (
-    <div className="h-full relative">
-      {view === 'cover' && renderCover()}
-      {view === 'toc' && renderToc()}
-      {view === 'detail' && renderDetail()}
-      {view === 'volume' && renderVolume()}
+    <div className="h-full flex flex-col overflow-hidden">
+      <div className="flex-1 min-h-0 flex flex-col overflow-hidden relative">
+        {view === 'cover' && renderCover()}
+        {view === 'toc' && renderToc()}
+        {view === 'detail' && renderDetail()}
+        {view === 'volume' && renderVolume()}
       {/* 隐藏的TOC用于导出 - 当不在TOC页时渲染 */}
       {view !== 'toc' && (
         <div className="absolute inset-0 -z-10 opacity-0 pointer-events-none">
@@ -1204,6 +1205,7 @@ export function ModernGenealogyBook({
           </div>
         </div>
       )}
+      </div>
     </div>
   )
 }
