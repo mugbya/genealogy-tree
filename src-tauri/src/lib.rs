@@ -262,19 +262,24 @@ pub fn run() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .invoke_handler(tauri::generate_handler![get_network_interfaces, get_download_path, get_database_path, download_template, get_http_port, open_downloads_folder, open_folder, save_screenshot, save_file])
         .setup(|app| {
+            let setup_start = std::time::Instant::now();
+            info!(module="lib", "=== Setup started ===");
+
             // 获取应用数据目录，使用绝对路径初始化数据库
             let app_data_dir = app.path().app_data_dir().expect("Failed to get app data dir");
             std::fs::create_dir_all(&app_data_dir).expect("Failed to create app data dir");
             let db_path = app_data_dir.join(".genealogy.db");
-            info!(module="lib", "Database path: {:?}", db_path);
+            info!(module="lib", "Database path: {:?} ({}ms)", db_path, setup_start.elapsed().as_millis());
 
             let conn = db::init_database(&db_path).expect("Failed to initialize database");
             let db = Arc::new(Mutex::new(conn));
             let http_db = db.clone();
+            info!(module="lib", "Database initialized ({}ms)", setup_start.elapsed().as_millis());
 
             // 创建微信登录状态存储
             let wechat_store = Arc::new(Mutex::new(api::WechatLoginStore::default()));
             let http_wechat_store = wechat_store.clone();
+            info!(module="lib", "Wechat store created ({}ms)", setup_start.elapsed().as_millis());
 
             // 启动使用情况上报定时器
             let report_db = db.clone();
@@ -294,10 +299,11 @@ pub fn run() {
                     .expect("Failed to get resource dir")
                     .join("dist")
             };
-            info!(module="lib", "Static files path: {:?}", dist_path);
+            info!(module="lib", "Static files path: {:?} ({}ms)", dist_path, setup_start.elapsed().as_millis());
 
             // 获取 AppHandle 用于模板下载
             let app_handle = app.handle().clone();
+            info!(module="lib", "AppHandle created ({}ms)", setup_start.elapsed().as_millis());
 
             // 获取 HTTP 端口配置
             let http_port = {
@@ -307,33 +313,20 @@ pub fn run() {
                     [],
                     |row| row.get::<_, String>(0),
                 );
-                match result {
-                    Ok(port) => {
-                        info!(module="lib", "Loaded http_port from config: {}", port);
-                        port
-                    }
-                    Err(e) => {
-                        warn!(module="lib", "Failed to load http_port from config: {}, using default 8089", e);
-                        "8089".to_string()
-                    }
-                }
+                result.unwrap_or_else(|_| {
+                    warn!(module="lib", "Failed to load http_port, using default 8089");
+                    "8089".to_string()
+                })
             };
+            info!(module="lib", "HTTP port: {} ({}ms)", http_port, setup_start.elapsed().as_millis());
 
-            // 获取 HTTPS 端口配置（暂未启用，为将来扩展留用）
-            let _https_port = {
-                let conn = db.lock().unwrap();
-                let result: Result<String, _> = conn.query_row(
-                    "SELECT value FROM family_config WHERE key = 'https_port'",
-                    [],
-                    |row| row.get::<_, String>(0),
-                );
-                result.unwrap_or_else(|_| "8443".to_string())
-            };
-            info!(module="lib", "Starting HTTP server on http://localhost:{}", http_port);
+            info!(module="lib", "Starting HTTP server on http://localhost:{} ({}ms)", http_port, setup_start.elapsed().as_millis());
             std::thread::spawn(move || {
                 let rt = tokio::runtime::Runtime::new().expect("Failed to create runtime");
                 rt.block_on(async {
+                    info!(module="lib", "Creating router...");
                     let app = api::create_router(http_db, http_wechat_store, Some(dist_path), Some(app_handle));
+                    info!(module="lib", "Router created, binding to port...");
                     let bind_addr = format!("0.0.0.0:{}", http_port);
                     let listener = tokio::net::TcpListener::bind(&bind_addr).await.expect("Failed to bind port");
                     info!(module="lib", "HTTP server running on http://localhost:{}", http_port);
@@ -341,6 +334,7 @@ pub fn run() {
                 });
             });
 
+            info!(module="lib", "=== Setup completed in {}ms ===", setup_start.elapsed().as_millis());
             Ok(())
         })
         .run(tauri::generate_context!())

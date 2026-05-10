@@ -326,6 +326,8 @@ pub fn check_and_report(db: Arc<Mutex<Connection>>) {
 /// Start the usage report timer
 pub fn start_report_timer(db: Arc<Mutex<Connection>>) {
     std::thread::spawn(move || {
+        // 首次延迟 30 秒后执行，避免阻塞应用启动
+        std::thread::sleep(std::time::Duration::from_secs(30));
         check_and_report(db.clone());
 
         loop {

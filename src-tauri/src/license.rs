@@ -116,38 +116,36 @@ pub fn get_ntp_time() -> Option<i64> {
         }
     }
 
-    for server in NTP_SERVERS {
-        trace!("Trying NTP server: {}", server);
-        match ntp::request(*server) {
-            Ok(packet) => {
-                // Get transmit timestamp from packet and convert to Unix timestamp
-                // NTP epoch is 1900-01-01, Unix epoch is 1970-01-01
-                // Offset is 2208988800 seconds
-                const NTP_UNIX_OFFSET: u64 = 2208988800;
+    // 使用有超时的 thread 运行 NTP 请求，避免阻塞
+    let result = std::thread::spawn(|| {
+        for server in NTP_SERVERS {
+            trace!("Trying NTP server: {}", server);
+            match ntp::request(*server) {
+                Ok(packet) => {
+                    const NTP_UNIX_OFFSET: u64 = 2208988800;
+                    let ntp_secs: u64 = packet.transmit_time.sec as u64;
+                    let unix_time = (ntp_secs as i64) - (NTP_UNIX_OFFSET as i64);
 
-                // Use .sec field to get seconds since NTP epoch
-                let ntp_secs: u64 = packet.transmit_time.sec as u64;
-                let unix_time = (ntp_secs as i64) - (NTP_UNIX_OFFSET as i64);
-
-                if unix_time > 1000000000 && unix_time < 10000000000 {
-                    // Sanity check: Unix timestamp should be between 2001 and 2286
-                    info!("NTP time synced: {} (server: {})", unix_time, server);
-                    // Store in cache (ignore result - if already set by another call, that's fine)
-                    let _ = CACHE.set((unix_time, std::time::Instant::now()));
-                    return Some(unix_time);
-                } else {
-                    warn!("NTP timestamp out of range: {}", unix_time);
+                    if unix_time > 1000000000 && unix_time < 10000000000 {
+                        info!("NTP time synced: {} (server: {})", unix_time, server);
+                        return Some(unix_time);
+                    } else {
+                        warn!("NTP timestamp out of range: {}", unix_time);
+                    }
+                }
+                Err(e) => {
+                    warn!("NTP sync failed for {}: {:?}", server, e);
                 }
             }
-            Err(e) => {
-                warn!("NTP sync failed for {}: {:?}", server, e);
-            }
         }
+        None
+    }).join().unwrap_or(None);
+
+    if let Some(time) = result {
+        let _ = CACHE.set((time, std::time::Instant::now()));
     }
 
-    // NTP 全部失败，返回 None
-    warn!("NTP sync failed, returning None");
-    None
+    result
 }
 
 /// Check if license is expired using NTP time

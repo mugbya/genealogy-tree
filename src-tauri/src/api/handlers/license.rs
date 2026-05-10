@@ -5,6 +5,7 @@ use axum::{
 };
 use serde_json::{json, Value};
 use tracing::warn;
+use std::time::Duration;
 
 use crate::api::router::AppState;
 use crate::license::{self as license_module, LicenseFeature, get_remaining_days_by_ntp};
@@ -18,17 +19,25 @@ pub async fn get_license_info(
         Ok(info) => {
             // If no license exists, request trial license from server
             let (license_key, auth_code, license_type, expires_at, is_valid, is_trial) = if info.license_key.is_none() {
-                match license_module::get_or_generate_trial_license_async(state.db.clone()).await {
-                    Ok((trial_key, trial_auth_code, trial_exp)) => (
+                // 使用超时，避免阻塞页面加载
+                match tokio::time::timeout(
+                    Duration::from_secs(5),
+                    license_module::get_or_generate_trial_license_async(state.db.clone())
+                ).await {
+                    Ok(Ok((trial_key, trial_auth_code, trial_exp))) => (
                         Some(trial_key),
                         Some(trial_auth_code),
                         Some("trial".to_string()),
-                        Some(trial_exp.clone()),
-                        true, // Trial is valid until expired
-                        true  // is_trial
+                        Some(trial_exp),
+                        true,
+                        true
                     ),
-                    Err(e) => {
+                    Ok(Err(e)) => {
                         warn!(module="license_handler", "Failed to get trial license: {}", e);
+                        (None, None, None, None, false, false)
+                    }
+                    Err(_) => {
+                        warn!(module="license_handler", "Trial license request timeout");
                         (None, None, None, None, false, false)
                     }
                 }
@@ -144,15 +153,22 @@ pub async fn check_feature(
 
     // If no license exists, request trial license from server
     let (license_key, auth_code, expires_at, license_type) = if license_info.license_key.is_none() {
-        match license_module::get_or_generate_trial_license_async(state.db.clone()).await {
-            Ok((trial_key, trial_auth_code, trial_exp)) => (
+        match tokio::time::timeout(
+            Duration::from_secs(5),
+            license_module::get_or_generate_trial_license_async(state.db.clone())
+        ).await {
+            Ok(Ok((trial_key, trial_auth_code, trial_exp))) => (
                 Some(trial_key),
                 Some(trial_auth_code),
                 Some(trial_exp),
                 Some("trial".to_string())
             ),
-            Err(e) => {
+            Ok(Err(e)) => {
                 warn!(module="license_handler", "Failed to get trial license: {}", e);
+                (None, None, None, None)
+            }
+            Err(_) => {
+                warn!(module="license_handler", "Trial license request timeout in check_feature");
                 (None, None, None, None)
             }
         }
