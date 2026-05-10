@@ -191,10 +191,15 @@ export function HomePage() {
   }, []);
 
   useEffect(() => {
-    fetchNetworkInterfaces();
-    fetchFamilyStats();
-    fetchLicenseInfo();
-    fetchHttpPort();
+    // 使用 Promise.all 并行请求，添加超时避免阻塞
+    const timeoutPromise = new Promise(resolve => setTimeout(() => resolve('timeout'), 5000))
+
+    Promise.all([
+      Promise.race([fetchNetworkInterfaces(), timeoutPromise]),
+      Promise.race([fetchFamilyStats(), timeoutPromise]),
+      Promise.race([fetchLicenseInfo(), timeoutPromise]),
+      Promise.race([fetchHttpPort(), timeoutPromise]),
+    ]).catch(err => console.error('首页数据加载失败:', err))
   }, [fetchNetworkInterfaces, fetchFamilyStats, fetchLicenseInfo, fetchHttpPort]);
 
   const copyToClipboard = async (text: string) => {

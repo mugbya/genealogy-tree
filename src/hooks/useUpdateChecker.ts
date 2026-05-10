@@ -116,10 +116,13 @@ export function useUpdateChecker() {
     localStorage.removeItem(DISMISSED_VERSION_KEY)
   }, [])
 
-  // 应用启动时自动检查更新（只执行一次）- 仅在 Tauri 环境
+  // 应用启动时自动检查更新（延迟 3 秒执行，避免阻塞页面加载）
   useEffect(() => {
     if (isTauri) {
-      checkForUpdates()
+      const timer = setTimeout(() => {
+        checkForUpdates()
+      }, 3000)
+      return () => clearTimeout(timer)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
