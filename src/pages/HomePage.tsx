@@ -191,15 +191,23 @@ export function HomePage() {
   }, []);
 
   useEffect(() => {
+    const win = window as any;
+    if (win.__updateLoadingText) win.__updateLoadingText('正在加载网络接口...');
+
     // 使用 Promise.all 并行请求，添加超时避免阻塞
     const timeoutPromise = new Promise(resolve => setTimeout(() => resolve('timeout'), 5000))
 
     Promise.all([
-      Promise.race([fetchNetworkInterfaces(), timeoutPromise]),
-      Promise.race([fetchFamilyStats(), timeoutPromise]),
-      Promise.race([fetchLicenseInfo(), timeoutPromise]),
-      Promise.race([fetchHttpPort(), timeoutPromise]),
-    ]).catch(err => console.error('首页数据加载失败:', err))
+      Promise.race([fetchNetworkInterfaces().then(() => { if (win.__updateLoadingText) win.__updateLoadingText('正在加载授权信息...'); }), timeoutPromise]),
+      Promise.race([fetchFamilyStats().then(() => { if (win.__updateLoadingText) win.__updateLoadingText('正在加载家族统计...'); }), timeoutPromise]),
+      Promise.race([fetchLicenseInfo().then(() => { if (win.__updateLoadingText) win.__updateLoadingText('正在加载授权状态...'); }), timeoutPromise]),
+      Promise.race([fetchHttpPort().then(() => { if (win.__updateLoadingText) win.__updateLoadingText('正在加载系统配置...'); }), timeoutPromise]),
+    ]).then(() => {
+      if (win.__updateLoadingText) win.__updateLoadingText('加载完成');
+    }).catch(err => {
+      console.error('首页数据加载失败:', err);
+      if (win.__updateLoadingText) win.__updateLoadingText('加载失败');
+    })
   }, [fetchNetworkInterfaces, fetchFamilyStats, fetchLicenseInfo, fetchHttpPort]);
 
   const copyToClipboard = async (text: string) => {
