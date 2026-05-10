@@ -87,13 +87,18 @@ pub fn generate_machine_code() -> String {
 
         // Try multiple methods to get hardware identifier
 
+        // Helper to run PowerShell without showing window
+        let run_powershell = |cmd: &str| -> Option<String> {
+            Command::new("powershell")
+                .args(["-WindowStyle", "Hidden", "-NoProfile", "-Command", cmd])
+                .output()
+                .ok()
+                .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+        };
+
         // Method 1: PowerShell Get-CimInstance (most reliable on modern Windows)
         if !has_valid_hardware_id {
-            if let Ok(output) = Command::new("powershell").args([
-                "-Command",
-                "(Get-CimInstance Win32_ComputerSystemProduct).UUID"
-            ]).output() {
-                let uuid = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            if let Some(uuid) = run_powershell("(Get-CimInstance Win32_ComputerSystemProduct).UUID") {
                 info!(module="machine_code", "PowerShell UUID output: '{}'", uuid);
                 if !uuid.is_empty() && !uuid.contains("00000000")
                    && !uuid.contains("AAAAAAAA") && uuid.len() >= 32 {
@@ -126,11 +131,7 @@ pub fn generate_machine_code() -> String {
 
         // Method 3: Base board serial
         if !has_valid_hardware_id {
-            if let Ok(output) = Command::new("powershell").args([
-                "-Command",
-                "(Get-CimInstance Win32_BaseBoard).SerialNumber"
-            ]).output() {
-                let serial = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            if let Some(serial) = run_powershell("(Get-CimInstance Win32_BaseBoard).SerialNumber") {
                 info!(module="machine_code", "BaseBoard Serial: '{}'", serial);
                 if !serial.is_empty() && !serial.contains("To be filled") && !serial.contains("None") && serial.len() >= 8 {
                     hasher.update(serial.as_bytes());
@@ -141,11 +142,7 @@ pub fn generate_machine_code() -> String {
 
         // Method 4: BIOS serial
         if !has_valid_hardware_id {
-            if let Ok(output) = Command::new("powershell").args([
-                "-Command",
-                "(Get-CimInstance Win32_BIOS).SerialNumber"
-            ]).output() {
-                let serial = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            if let Some(serial) = run_powershell("(Get-CimInstance Win32_BIOS).SerialNumber") {
                 info!(module="machine_code", "BIOS Serial: '{}'", serial);
                 if !serial.is_empty() && !serial.contains("To be filled") && !serial.contains("None") && serial.len() >= 8 {
                     hasher.update(serial.as_bytes());
@@ -156,11 +153,7 @@ pub fn generate_machine_code() -> String {
 
         // Method 5: Board product UUID from registry
         if !has_valid_hardware_id {
-            if let Ok(output) = Command::new("powershell").args([
-                "-Command",
-                "(Get-ItemProperty 'HKLM:\\HARDWARE\\DESCRIPTION\\System\\BIOS').SystemProductUUID"
-            ]).output() {
-                let uuid = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            if let Some(uuid) = run_powershell("(Get-ItemProperty 'HKLM:\\HARDWARE\\DESCRIPTION\\System\\BIOS').SystemProductUUID") {
                 info!(module="machine_code", "Registry UUID: '{}'", uuid);
                 if !uuid.is_empty() && uuid != "00000000-0000-0000-0000-000000000000" && uuid.len() >= 36 {
                     hasher.update(uuid.as_bytes());
