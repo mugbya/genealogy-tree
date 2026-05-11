@@ -1454,7 +1454,7 @@ export function TreePage() {
 
                             </p>
                           </div>
-                          {editableMemberIds.includes(member.id) && (
+                          {isAdmin && (
                             <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                               <Button
                                 variant="ghost"
@@ -2222,7 +2222,7 @@ export function TreePage() {
                   <TreeDeciduous className="w-4 h-4" />
                   查看祖谱树
                 </Button>
-                {editableMemberIds.includes(detailMember.id) && (
+                {isAdmin && (
                   <Button
                     className="flex-1 gap-2 bg-gray-900 hover:bg-gray-800"
                     onClick={() => {
