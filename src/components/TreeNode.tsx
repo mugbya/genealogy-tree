@@ -497,7 +497,19 @@ export const GenealogyTree = forwardRef<GenealogyTreeRef, GenealogyTreeProps>(fu
       }
 
       if (depth < maxGenerations) {
-        childIds.forEach(childId => {
+        // Sort children by birth_date for consistent ordering, then by id
+        const sortedChildIds = [...childIds].sort((a, b) => {
+          const childA = memberMap.get(a)
+          const childB = memberMap.get(b)
+          const birthA = childA?.birth_date || ''
+          const birthB = childB?.birth_date || ''
+          if (birthA !== birthB) {
+            return birthA.localeCompare(birthB)
+          }
+          return (childA?.id || 0) - (childB?.id || 0)
+        })
+
+        sortedChildIds.forEach(childId => {
           const child = memberMap.get(childId)
           if (child && !visited.has(childId)) {
             // Skip female members with no children if filter is enabled
@@ -636,9 +648,11 @@ export const GenealogyTree = forwardRef<GenealogyTreeRef, GenealogyTreeProps>(fu
       let childX = x - totalWidth / 2
 
       const positionedChildren: TreeNode[] = []
-      node.children.forEach((child) => {
+      node.children.forEach((child, index) => {
         const childWidth = calcWidth(child)
-        const childCenterX = childX + childWidth / 2
+        // For odd number of children, force the middle child to align with parent center
+        const isMiddleChild = node.children.length % 2 === 1 && index === Math.floor(node.children.length / 2)
+        const childCenterX = isMiddleChild ? x : childX + childWidth / 2
         const childPos = calcPositions(child, childCenterX, childY)
         positionedChildren.push(childPos)
         childX += childWidth + H_GAP
