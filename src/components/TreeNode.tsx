@@ -647,11 +647,14 @@ export const GenealogyTree = forwardRef<GenealogyTreeRef, GenealogyTreeProps>(fu
       const totalWidth = node.children.reduce((sum, child) => sum + calcWidth(child), 0) + (node.children.length - 1) * H_GAP
       let childX = x - totalWidth / 2
 
+      if (!node.children || node.children.length === 0) {
+        return { ...node, x: nodeLeft, y, width: NODE_WIDTH, height: NODE_HEIGHT, children: [] }
+      }
       const positionedChildren: TreeNode[] = []
       node.children.forEach((child, index) => {
         const childWidth = calcWidth(child)
         // For odd number of children, force the middle child to align with parent center
-        const isMiddleChild = node.children.length % 2 === 1 && index === Math.floor(node.children.length / 2)
+        const isMiddleChild = node.children!.length % 2 === 1 && index === Math.floor(node.children!.length / 2)
         const childCenterX = isMiddleChild ? x : childX + childWidth / 2
         const childPos = calcPositions(child, childCenterX, childY)
         positionedChildren.push(childPos)
